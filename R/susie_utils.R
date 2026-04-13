@@ -1471,6 +1471,9 @@ update_ash_variance_components <- function(data, model, params) {
   active_c_hat            <- 0.5    # slot must exceed this to be active
   c_hat_excess_threshold  <- 0.2    # c_hat must exceed prior null by this much
   alpha_entropy_threshold <- log(5) # expose if spread across >5 effective variants
+  alpha_k                 <- 10    # also mask positions where alpha > k/p (k times
+                                   # the uniform baseline 1/p). Broadens sentinel mask
+                                   # when multiple low_chat slots share a sentinel.
   diffuse_pip_neff        <- 50    # max effective variants for PIP mask contribution;
                                    # high_chat slots with N_eff > max(N_ld, this) are
                                    # too diffuse to warrant PIP protection and are
@@ -1588,6 +1591,9 @@ update_ash_variance_components <- function(data, model, params) {
     N_eff <- exp(-sum(alpha_nz * log(alpha_nz)))
     if (N_eff > max(N_ld, diffuse_pip_neff)) {
       high_chat_mask <- high_chat_mask[high_chat_mask != l]
+      # TODO: fallback sentinel + alpha mask for N_eff-excluded slots (5% of deaths)
+      # mask <- mask | (abs(Xcorr[sentinels[l], ]) > masking_threshold) |
+      #               (alpha_l > alpha_k / p)
     }
   }
   if (length(high_chat_mask) > 0) {
@@ -1618,7 +1624,8 @@ update_ash_variance_components <- function(data, model, params) {
       if (ent > alpha_entropy_threshold) model$was_exposed[l] <- TRUE
     }
     if (!model$was_exposed[l]) {
-      mask <- mask | (abs(Xcorr[sentinels[l], ]) > masking_threshold)
+      mask <- mask | (abs(Xcorr[sentinels[l], ]) > masking_threshold) |
+                    (model$alpha[l, ] > alpha_k / p)
     }
   }
 
