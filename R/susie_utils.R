@@ -1591,9 +1591,8 @@ update_ash_variance_components <- function(data, model, params) {
     N_eff <- exp(-sum(alpha_nz * log(alpha_nz)))
     if (N_eff > max(N_ld, diffuse_pip_neff)) {
       high_chat_mask <- high_chat_mask[high_chat_mask != l]
-      # TODO: fallback sentinel + alpha mask for N_eff-excluded slots (5% of deaths)
-      # mask <- mask | (abs(Xcorr[sentinels[l], ]) > masking_threshold) |
-      #               (alpha_l > alpha_k / p)
+      # Fallback: N_eff-excluded slots get sentinel mask (not naked)
+      mask <- mask | (abs(Xcorr[sentinels[l], ]) > masking_threshold)
     }
   }
   if (length(high_chat_mask) > 0) {
