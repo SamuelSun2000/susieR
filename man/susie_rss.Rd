@@ -54,8 +54,8 @@ susie_rss(
   refine = FALSE,
   sketch_samples = NULL,
   multipanel_safeguard = TRUE,
-  alpha0 = 0.1,
-  beta0 = 0.1,
+  alpha0 = 1/sqrt(n),
+  beta0 = 1/sqrt(n),
   init_only = FALSE,
   slot_prior = NULL
 )
@@ -298,10 +298,16 @@ are always stored in the returned object as \code{$single_panel_fits}
 so users can compare mixture vs single-panel results themselves.}
 
 \item{alpha0}{Numerical parameter for the NIG prior when using
-\code{estimate_residual_method = "NIG"}.}
+\code{estimate_residual_method = "NIG"}. Defaults to
+\code{1/sqrt(n)}, where \code{n} is the sample size. When calling
+\code{susie_rss} with NIG, \code{n} must be supplied; otherwise
+validation errors.}
 
 \item{beta0}{Numerical parameter for the NIG prior when using
-\code{estimate_residual_method = "NIG"}.}
+\code{estimate_residual_method = "NIG"}. Defaults to
+\code{1/sqrt(n)}, where \code{n} is the sample size. When calling
+\code{susie_rss} with NIG, \code{n} must be supplied; otherwise
+validation errors.}
 }
 \value{
 In addition to the standard \code{"susie"} output (see

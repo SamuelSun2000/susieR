@@ -449,7 +449,7 @@ reconstruct_full_weights <- function(non_null_weights, null_weight) {
 
 # Validate and Override Parameters
 #' @keywords internal
-validate_and_override_params <- function(params) {
+validate_and_override_params <- function(params, n = NULL) {
 
   # Validate prior tolerance threshold
   if (!is.numeric(params$prior_tol) || length(params$prior_tol) != 1) {
@@ -550,6 +550,19 @@ validate_and_override_params <- function(params) {
   if (params$estimate_residual_method == "NIG") {
     params$use_NIG <- TRUE
 
+    # Require a valid sample size n. The default alpha0/beta0 scale as
+    # 1/sqrt(n), so n must be a positive finite scalar. susie() infers
+    # this from nrow(X); susie_ss()'s constructor enforces it; susie_rss()
+    # allows n = NULL by default, so users who select NIG must also
+    # supply `n` explicitly.
+    if (is.null(n) || !is.numeric(n) || length(n) != 1 ||
+        !is.finite(n) || n < 1) {
+      stop("estimate_residual_method = \"NIG\" requires a valid sample ",
+           "size `n` (got n = ", paste(n, collapse = ""), "). ",
+           "susie() infers n from nrow(X); for susie_ss() and susie_rss(), ",
+           "pass `n` explicitly.")
+    }
+
     # Validate NIG prior parameters: both must be strictly positive for a proper
     # Inverse-Gamma prior. Otherwise compute_null_loglik_NIG() evaluates
     # lgamma(alpha0 / 2) at <= 0 and the marginal log-likelihood (and ELBO)
@@ -561,7 +574,7 @@ validate_and_override_params <- function(params) {
       stop("estimate_residual_method = \"NIG\" requires ",
            "alpha0 > 0 and beta0 > 0 (proper Inverse-Gamma prior). ",
            "Got alpha0 = ", params$alpha0, ", beta0 = ", params$beta0, ". ",
-           "The default alpha0 = 0.1, beta0 = 0.1 is a reasonable choice.")
+           "The default is alpha0 = beta0 = 1/sqrt(n).")
     }
 
     # The NIG prior inherently estimates residual variance (integrates out sigma^2).

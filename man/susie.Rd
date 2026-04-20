@@ -38,8 +38,8 @@ susie(
   residual_variance_lowerbound = NULL,
   refine = FALSE,
   n_purity = 100,
-  alpha0 = 0.1,
-  beta0 = 0.1,
+  alpha0 = 1/sqrt(nrow(X)),
+  beta0 = 1/sqrt(nrow(X)),
   init_only = FALSE,
   slot_prior = NULL
 )
@@ -198,10 +198,16 @@ to check and escape from local optima (see details).}
 \code{\link{susie_get_cs}}.}
 
 \item{alpha0}{Numerical parameter for the NIG prior when using
-\code{estimate_residual_method = "NIG"}.}
+\code{estimate_residual_method = "NIG"}. Defaults to
+\code{1/sqrt(n)}, where \code{n} is the sample size. When calling
+\code{susie_rss} with NIG, \code{n} must be supplied; otherwise
+validation errors.}
 
 \item{beta0}{Numerical parameter for the NIG prior when using
-\code{estimate_residual_method = "NIG"}.}
+\code{estimate_residual_method = "NIG"}. Defaults to
+\code{1/sqrt(n)}, where \code{n} is the sample size. When calling
+\code{susie_rss} with NIG, \code{n} must be supplied; otherwise
+validation errors.}
 
 \item{init_only}{Logical. If \code{TRUE}, return a list with
 \code{data} and \code{params} objects without running the IBSS

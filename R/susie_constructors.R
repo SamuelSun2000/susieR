@@ -223,7 +223,7 @@ individual_data_constructor <- function(X, y, L = min(10, ncol(X)),
   )
 
   # Validate and apply parameter overrides
-  params_object <- validate_and_override_params(params_object)
+  params_object <- validate_and_override_params(params_object, n = n)
   data_object <- structure(
     list(
       X = X,
@@ -524,7 +524,7 @@ sufficient_stats_constructor <- function(Xty, yty, n,
   )
 
   # Validate and apply parameter overrides
-  params_object <- validate_and_override_params(params_object)
+  params_object <- validate_and_override_params(params_object, n = n)
 
   # Assemble data object
   data_object <- structure(
@@ -615,6 +615,18 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
     warning_message("s_init is deprecated and will be removed in a future ",
                     "version of susieR. Please use model_init instead.")
     model_init <- s_init
+  }
+
+  # NIG prior requires an explicit sample size n: the default alpha0/beta0
+  # scale as 1/sqrt(n) and the NIG marginal likelihood depends on n. Without
+  # n, summary_stats_constructor bumps n to 2 internally (see below), which
+  # would silently corrupt the NIG posterior. Reject early with a clear error.
+  if (estimate_residual_method == "NIG" &&
+      (is.null(n) || !is.numeric(n) || length(n) != 1 ||
+       !is.finite(n) || n < 1)) {
+    stop("estimate_residual_method = \"NIG\" requires a valid sample ",
+         "size `n` (got n = ", paste(n, collapse = ""), "). ",
+         "For susie_rss(), pass `n` explicitly.")
   }
 
   # PVE-adjusted z-scores: shrink large z toward zero to account for
@@ -1201,7 +1213,7 @@ rss_lambda_constructor <- function(z, R = NULL, X = NULL, n = NULL,
   )
 
   # Validate params
-  params_object <- validate_and_override_params(params_object)
+  params_object <- validate_and_override_params(params_object, n = n)
 
   # Sketch sketch diagnostics.
   # Inflation is opt-in: only applied when sketch_samples is explicitly

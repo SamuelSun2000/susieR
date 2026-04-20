@@ -44,8 +44,8 @@ susie_ss(
   track_fit = FALSE,
   check_prior = FALSE,
   refine = FALSE,
-  alpha0 = 0.1,
-  beta0 = 0.1,
+  alpha0 = 1/sqrt(n),
+  beta0 = 1/sqrt(n),
   slot_prior = NULL
 )
 }
@@ -221,10 +221,16 @@ iterative refinement procedure is used, after the IBSS algorithm,
 to check and escape from local optima (see details).}
 
 \item{alpha0}{Numerical parameter for the NIG prior when using
-\code{estimate_residual_method = "NIG"}.}
+\code{estimate_residual_method = "NIG"}. Defaults to
+\code{1/sqrt(n)}, where \code{n} is the sample size. When calling
+\code{susie_rss} with NIG, \code{n} must be supplied; otherwise
+validation errors.}
 
 \item{beta0}{Numerical parameter for the NIG prior when using
-\code{estimate_residual_method = "NIG"}.}
+\code{estimate_residual_method = "NIG"}. Defaults to
+\code{1/sqrt(n)}, where \code{n} is the sample size. When calling
+\code{susie_rss} with NIG, \code{n} must be supplied; otherwise
+validation errors.}
 }
 \description{
 Performs SuSiE regression using sufficient statistics (XtX, Xty,
