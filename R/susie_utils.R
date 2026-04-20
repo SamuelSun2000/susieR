@@ -546,9 +546,9 @@ validate_and_override_params <- function(params) {
     params$estimate_prior_method <- "none"
   }
 
-  # Handle Servin_Stephens parameters for small sample correction
-  if (params$estimate_residual_method == "Servin_Stephens") {
-    params$use_servin_stephens <- TRUE
+  # Handle NIG parameters for small sample correction
+  if (params$estimate_residual_method == "NIG") {
+    params$use_NIG <- TRUE
 
     # Validate NIG prior parameters: both must be strictly positive for a proper
     # Inverse-Gamma prior. Otherwise compute_null_loglik_NIG() evaluates
@@ -558,7 +558,7 @@ validate_and_override_params <- function(params) {
         !is.finite(params$alpha0) || params$alpha0 <= 0 ||
         !is.numeric(params$beta0)  || length(params$beta0)  != 1 ||
         !is.finite(params$beta0)  || params$beta0  <= 0) {
-      stop("estimate_residual_method = \"Servin_Stephens\" requires ",
+      stop("estimate_residual_method = \"NIG\" requires ",
            "alpha0 > 0 and beta0 > 0 (proper Inverse-Gamma prior). ",
            "Got alpha0 = ", params$alpha0, ", beta0 = ", params$beta0, ". ",
            "The default alpha0 = 0.1, beta0 = 0.1 is a reasonable choice.")
@@ -569,7 +569,7 @@ validate_and_override_params <- function(params) {
     # that estimates sigma^2 by design. To suppress this warning, explicitly set
     # estimate_residual_variance = TRUE in the function call.
     if (!isTRUE(params$estimate_residual_variance)) {
-      warning_message("Servin_Stephens prior integrates out residual variance, ",
+      warning_message("NIG prior integrates out residual variance, ",
                       "implying estimate_residual_variance = TRUE. ",
                       "Setting estimate_residual_variance = TRUE. ",
                       "To suppress this warning, explicitly set ",
@@ -579,17 +579,17 @@ validate_and_override_params <- function(params) {
 
     # Override convergence method only when L > 1
     if (params$L > 1 && params$convergence_method != "pip") {
-      warning_message("Servin_Stephens method with L > 1 requires PIP convergence. Setting convergence_method='pip'.")
+      warning_message("NIG method with L > 1 requires PIP convergence. Setting convergence_method='pip'.")
       params$convergence_method <- "pip"
     }
 
     # Override prior variance estimation method (only when estimation is enabled)
     if (params$estimate_prior_variance && params$estimate_prior_method != "EM") {
-      warning_message("Servin_Stephens method works better with EM. Setting estimate_prior_method='EM'.")
+      warning_message("NIG method works better with EM. Setting estimate_prior_method='EM'.")
       params$estimate_prior_method <- "EM"
     }
   } else {
-    params$use_servin_stephens <- FALSE
+    params$use_NIG <- FALSE
     params$alpha0 <- NULL
     params$beta0 <- NULL
   }
@@ -964,9 +964,9 @@ compute_posterior_weights <- function(lpo) {
 
 # Compute gradient for prior variance optimization
 #' @keywords internal
-compute_lbf_gradient <- function(alpha, betahat, shat2, V, use_servin_stephens = FALSE) {
-  # No gradient computation for Servin-Stephens prior
-  if (use_servin_stephens) {
+compute_lbf_gradient <- function(alpha, betahat, shat2, V, use_NIG = FALSE) {
+  # No gradient computation for NIG prior
+  if (use_NIG) {
     return(NULL)
   }
 
@@ -981,12 +981,12 @@ compute_lbf_gradient <- function(alpha, betahat, shat2, V, use_servin_stephens =
 # VARIANCE ESTIMATION
 #
 # Functions specifically for estimating variance components using different
-# methods (MLE, MoM, Servin-Stephens). These handle both standard SuSiE
+# methods (MLE, MoM, NIG). These handle both standard SuSiE
 # and unmappable effects models.
 #
 # Functions: mom_unmappable, mle_unmappable, create_ash_grid,
-# compute_lbf_servin_stephens, posterior_mean_servin_stephens,
-# posterior_var_servin_stephens, compute_stats_NIG, update_prior_variance_NIG_EM,
+# compute_lbf_NIG_univariate, posterior_mean_NIG,
+# posterior_var_NIG, compute_stats_NIG, update_prior_variance_NIG_EM,
 # compute_kl_NIG, inv_gamma_factor, compute_null_loglik_NIG,
 # compute_marginal_loglik, est_residual_variance, update_model_variance
 # =============================================================================
@@ -1155,9 +1155,9 @@ get_nig_sufficient_stats <- function(data, model) {
   list(yy = yy, sxy = sxy, tau = tau)
 }
 
-# Compute log Bayes factor for Servin and Stephens prior
+# Compute log Bayes factor for NIG prior (univariate form on raw x, y)
 #' @keywords internal
-compute_lbf_servin_stephens <- function(x, y, s0, alpha0 = 0, beta0 = 0) {
+compute_lbf_NIG_univariate <- function(x, y, s0, alpha0 = 0, beta0 = 0) {
   x <- x - mean(x)
   y <- y - mean(y)
   n <- length(x)
@@ -1170,17 +1170,17 @@ compute_lbf_servin_stephens <- function(x, y, s0, alpha0 = 0, beta0 = 0) {
   return((log(1 - r0) - (n + alpha0) * log(ratio)) / 2)
 }
 
-# Posterior mean for Servin and Stephens prior using sufficient statistics
+# Posterior mean for NIG prior using sufficient statistics
 #' @keywords internal
-posterior_mean_servin_stephens <- function(xtx, xty, s0_t = 1) {
+posterior_mean_NIG <- function(xtx, xty, s0_t = 1) {
   omega <- (xtx + (1 / s0_t^2))^(-1)
   b_bar <- omega %*% xty
   return(b_bar)
 }
 
-# Posterior variance for Servin and Stephens prior using sufficient statistics
+# Posterior variance for NIG prior using sufficient statistics
 #' @keywords internal
-posterior_var_servin_stephens <- function(xtx, xty, yty, n, s0_t = 1) {
+posterior_var_NIG <- function(xtx, xty, yty, n, s0_t = 1) {
 
   # If prior variance is too small, return 0.
   if (s0_t < 1e-5) {
@@ -1344,9 +1344,9 @@ inv_gamma_factor <- function(a, b) {
 
 # Compute null log-likelihood under NIG prior
 #' @keywords internal
-compute_null_loglik_NIG <- function(n, yy, a0, b0, use_servin_stephens = FALSE) {
-  # No null log-likelihood for non-Servin-Stephens prior
-  if (!use_servin_stephens) {
+compute_null_loglik_NIG <- function(n, yy, a0, b0, use_NIG = FALSE) {
+  # No null log-likelihood for non-NIG prior
+  if (!use_NIG) {
     return(NULL)
   }
 
@@ -1357,13 +1357,13 @@ compute_null_loglik_NIG <- function(n, yy, a0, b0, use_servin_stephens = FALSE) 
 
 # Compute marginal log-likelihood for single effect regression
 #' @keywords internal
-compute_marginal_loglik <- function(lbf_model, n, yy, a0, b0, use_servin_stephens = FALSE) {
-  # No marginal log-likelihood computation for non-Servin-Stephens prior
-  if (!use_servin_stephens) {
+compute_marginal_loglik <- function(lbf_model, n, yy, a0, b0, use_NIG = FALSE) {
+  # No marginal log-likelihood computation for non-NIG prior
+  if (!use_NIG) {
     return(NULL)
   }
 
-  ll0 <- compute_null_loglik_NIG(n, yy, a0, b0, use_servin_stephens = TRUE)
+  ll0 <- compute_null_loglik_NIG(n, yy, a0, b0, use_NIG = TRUE)
   return(lbf_model + ll0)
 }
 

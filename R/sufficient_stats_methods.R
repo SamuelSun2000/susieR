@@ -65,8 +65,8 @@ initialize_susie_model.ss <- function(data, params, var_y, ...) {
     pm <- if (!is.null(data$XtX)) data$XtX else data$X
     model$predictor_weights <- attr(pm, "d")
 
-    # Initialize Servin-Stephens (NIG) parameters
-    if (params$use_servin_stephens) {
+    # Initialize NIG parameters
+    if (params$use_NIG) {
       model$rv <- rep(1, params$L)
       model$marginal_loglik <- rep(as.numeric(NA), params$L)
     }
@@ -168,8 +168,8 @@ compute_residuals.ss <- function(data, params, model, l, ...) {
   model$fitted_without_l  <- XtXr_without_l
   model$residual_variance <- model$sigma2
 
-  # Servin-Stephens (NIG) prior: compute residual sum of squares
-  if (params$use_servin_stephens) {
+  # NIG prior: compute residual sum of squares
+  if (params$use_NIG) {
     model$yy_residual <- as.numeric(
       data$yty - 2 * sum(b_minus_l * data$Xty) + sum(b_minus_l * XtXr_without_l))
     model$yy_residual <- max(model$yy_residual, .Machine$double.eps)
@@ -247,8 +247,8 @@ SER_posterior_e_loglik.ss <- function(data, params, model, l) {
 # Calculate posterior moments for single effect regression
 #' @keywords internal
 calculate_posterior_moments.ss <- function(data, params, model, V, l, ...) {
-  if (params$use_servin_stephens) {
-    # Servin-Stephens (NIG) posterior moments
+  if (params$use_NIG) {
+    # NIG posterior moments
     if (V <= 0) {
       post_mean  <- rep(0, data$p)
       post_mean2 <- rep(0, data$p)
@@ -283,7 +283,7 @@ calculate_posterior_moments.ss <- function(data, params, model, V, l, ...) {
 # Calculate KL divergence
 #' @keywords internal
 compute_kl.ss <- function(data, params, model, l) {
-  if (params$use_servin_stephens) {
+  if (params$use_NIG) {
     if (params$L == 1) {
       model$KL[l] <- compute_kl_NIG(model$alpha[l, ], model$mu[l, ], model$mu2[l, ],
                                      model$pi, model$V[l],
@@ -329,8 +329,8 @@ Eloglik.ss <- function(data, model) {
 #' @importFrom stats dnorm
 #' @keywords internal
 loglik.ss <- function(data, params, model, V, ser_stats, l = NULL, ...) {
-  if (params$use_servin_stephens) {
-    # Servin-Stephens (NIG) log Bayes factors
+  if (params$use_NIG) {
+    # NIG log Bayes factors
     nig_ss <- get_nig_sufficient_stats(data, model)
     lbf <- compute_lbf_NIG(data$n, model$predictor_weights,
                             model$residuals, nig_ss$yy, nig_ss$sxy,
@@ -354,7 +354,7 @@ loglik.ss <- function(data, params, model, V, ser_stats, l = NULL, ...) {
     model$lbf_variable[l, ] <- stable_res$lbf
 
     # Compute and store marginal log-likelihood for NIG prior
-    if (params$use_servin_stephens) {
+    if (params$use_NIG) {
       model$marginal_loglik[l] <- compute_marginal_loglik(weights_res$lbf_model, data$n,
                                                            nig_ss$yy, params$alpha0, params$beta0,
                                                            TRUE)
@@ -563,8 +563,8 @@ cleanup_model.ss <- function(data, params, model, ...) {
     model <- cleanup_ash_fields_filter_archived(model)
   }
   
-  # Remove Servin-stephens specific temporary fields
-  if (params$use_servin_stephens) {
+  # Remove NIG specific temporary fields
+  if (params$use_NIG) {
     model$marginal_loglik <- NULL
     if (nrow(model$alpha) > 1) model$elbo <- NULL
   }

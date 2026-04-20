@@ -26,7 +26,7 @@ susie_rss(
   standardize = TRUE,
   intercept_value = 0,
   estimate_residual_variance = FALSE,
-  estimate_residual_method = c("MoM", "MLE", "Servin_Stephens"),
+  estimate_residual_method = c("MoM", "MLE", "NIG"),
   estimate_prior_variance = TRUE,
   estimate_prior_method = c("optim", "EM", "simple"),
   prior_variance_grid = NULL,
@@ -160,7 +160,7 @@ LD matrix is provided, we recommend setting
 
 \item{estimate_residual_method}{The method used for estimating residual variance.
 For the original SuSiE model, "MLE" and "MoM" estimation is equivalent, but for
-the infinitesimal model, "MoM" is more stable. We recommend using "Servin_Stephens"
+the infinitesimal model, "MoM" is more stable. We recommend using "NIG"
 when n < 80 for improved coverage, although it is currently only implemented
 for individual-level data.}
 
@@ -298,10 +298,10 @@ are always stored in the returned object as \code{$single_panel_fits}
 so users can compare mixture vs single-panel results themselves.}
 
 \item{alpha0}{Numerical parameter for the NIG prior when using
-\code{estimate_residual_method = "Servin_Stephens"}.}
+\code{estimate_residual_method = "NIG"}.}
 
 \item{beta0}{Numerical parameter for the NIG prior when using
-\code{estimate_residual_method = "Servin_Stephens"}.}
+\code{estimate_residual_method = "NIG"}.}
 }
 \value{
 In addition to the standard \code{"susie"} output (see

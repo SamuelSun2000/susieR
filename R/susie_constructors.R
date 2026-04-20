@@ -111,9 +111,9 @@ individual_data_constructor <- function(X, y, L = min(10, ncol(X)),
 
   # Check for incompatible parameter combination
   if (unmappable_effects != "none" &&
-      estimate_residual_method == "Servin_Stephens") {
+      estimate_residual_method == "NIG") {
     stop("The combination of unmappable_effects = '", unmappable_effects,
-         "' with estimate_residual_method = 'Servin_Stephens' is not supported. ",
+         "' with estimate_residual_method = 'NIG' is not supported. ",
          "Please use estimate_residual_method = 'MoM' or 'MLE' instead.")
   }
 
@@ -216,7 +216,7 @@ individual_data_constructor <- function(X, y, L = min(10, ncol(X)),
     n_purity = n_purity,
     alpha0 = alpha0,
     beta0 = beta0,
-    use_servin_stephens = FALSE,  # Will be set by validation function
+    use_NIG = FALSE,  # Will be set by validation function
     intercept = intercept,
     standardize = standardize,
     slot_prior = slot_prior
@@ -516,7 +516,7 @@ sufficient_stats_constructor <- function(Xty, yty, n,
     n_purity = n_purity,
     alpha0 = alpha0,
     beta0 = beta0,
-    use_servin_stephens = FALSE,
+    use_NIG = FALSE,
     intercept = FALSE,  # SS always uses intercept = FALSE
     standardize = standardize,
     check_prior = check_prior,
@@ -945,8 +945,8 @@ rss_lambda_constructor <- function(z, R = NULL, X = NULL, n = NULL,
     estimate_residual_method <- "MLE"
   }
 
-  if (estimate_residual_method == "Servin_Stephens") {
-    stop("Servin-Stephens prior on residual variance is not implemented for RSS with lambda > 0. ",
+  if (estimate_residual_method == "NIG") {
+    stop("NIG prior on residual variance is not implemented for RSS with lambda > 0. ",
          "Please use estimate_residual_method = 'MLE' instead.")
   }
 
@@ -1191,9 +1191,9 @@ rss_lambda_constructor <- function(z, R = NULL, X = NULL, n = NULL,
     residual_variance_lowerbound = residual_variance_lowerbound,
     refine = refine,
     n_purity = n_purity,
-    alpha0 = 0,  # RSS doesn't support Servin_Stephens
-    beta0 = 0,   # RSS doesn't support Servin_Stephens
-    use_servin_stephens = FALSE,
+    alpha0 = 0,  # RSS doesn't support NIG
+    beta0 = 0,   # RSS doesn't support NIG
+    use_NIG = FALSE,
     intercept = FALSE,  # RSS always uses intercept = FALSE
     standardize = FALSE, # Never standardize RSS-lambda
     check_prior = check_prior,

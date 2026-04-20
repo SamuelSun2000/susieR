@@ -356,25 +356,25 @@ test_that("individual_data_constructor stores all parameters", {
 # INDIVIDUAL DATA CONSTRUCTOR - Incompatible Parameter Combinations
 # =============================================================================
 
-test_that("individual_data_constructor rejects unmappable_effects with Servin_Stephens", {
+test_that("individual_data_constructor rejects unmappable_effects with NIG", {
   base_data <- generate_base_data(n = 100, p = 50, k = 0, seed = 19.5)
 
   expect_error(
     individual_data_constructor(
       base_data$X, base_data$y,
       unmappable_effects = "inf",
-      estimate_residual_method = "Servin_Stephens"
+      estimate_residual_method = "NIG"
     ),
-    "The combination of unmappable_effects = 'inf' with estimate_residual_method = 'Servin_Stephens' is not supported"
+    "The combination of unmappable_effects = 'inf' with estimate_residual_method = 'NIG' is not supported"
   )
 
   expect_error(
     individual_data_constructor(
       base_data$X, base_data$y,
       unmappable_effects = "ash",
-      estimate_residual_method = "Servin_Stephens"
+      estimate_residual_method = "NIG"
     ),
-    "The combination of unmappable_effects = 'ash' with estimate_residual_method = 'Servin_Stephens' is not supported"
+    "The combination of unmappable_effects = 'ash' with estimate_residual_method = 'NIG' is not supported"
   )
 })
 
@@ -1018,15 +1018,15 @@ test_that("sufficient_stats_constructor rejects all-zero prior_weights", {
 # SUFFICIENT STATISTICS CONSTRUCTOR - Method Restrictions
 # =============================================================================
 
-test_that("sufficient_stats_constructor accepts Servin_Stephens", {
+test_that("sufficient_stats_constructor accepts NIG", {
   base_data <- generate_base_data(n = 100, p = 10, k = 0, seed = 29)
   XtX <- crossprod(base_data$X)
   Xty <- crossprod(base_data$X, base_data$y)
   yty <- 100
 
   result <- sufficient_stats_constructor(Xty = Xty, yty = yty, n = base_data$n, XtX = XtX,
-                                         estimate_residual_method = "Servin_Stephens")
-  expect_true(result$params$use_servin_stephens)
+                                         estimate_residual_method = "NIG")
+  expect_true(result$params$use_NIG)
   expect_equal(result$params$estimate_prior_method, "EM")
 })
 
@@ -1364,14 +1364,14 @@ test_that("rss_lambda_constructor switches MoM to MLE", {
   expect_equal(result$params$estimate_residual_method, "MLE")
 })
 
-test_that("rss_lambda_constructor rejects Servin_Stephens", {
+test_that("rss_lambda_constructor rejects NIG", {
   z <- rnorm(50)
   R <- diag(50)
 
   expect_error(
     rss_lambda_constructor(z, R, lambda = 0.5,
-                          estimate_residual_method = "Servin_Stephens"),
-    "Servin-Stephens prior on residual variance is not implemented"
+                          estimate_residual_method = "NIG"),
+    "NIG prior on residual variance is not implemented"
   )
 })
 

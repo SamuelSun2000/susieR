@@ -59,7 +59,7 @@ bibentry(header = "If susie_suff_stat or susie_rss is used, please also cite:",
                  'Effects" model. PLoS Genetics 18, e1010299.',
                  'https://doi.org/10.1371/journal.pgen.1010299'))
 
-bibentry(header = paste("If estimate_residual_method = 'Servin_Stephens' is used,",
+bibentry(header = paste("If estimate_residual_method = 'NIG' is used,",
                         "please also cite:"),
          bibtype = "Article",
          title = paste("Accounting for uncertainty in residual variances",
