@@ -216,6 +216,7 @@ individual_data_constructor <- function(X, y, L = min(10, ncol(X)),
     n_purity = n_purity,
     alpha0 = alpha0,
     beta0 = beta0,
+    n = n,
     use_NIG = FALSE,  # Will be set by validation function
     intercept = intercept,
     standardize = standardize,
@@ -223,7 +224,7 @@ individual_data_constructor <- function(X, y, L = min(10, ncol(X)),
   )
 
   # Validate and apply parameter overrides
-  params_object <- validate_and_override_params(params_object, n = n)
+  params_object <- validate_and_override_params(params_object)
   data_object <- structure(
     list(
       X = X,
@@ -516,6 +517,7 @@ sufficient_stats_constructor <- function(Xty, yty, n,
     n_purity = n_purity,
     alpha0 = alpha0,
     beta0 = beta0,
+    n = n,
     use_NIG = FALSE,
     intercept = FALSE,  # SS always uses intercept = FALSE
     standardize = standardize,
@@ -524,7 +526,7 @@ sufficient_stats_constructor <- function(Xty, yty, n,
   )
 
   # Validate and apply parameter overrides
-  params_object <- validate_and_override_params(params_object, n = n)
+  params_object <- validate_and_override_params(params_object)
 
   # Assemble data object
   data_object <- structure(
@@ -1205,6 +1207,7 @@ rss_lambda_constructor <- function(z, R = NULL, X = NULL, n = NULL,
     n_purity = n_purity,
     alpha0 = 0,  # RSS doesn't support NIG
     beta0 = 0,   # RSS doesn't support NIG
+    n = n,
     use_NIG = FALSE,
     intercept = FALSE,  # RSS always uses intercept = FALSE
     standardize = FALSE, # Never standardize RSS-lambda
@@ -1213,7 +1216,7 @@ rss_lambda_constructor <- function(z, R = NULL, X = NULL, n = NULL,
   )
 
   # Validate params
-  params_object <- validate_and_override_params(params_object, n = n)
+  params_object <- validate_and_override_params(params_object)
 
   # Sketch sketch diagnostics.
   # Inflation is opt-in: only applied when sketch_samples is explicitly

@@ -582,7 +582,8 @@ test_that("validate_and_override_params validates and adjusts parameters", {
     estimate_residual_variance = TRUE,
     refine = FALSE,
     alpha0 = 0.1,
-    beta0 = 0.1
+    beta0 = 0.1,
+    n = 100
   )
 
   result <- validate_and_override_params(valid_params)
@@ -649,11 +650,11 @@ test_that("validate_and_override_params validates and adjusts parameters", {
   nig_params$estimate_prior_method <- "simple"
 
   expect_message(
-    result <- validate_and_override_params(nig_params, n = 100),
+    result <- validate_and_override_params(nig_params),
     "PIP convergence"
   )
   expect_message(
-    result <- validate_and_override_params(nig_params, n = 100),
+    result <- validate_and_override_params(nig_params),
     "EM"
   )
 
@@ -669,7 +670,7 @@ test_that("validate_and_override_params validates and adjusts parameters", {
   nig_params_l1$convergence_method <- "elbo"
   nig_params_l1$estimate_prior_method <- "EM"
 
-  result_l1 <- validate_and_override_params(nig_params_l1, n = 100)
+  result_l1 <- validate_and_override_params(nig_params_l1)
 
   expect_true(result_l1$use_NIG)
   expect_equal(result_l1$convergence_method, "elbo")  # Not overridden
@@ -682,7 +683,7 @@ test_that("validate_and_override_params validates and adjusts parameters", {
   nig_erv_params$estimate_prior_method <- "EM"
 
   expect_message(
-    result <- validate_and_override_params(nig_erv_params, n = 100),
+    result <- validate_and_override_params(nig_erv_params),
     "estimate_residual_variance = TRUE"
   )
   expect_true(result$estimate_residual_variance)
@@ -695,7 +696,7 @@ test_that("validate_and_override_params validates and adjusts parameters", {
 
   # Should not produce the "estimate_residual_variance" warning
   expect_no_message(
-    result <- validate_and_override_params(nig_erv_params2, n = 100),
+    result <- validate_and_override_params(nig_erv_params2),
     message = "integrates out residual variance"
   )
   expect_true(result$estimate_residual_variance)
@@ -713,7 +714,7 @@ test_that("validate_and_override_params validates and adjusts parameters", {
   nig_no_prior_params$estimate_prior_variance <- FALSE
   nig_no_prior_params$estimate_prior_method <- "optim"
 
-  result <- validate_and_override_params(nig_no_prior_params, n = 100)
+  result <- validate_and_override_params(nig_no_prior_params)
   expect_true(result$use_NIG)
   # estimate_prior_variance = FALSE -> estimate_prior_method stays "none" (set earlier)
   # The SS block should NOT override to "EM" because estimation is disabled
@@ -726,7 +727,7 @@ test_that("validate_and_override_params validates and adjusts parameters", {
   nig_yes_prior_params$estimate_prior_method <- "simple"
 
   expect_message(
-    result <- validate_and_override_params(nig_yes_prior_params, n = 100),
+    result <- validate_and_override_params(nig_yes_prior_params),
     "EM"
   )
   expect_true(result$use_NIG)
@@ -739,7 +740,7 @@ test_that("validate_and_override_params validates and adjusts parameters", {
   nig_bad_alpha$alpha0 <- 0
   nig_bad_alpha$beta0 <- 0.5
   expect_error(
-    validate_and_override_params(nig_bad_alpha, n = 100),
+    validate_and_override_params(nig_bad_alpha),
     "alpha0 > 0 and beta0 > 0"
   )
 
@@ -750,7 +751,7 @@ test_that("validate_and_override_params validates and adjusts parameters", {
   nig_both_zero$alpha0 <- 0
   nig_both_zero$beta0 <- 0
   expect_error(
-    validate_and_override_params(nig_both_zero, n = 100),
+    validate_and_override_params(nig_both_zero),
     "alpha0 > 0 and beta0 > 0"
   )
 
@@ -760,7 +761,7 @@ test_that("validate_and_override_params validates and adjusts parameters", {
   nig_neg_alpha$alpha0 <- -0.5
   nig_neg_alpha$beta0 <- 1
   expect_error(
-    validate_and_override_params(nig_neg_alpha, n = 100),
+    validate_and_override_params(nig_neg_alpha),
     "alpha0 > 0 and beta0 > 0"
   )
 
@@ -770,7 +771,7 @@ test_that("validate_and_override_params validates and adjusts parameters", {
   nig_neg_beta$alpha0 <- 1
   nig_neg_beta$beta0 <- -0.5
   expect_error(
-    validate_and_override_params(nig_neg_beta, n = 100),
+    validate_and_override_params(nig_neg_beta),
     "alpha0 > 0 and beta0 > 0"
   )
 
@@ -779,7 +780,7 @@ test_that("validate_and_override_params validates and adjusts parameters", {
   nig_inf$estimate_residual_method <- "NIG"
   nig_inf$alpha0 <- Inf
   expect_error(
-    validate_and_override_params(nig_inf, n = 100),
+    validate_and_override_params(nig_inf),
     "alpha0 > 0 and beta0 > 0"
   )
 
@@ -787,7 +788,7 @@ test_that("validate_and_override_params validates and adjusts parameters", {
   nig_na$estimate_residual_method <- "NIG"
   nig_na$alpha0 <- NA_real_
   expect_error(
-    validate_and_override_params(nig_na, n = 100),
+    validate_and_override_params(nig_na),
     "alpha0 > 0 and beta0 > 0"
   )
 
@@ -796,7 +797,7 @@ test_that("validate_and_override_params validates and adjusts parameters", {
   nig_vec$estimate_residual_method <- "NIG"
   nig_vec$alpha0 <- c(0.1, 0.2)
   expect_error(
-    validate_and_override_params(nig_vec, n = 100),
+    validate_and_override_params(nig_vec),
     "alpha0 > 0 and beta0 > 0"
   )
 
@@ -805,7 +806,7 @@ test_that("validate_and_override_params validates and adjusts parameters", {
   nig_null$estimate_residual_method <- "NIG"
   nig_null$alpha0 <- NULL
   expect_error(
-    validate_and_override_params(nig_null, n = 100),
+    validate_and_override_params(nig_null),
     "alpha0 > 0 and beta0 > 0"
   )
 
@@ -820,37 +821,42 @@ test_that("validate_and_override_params validates and adjusts parameters", {
   expect_null(result$alpha0)
   expect_null(result$beta0)
 
-  # Test: NIG requires a valid sample size n (the default alpha0/beta0 scale
-  # as 1/sqrt(n), so n must be a positive finite scalar)
+  # Test: NIG requires a valid sample size params$n (the default alpha0/beta0
+  # scale as 1/sqrt(n), so n must be a positive finite scalar)
   nig_needs_n <- valid_params
   nig_needs_n$estimate_residual_method <- "NIG"
 
   # NULL n rejected
+  nig_needs_n$n <- NULL
   expect_error(
-    validate_and_override_params(nig_needs_n, n = NULL),
+    validate_and_override_params(nig_needs_n),
     "requires a valid sample size"
   )
 
   # Zero n rejected
+  nig_needs_n$n <- 0
   expect_error(
-    validate_and_override_params(nig_needs_n, n = 0),
+    validate_and_override_params(nig_needs_n),
     "requires a valid sample size"
   )
 
   # Negative n rejected
+  nig_needs_n$n <- -5
   expect_error(
-    validate_and_override_params(nig_needs_n, n = -5),
+    validate_and_override_params(nig_needs_n),
     "requires a valid sample size"
   )
 
   # Non-scalar n rejected
+  nig_needs_n$n <- c(100, 200)
   expect_error(
-    validate_and_override_params(nig_needs_n, n = c(100, 200)),
+    validate_and_override_params(nig_needs_n),
     "requires a valid sample size"
   )
 
   # Valid n passes
-  result <- suppressMessages(validate_and_override_params(nig_needs_n, n = 100))
+  nig_needs_n$n <- 100
+  result <- suppressMessages(validate_and_override_params(nig_needs_n))
   expect_true(result$use_NIG)
 })
 

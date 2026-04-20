@@ -449,7 +449,7 @@ reconstruct_full_weights <- function(non_null_weights, null_weight) {
 
 # Validate and Override Parameters
 #' @keywords internal
-validate_and_override_params <- function(params, n = NULL) {
+validate_and_override_params <- function(params) {
 
   # Validate prior tolerance threshold
   if (!is.numeric(params$prior_tol) || length(params$prior_tol) != 1) {
@@ -555,10 +555,10 @@ validate_and_override_params <- function(params, n = NULL) {
     # this from nrow(X); susie_ss()'s constructor enforces it; susie_rss()
     # allows n = NULL by default, so users who select NIG must also
     # supply `n` explicitly.
-    if (is.null(n) || !is.numeric(n) || length(n) != 1 ||
-        !is.finite(n) || n < 1) {
+    if (is.null(params$n) || !is.numeric(params$n) || length(params$n) != 1 ||
+        !is.finite(params$n) || params$n < 1) {
       stop("estimate_residual_method = \"NIG\" requires a valid sample ",
-           "size `n` (got n = ", paste(n, collapse = ""), "). ",
+           "size `n` (got n = ", paste(params$n, collapse = ""), "). ",
            "susie() infers n from nrow(X); for susie_ss() and susie_rss(), ",
            "pass `n` explicitly.")
     }
