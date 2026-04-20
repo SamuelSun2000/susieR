@@ -550,6 +550,20 @@ validate_and_override_params <- function(params) {
   if (params$estimate_residual_method == "Servin_Stephens") {
     params$use_servin_stephens <- TRUE
 
+    # Validate NIG prior parameters: both must be strictly positive for a proper
+    # Inverse-Gamma prior. Otherwise compute_null_loglik_NIG() evaluates
+    # lgamma(alpha0 / 2) at <= 0 and the marginal log-likelihood (and ELBO)
+    # become Inf or NaN.
+    if (!is.numeric(params$alpha0) || length(params$alpha0) != 1 ||
+        !is.finite(params$alpha0) || params$alpha0 <= 0 ||
+        !is.numeric(params$beta0)  || length(params$beta0)  != 1 ||
+        !is.finite(params$beta0)  || params$beta0  <= 0) {
+      stop("estimate_residual_method = \"Servin_Stephens\" requires ",
+           "alpha0 > 0 and beta0 > 0 (proper Inverse-Gamma prior). ",
+           "Got alpha0 = ", params$alpha0, ", beta0 = ", params$beta0, ". ",
+           "The default alpha0 = 0.1, beta0 = 0.1 is a reasonable choice.")
+    }
+
     # The NIG prior inherently estimates residual variance (integrates out sigma^2).
     # If estimate_residual_variance is FALSE, override it -- the user chose a method
     # that estimates sigma^2 by design. To suppress this warning, explicitly set

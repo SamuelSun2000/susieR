@@ -580,7 +580,9 @@ test_that("validate_and_override_params validates and adjusts parameters", {
     estimate_prior_method = "EM",
     estimate_residual_method = "MLE",
     estimate_residual_variance = TRUE,
-    refine = FALSE
+    refine = FALSE,
+    alpha0 = 0.1,
+    beta0 = 0.1
   )
 
   result <- validate_and_override_params(valid_params)
@@ -729,6 +731,94 @@ test_that("validate_and_override_params validates and adjusts parameters", {
   )
   expect_true(result$use_servin_stephens)
   expect_equal(result$estimate_prior_method, "EM")
+
+  # Test: Servin_Stephens rejects alpha0 = 0 (reproduces GitHub issue: L=1,
+  # alpha0 = 0, beta0 > 0 previously produced an infinite ELBO crash)
+  ss_bad_alpha <- valid_params
+  ss_bad_alpha$estimate_residual_method <- "Servin_Stephens"
+  ss_bad_alpha$alpha0 <- 0
+  ss_bad_alpha$beta0 <- 0.5
+  expect_error(
+    validate_and_override_params(ss_bad_alpha),
+    "alpha0 > 0 and beta0 > 0"
+  )
+
+  # Test: Servin_Stephens rejects alpha0 = 0, beta0 = 0 (previously produced
+  # a silent NaN ELBO rather than a proper error)
+  ss_both_zero <- valid_params
+  ss_both_zero$estimate_residual_method <- "Servin_Stephens"
+  ss_both_zero$alpha0 <- 0
+  ss_both_zero$beta0 <- 0
+  expect_error(
+    validate_and_override_params(ss_both_zero),
+    "alpha0 > 0 and beta0 > 0"
+  )
+
+  # Test: Servin_Stephens rejects negative alpha0
+  ss_neg_alpha <- valid_params
+  ss_neg_alpha$estimate_residual_method <- "Servin_Stephens"
+  ss_neg_alpha$alpha0 <- -0.5
+  ss_neg_alpha$beta0 <- 1
+  expect_error(
+    validate_and_override_params(ss_neg_alpha),
+    "alpha0 > 0 and beta0 > 0"
+  )
+
+  # Test: Servin_Stephens rejects negative beta0
+  ss_neg_beta <- valid_params
+  ss_neg_beta$estimate_residual_method <- "Servin_Stephens"
+  ss_neg_beta$alpha0 <- 1
+  ss_neg_beta$beta0 <- -0.5
+  expect_error(
+    validate_and_override_params(ss_neg_beta),
+    "alpha0 > 0 and beta0 > 0"
+  )
+
+  # Test: Servin_Stephens rejects non-finite alpha0/beta0
+  ss_inf <- valid_params
+  ss_inf$estimate_residual_method <- "Servin_Stephens"
+  ss_inf$alpha0 <- Inf
+  expect_error(
+    validate_and_override_params(ss_inf),
+    "alpha0 > 0 and beta0 > 0"
+  )
+
+  ss_na <- valid_params
+  ss_na$estimate_residual_method <- "Servin_Stephens"
+  ss_na$alpha0 <- NA_real_
+  expect_error(
+    validate_and_override_params(ss_na),
+    "alpha0 > 0 and beta0 > 0"
+  )
+
+  # Test: Servin_Stephens rejects non-scalar alpha0/beta0
+  ss_vec <- valid_params
+  ss_vec$estimate_residual_method <- "Servin_Stephens"
+  ss_vec$alpha0 <- c(0.1, 0.2)
+  expect_error(
+    validate_and_override_params(ss_vec),
+    "alpha0 > 0 and beta0 > 0"
+  )
+
+  # Test: Servin_Stephens rejects NULL alpha0/beta0 (non-numeric)
+  ss_null <- valid_params
+  ss_null$estimate_residual_method <- "Servin_Stephens"
+  ss_null$alpha0 <- NULL
+  expect_error(
+    validate_and_override_params(ss_null),
+    "alpha0 > 0 and beta0 > 0"
+  )
+
+  # Test: non-Servin_Stephens path does NOT validate alpha0/beta0
+  # (the NIG prior is unused, so invalid values must be silently ignored)
+  no_ss_bad <- valid_params
+  no_ss_bad$estimate_residual_method <- "MLE"
+  no_ss_bad$alpha0 <- 0
+  no_ss_bad$beta0 <- 0
+  result <- validate_and_override_params(no_ss_bad)
+  expect_false(result$use_servin_stephens)
+  expect_null(result$alpha0)
+  expect_null(result$beta0)
 })
 
 # =============================================================================

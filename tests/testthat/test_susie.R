@@ -242,6 +242,61 @@ test_that("susie handles estimate_residual_method = Servin_Stephens", {
   expect_true(fit$sigma2 > 0)
 })
 
+test_that("susie errors clearly for invalid Servin_Stephens alpha0/beta0", {
+  # Regression test for GitHub issue: SS SER with alpha0 = 0 and beta0 > 0
+  # using L = 1 previously produced an infinite ELBO crash. The fix is to
+  # reject improper Inverse-Gamma priors at parameter validation, before the
+  # ELBO is ever computed.
+  set.seed(18)
+  dat <- simulate_regression(n = 100, p = 50, k = 3)
+
+  # Original failing case from the issue (L = 1, alpha0 = 0, beta0 > 0)
+  expect_error(
+    susie(dat$X, dat$y, L = 1,
+          min_abs_corr = 0, check_null_threshold = -1000,
+          estimate_residual_method = "Servin_Stephens",
+          alpha0 = 0, beta0 = 0.5,
+          verbose = FALSE),
+    "alpha0 > 0 and beta0 > 0"
+  )
+
+  # Both zero -- previously produced silent NaN; should now error
+  expect_error(
+    susie(dat$X, dat$y, L = 1,
+          min_abs_corr = 0, check_null_threshold = -1000,
+          estimate_residual_method = "Servin_Stephens",
+          alpha0 = 0, beta0 = 0,
+          verbose = FALSE),
+    "alpha0 > 0 and beta0 > 0"
+  )
+
+  # Same guard fires for L > 1 (the L=2 path no longer silently succeeds
+  # with improper priors)
+  expect_error(
+    susie(dat$X, dat$y, L = 2,
+          min_abs_corr = 0, check_null_threshold = -1000,
+          estimate_residual_method = "Servin_Stephens",
+          alpha0 = 0, beta0 = 0.5,
+          verbose = FALSE),
+    "alpha0 > 0 and beta0 > 0"
+  )
+
+  # Sanity check: valid alpha0/beta0 still work for L=1 and L=2
+  fit_l1 <- susie(dat$X, dat$y, L = 1,
+                  min_abs_corr = 0, check_null_threshold = -1000,
+                  estimate_residual_method = "Servin_Stephens",
+                  alpha0 = 0.1, beta0 = 0.1,
+                  verbose = FALSE)
+  expect_s3_class(fit_l1, "susie")
+
+  fit_l2 <- susie(dat$X, dat$y, L = 2,
+                  min_abs_corr = 0, check_null_threshold = -1000,
+                  estimate_residual_method = "Servin_Stephens",
+                  alpha0 = 0.1, beta0 = 0.1,
+                  verbose = FALSE)
+  expect_s3_class(fit_l2, "susie")
+})
+
 test_that("susie handles estimate_prior_method options", {
   set.seed(19)
   dat <- simulate_regression(n = 100, p = 50, k = 3)
