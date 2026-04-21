@@ -134,7 +134,10 @@ initial estimate of the residual variance. By default, it is set to
 
 \item{prior_weights}{A vector of length p, in which each entry
 gives the prior probability that corresponding column of X has a
-nonzero effect on the outcome, y.}
+nonzero effect on the outcome, y. The weights are internally
+normalized to sum to 1. When \code{NULL} (the default), uniform
+prior weights are used (each variable is assigned probability
+\code{1/p}).}
 
 \item{null_weight}{Prior probability of no effect (a number between 0 and 1,
 and cannot be exactly 1).}
