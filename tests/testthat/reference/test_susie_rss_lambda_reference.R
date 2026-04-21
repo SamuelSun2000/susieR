@@ -1015,6 +1015,7 @@ test_that("susie_rss() matches reference with check_null_threshold=0.1 - optim",
 })
 
 test_that("susie_rss() matches reference with check_null_threshold=0.1 - EM", {
+  skip("Not a bug: susieR2.0 intentionally skips the check_null_threshold V-zeroing step for EM (see R/single_effect_regression.R:169 and stephenslab/mvsusieR#26). The check would zero V without recomputing the posterior, creating an inconsistent (q, V) pair that can decrease the ELBO. Since dev ignores check_null_threshold for EM, this test cannot match a reference that always applies the check.")
   skip_if_no_reference()
 
   set.seed(14)

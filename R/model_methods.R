@@ -84,7 +84,7 @@ initialize_matrices.default <- function(data, params, var_y) {
     alpha             = matrix(1 / data$p, L, data$p),
     mu                = matrix(0, L, data$p),
     mu2               = matrix(0, L, data$p),
-    V                 = rep(params$scaled_prior_variance * var_y, L),
+    V                 = expand_scaled_prior_variance(params$scaled_prior_variance, var_y, L),
     KL                = rep(as.numeric(NA), L),
     lbf               = rep(as.numeric(NA), L),
     lbf_variable      = matrix(as.numeric(NA), L, data$p),
@@ -170,18 +170,24 @@ check_convergence.default <- function(data, params, model, elbo, iter) {
     }
 
     # For NIG prior, require at least 3 iterations and average convergence
-    # over 2 consecutive iterations for more stable convergence
+    # over 2 consecutive iterations for more stable convergence. The
+    # per-iteration PIP diff is recorded on every iteration (including
+    # iter 1 and 2) so that by iter 3 the averaged criterion has two
+    # data points — matching the reference's "3 consecutive iterations
+    # with small variation" semantics.
     if (!is.null(params$use_NIG) && params$use_NIG) {
+      # Current iteration PIP difference (always recorded)
+      current_diff <- max(abs(model$runtime$prev_alpha - model$alpha))
+
       if (iter <= 2) {
+        # Store for averaging at iter 3+ but don't check convergence yet.
+        model$runtime$prev_pip_diff <- current_diff
         model$converged <- FALSE
         if (verbose)
           message(sprintf("iter %3d: V=%s%s [mem: %.2f GB]",
                           iter, V_str, chat_str, mem_used_gb()))
-        return(model)  # Require at least 3 iterations
+        return(model)
       }
-
-      # Current iteration PIP difference
-      current_diff <- max(abs(model$runtime$prev_alpha - model$alpha))
 
       # Average with previous iteration's difference if available
       if (!is.null(model$runtime$prev_pip_diff)) {

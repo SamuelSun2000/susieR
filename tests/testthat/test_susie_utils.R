@@ -910,6 +910,92 @@ test_that("initialize_matrices creates correct model matrices", {
   expect_true(all(is.na(result$lbf)))
 })
 
+test_that("initialize_matrices handles vector scaled_prior_variance of length L", {
+  # Regression for GitHub issue: scaled_prior_variance docs allow a length-L
+  # vector, but the refactor's rep(vec * var_y, L) produced length L*L.
+  n <- 100; p <- 50; L <- 5
+  data <- list(n = n, p = p)
+  spv <- c(0.1, 0.2, 0.3, 0.4, 0.5)
+  params <- list(
+    L = L,
+    scaled_prior_variance = spv,
+    residual_variance = 1.5,
+    prior_weights = rep(1 / p, p),
+    null_weight = 0
+  )
+  var_y <- 2.0
+
+  result <- initialize_matrices(data, params, var_y)
+
+  expect_length(result$V, L)
+  expect_equal(result$V, spv * var_y)
+})
+
+test_that("expand_scaled_prior_variance recycles scalar and preserves vector", {
+  expect_equal(expand_scaled_prior_variance(0.2, 2.0, 5), rep(0.4, 5))
+  expect_equal(
+    expand_scaled_prior_variance(c(0.1, 0.2, 0.3, 0.4, 0.5), 2.0, 5),
+    c(0.2, 0.4, 0.6, 0.8, 1.0)
+  )
+})
+
+test_that("validate_and_override_params rejects wrong-length scaled_prior_variance", {
+  base_params <- list(
+    prior_tol = 1e-9,
+    residual_variance_upperbound = 1e4,
+    scaled_prior_variance = c(0.1, 0.2, 0.3),
+    L = 5,
+    unmappable_effects = "none",
+    slot_prior = NULL
+  )
+  expect_error(
+    validate_and_override_params(base_params),
+    "scalar or a vector of length L"
+  )
+})
+
+test_that("susie with vector scaled_prior_variance runs end-to-end (pcarbo example)", {
+  # Regression for GitHub issue requesting per-slot prior variances.
+  # Before the fix, rep(vec * var_y, L) produced length L*L and poisoned
+  # downstream state; susie_get_cs eventually raised 'get_purity returned NaN/NA'.
+  set.seed(1)
+  n <- 200; p <- 100
+  beta <- rep(0, p); beta[1:4] <- 1
+  X <- matrix(rnorm(n * p), nrow = n)
+  X <- scale(X, center = TRUE, scale = TRUE)
+  y <- drop(X %*% beta + rnorm(n))
+
+  fit <- susie(X, y, L = 10,
+               estimate_prior_variance = FALSE,
+               scaled_prior_variance = rep(1, 10))
+
+  expect_length(fit$V, 10)
+  expect_true(all(is.finite(fit$V)))
+})
+
+test_that("vector scaled_prior_variance composes with model_init L expansion", {
+  # Confirms the preserve-fitted-V behavior (from the s_init/model_init PR)
+  # still applies when scaled_prior_variance is a length-L vector: the first
+  # num_effects entries come from model_init$V; the rest use the user vector.
+  set.seed(2)
+  n <- 200; p <- 80
+  beta <- rep(0, p); beta[1:3] <- 1
+  X <- scale(matrix(rnorm(n * p), nrow = n), center = TRUE, scale = TRUE)
+  y <- drop(X %*% beta + rnorm(n))
+
+  init <- susie(X, y, L = 2, estimate_prior_variance = TRUE)
+
+  L_new <- 5
+  spv <- c(0.1, 0.2, 0.3, 0.4, 0.5)
+  fit <- susie(X, y, L = L_new,
+               estimate_prior_variance = FALSE,
+               scaled_prior_variance = spv,
+               model_init = init)
+
+  expect_length(fit$V, L_new)
+  expect_true(all(is.finite(fit$V)))
+})
+
 test_that("initialize_null_index sets null index correctly", {
   data <- list(p = 100)
 

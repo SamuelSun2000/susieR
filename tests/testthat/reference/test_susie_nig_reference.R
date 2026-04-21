@@ -40,7 +40,9 @@ test_that("NIG matches reference (small=TRUE) with defaults", {
 
   # Dev: estimate_residual_method = "NIG" (set by helper)
   # Ref: small = TRUE (mapped by helper)
-  # Both default to alpha0 = 0.1, beta0 = 0.1, L = 10
+  # Reference defaults to alpha0 = beta0 = 0.1; dev's current default is
+  # 1/sqrt(n). The helper forces 0.1 on the dev side when the caller
+  # doesn't set these, so both runs use the same NIG hyperparameters.
   dev_args <- list(X = X, y = y, L = 10)
   results  <- compare_NIG_to_reference(dev_args, tolerance = 1e-5)
 

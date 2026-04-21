@@ -471,6 +471,10 @@ validate_and_override_params <- function(params) {
   if (!is.numeric(params$scaled_prior_variance) || any(params$scaled_prior_variance < 0)) {
     stop("Scaled prior variance should be positive number.")
   }
+  spv_len <- length(params$scaled_prior_variance)
+  if (spv_len != 1 && spv_len != params$L) {
+    stop("scaled_prior_variance must be a scalar or a vector of length L.")
+  }
 
   # Validate unmappable_effects
   # "ash_filter_archived" is a hidden option for internal diagnostics/archiving
@@ -650,6 +654,18 @@ assign_names <- function(data, model, variable_names) {
   return(model)
 }
 
+# Expand scaled_prior_variance into a length-L vector of prior variances.
+# Accepts either a scalar (recycled to length L) or a length-L vector
+# (used as-is, one prior variance per single-effect slot).
+#' @keywords internal
+expand_scaled_prior_variance <- function(scaled_prior_variance, var_y, L) {
+  if (length(scaled_prior_variance) == 1) {
+    rep(scaled_prior_variance * var_y, L)
+  } else {
+    scaled_prior_variance * var_y
+  }
+}
+
 # Adjust the number of effects
 #' @keywords internal
 adjust_L <- function(params, model_init_pruned, var_y) {
@@ -666,7 +682,7 @@ adjust_L <- function(params, model_init_pruned, var_y) {
     L <- num_effects
   }
 
-  V <- rep(params$scaled_prior_variance * var_y, L)
+  V <- expand_scaled_prior_variance(params$scaled_prior_variance, var_y, L)
   model_init <- prune_single_effects(model_init_pruned, L = L, V = V)
 
   return(list(model_init = model_init, L = L))
