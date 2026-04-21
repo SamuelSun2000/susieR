@@ -25,10 +25,10 @@ slot_prior_poisson(
 probability rho. Default 1.}
 
 \item{b_beta}{Shape parameter for the Beta prior on inclusion
-probability rho. Default 1 (uniform prior on rho).
-When \code{a_beta = 1} and \code{b_beta = 1}, the prior is
-uniform on [0,1], providing automatic multiplicity correction
-following Scott and Berger (2010).}
+probability rho. Default 2, giving a moderate sparsity preference
+with \code{E[rho] = 1/3 ~ 0.33}. Setting \code{a_beta = 1}
+and \code{b_beta = 1} gives a uniform prior on [0,1], providing
+automatic multiplicity correction following Scott and Berger (2010).}
 
 \item{c_hat_init}{Optional numeric L-vector of initial slot activity
 probabilities for warm-starting. If NULL, initialized at the
@@ -41,10 +41,9 @@ The threshold is recomputed after each sweep from the current
 model state, and is set to 0 on the first sweep so all slots
 are evaluated at least once.}
 
-\item{C}{Expected number of causal variants. For \code{slot_prior_betabinom},
-this determines the Beta prior parameters as \code{a = C, b = L - C}
-(set internally when L is known). For Gamma-Poisson variants, it sets
-the prior mean for the per-block causal rate. Must be positive.}
+\item{C}{Expected number of causal variants for the Gamma-Poisson prior
+on the per-block causal rate. Must be positive. Not used by
+\code{slot_prior_betabinom}.}
 
 \item{nu}{Overdispersion parameter for the Gamma-Poisson prior on the
 per-block causal rate. Not used by \code{slot_prior_betabinom}.
@@ -86,7 +85,7 @@ Two prior types are available:
 }
 }
 \examples{
-# Default: Beta-Binomial with Beta(1, 1.2) prior on inclusion probability
+# Default: Beta-Binomial with Beta(1, 2) prior on inclusion probability
 slot_prior_betabinom()
 
 # Gamma-Poisson for susieAnn

@@ -26,9 +26,8 @@ beta        = double(p)
 beta[1:10]  = 1:10
 y           = X \%*\% beta + rnorm(n)
 
-### glmnet fit
-library(glmnet)
-beta.lasso = coef(cv.glmnet(X, y))[-1]
-lasso.order = absolute.order(beta.lasso)
+### order predictors by magnitude of univariate regression coefficient
+beta.hat    = univariate_regression(X,y)$betahat
+order       = absolute.order(beta.hat)
 
 }

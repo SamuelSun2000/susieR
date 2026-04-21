@@ -28,7 +28,6 @@ requirements:
     - r-crayon
     - r-curl
     - r-ggplot2
-    - r-glmnet
     - r-knitr
     - r-l0learn
     - r-matrix
@@ -48,7 +47,6 @@ requirements:
     - r-crayon
     - r-curl
     - r-ggplot2
-    - r-glmnet
     - r-knitr
     - r-l0learn
     - r-matrix

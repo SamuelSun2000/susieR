@@ -98,7 +98,10 @@
 #'
 #' @param prior_weights A vector of length p, in which each entry
 #'   gives the prior probability that corresponding column of X has a
-#'   nonzero effect on the outcome, y.
+#'   nonzero effect on the outcome, y. The weights are internally
+#'   normalized to sum to 1. When \code{NULL} (the default), uniform
+#'   prior weights are used (each variable is assigned probability
+#'   \code{1/p}).
 #'
 #' @param null_weight Prior probability of no effect (a number between 0 and 1,
 #' and cannot be exactly 1).
@@ -188,7 +191,12 @@
 #' @param min_abs_corr Minimum absolute correlation allowed in a
 #'   credible set. The default, 0.5, corresponds to a squared
 #'   correlation of 0.25, which is a commonly used threshold for
-#'   genotype data in genetic studies.
+#'   genotype data in genetic studies. This "purity" filter is
+#'   applied to the CSs reported in the fit object, so the CS list
+#'   returned here may be a subset of the one produced by calling
+#'   \code{\link{susie_get_cs}} on the same fit without passing
+#'   \code{X} or \code{Xcorr} (in which case the purity filter is
+#'   skipped).
 #'
 #' @param compute_univariate_zscore If \code{compute_univariate_zscore
 #'   = TRUE}, the univariate regression z-scores are outputted for each

@@ -7,9 +7,10 @@
 path.order(fit)
 }
 \arguments{
-\item{fit}{The output of a function such as \code{glmnet} from the
-\code{glmnet} package or \code{ncvreg} from the \code{ncvfeg} that
-estimates a "regularization path" for all predictors.}
+\item{fit}{A fit object whose \code{coef()} method returns a matrix of
+coefficients with the intercept in the first row and one column per
+penalty strength (as produced by typical penalized-regression
+implementations).}
 }
 \value{
 An ordering of the predictors.
@@ -25,20 +26,18 @@ This function determines an ordering of the predictors
 ### generate synthetic data
 set.seed(1)
 n           = 200
-p           = 300
+p           = 30
 X           = matrix(rnorm(n*p),n,p)
 beta        = double(p)
 beta[1:10]  = 1:10
 y           = X \%*\% beta + rnorm(n)
 
-### glmnet fit
-library(glmnet)
-fit.lasso = glmnet(X, y)
-lasso.order = path.order(fit.lasso)
-
-### ncvreg fit
-library(ncvreg)
-fit.scad = ncvreg(X, y)
-scad.order = path.order(fit.scad)
+### build a minimal example 'fit' object with the same structure as a
+### fit from a penalized regression: a coefficient matrix with the
+### intercept in row 1 and one column per (decreasing) penalty value.
+beta_path   = matrix(0, p + 1, p)
+for (k in 1:p) beta_path[k + 1, k:p] = 1
+fit         = list(coefficients = beta_path)
+order       = path.order(fit)
 
 }

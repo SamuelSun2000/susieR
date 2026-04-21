@@ -137,12 +137,23 @@ compare_NIG_to_reference <- function(dev_args,
   dev_args$estimate_residual_method <- "NIG"
 
   # Match reference behavior: disable V null threshold check and use
-
   # the same convergence tolerance as the reference (tol_small = 1e-4)
   if (is.null(dev_args$check_null_threshold))
     dev_args$check_null_threshold <- -Inf
   if (is.null(dev_args$tol))
     dev_args$tol <- 1e-4
+
+  # Match reference NIG hyperparameter defaults. Dev defaults changed in
+  # commit b0b0c40 ("new defaults") from alpha0 = beta0 = 0.1 to
+  # alpha0 = beta0 = 1/sqrt(n), a weakly-informative scaling. The reference
+  # (stephenslab/susieR@a999d44, small = TRUE) still uses 0.1. Force 0.1
+  # on the dev side when the caller hasn't set these so the two runs use
+  # the same prior; the change to 1/sqrt(n) is a deliberate design choice
+  # unrelated to mathematical parity with the reference.
+  if (is.null(dev_args$alpha0))
+    dev_args$alpha0 <- 0.1
+  if (is.null(dev_args$beta0))
+    dev_args$beta0 <- 0.1
 
   # Build reference args by mapping interface differences
   if (is.null(ref_args)) {

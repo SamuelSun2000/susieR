@@ -81,7 +81,9 @@ coverage of each CS.}
 
 \item{min_abs_corr}{A "purity" threshold for the CS. Any CS that
 contains a pair of variables with correlation less than this
-threshold will be filtered out and not reported.}
+threshold will be filtered out and not reported. This filter is
+only applied when \code{X} or \code{Xcorr} is provided; otherwise
+it is ignored and a warning is issued.}
 
 \item{dedup}{If \code{dedup = TRUE}, remove duplicate CSs.}
 

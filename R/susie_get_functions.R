@@ -246,7 +246,9 @@ susie_get_posterior_samples <- function(susie_fit, num_samples) {
 #'
 #' @param min_abs_corr A "purity" threshold for the CS. Any CS that
 #'   contains a pair of variables with correlation less than this
-#'   threshold will be filtered out and not reported.
+#'   threshold will be filtered out and not reported. This filter is
+#'   only applied when \code{X} or \code{Xcorr} is provided; otherwise
+#'   it is ignored and a warning is issued.
 #'
 #' @param dedup If \code{dedup = TRUE}, remove duplicate CSs.
 #'
@@ -278,6 +280,13 @@ susie_get_cs <- function(res, X = NULL, Xcorr = NULL, coverage = 0.95,
                          use_rfast = NULL, ld_extend_threshold = 0.99) {
   if (!is.null(X) && !is.null(Xcorr)) {
     stop("Only one of X or Xcorr should be specified")
+  }
+  if (is.null(X) && is.null(Xcorr)) {
+    warning_message(
+      "Neither X nor Xcorr was provided; purity filtering is skipped ",
+      "and min_abs_corr will have no effect. Pass X or Xcorr to enable ",
+      "the purity filter."
+    )
   }
   if (check_symmetric) {
     if (!is.null(Xcorr) && !is_symmetric_matrix(Xcorr)) {
