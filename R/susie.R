@@ -324,8 +324,8 @@ susie <- function(X, y, L = min(10, ncol(X)),
                   residual_variance_lowerbound = NULL,
                   refine = FALSE,
                   n_purity = 100,
-                  alpha0 = 1/sqrt(nrow(X)),
-                  beta0 = 1/sqrt(nrow(X)),
+                  alpha0 = NULL,
+                  beta0 = NULL,
                   init_only = FALSE,
                   slot_prior = NULL) {
 
@@ -447,8 +447,8 @@ susie_ss <- function(XtX, Xty, yty, n,
                      track_fit = FALSE,
                      check_prior = FALSE,
                      refine = FALSE,
-                     alpha0 = 1/sqrt(n),
-                     beta0 = 1/sqrt(n),
+                     alpha0 = NULL,
+                     beta0 = NULL,
                      slot_prior = NULL) {
 
   # Validate method arguments
@@ -661,8 +661,8 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
                       refine = FALSE,
                       sketch_samples = NULL,
                       multipanel_safeguard = TRUE,
-                      alpha0 = if (is.null(n)) NULL else 1/sqrt(n),
-                      beta0 = if (is.null(n)) NULL else 1/sqrt(n),
+                      alpha0 = NULL,
+                      beta0 = NULL,
                       init_only = FALSE,
                       slot_prior = NULL) {
 

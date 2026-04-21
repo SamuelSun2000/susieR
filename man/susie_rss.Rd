@@ -54,8 +54,8 @@ susie_rss(
   refine = FALSE,
   sketch_samples = NULL,
   multipanel_safeguard = TRUE,
-  alpha0 = 1/sqrt(n),
-  beta0 = 1/sqrt(n),
+  alpha0 = NULL,
+  beta0 = NULL,
   init_only = FALSE,
   slot_prior = NULL
 )

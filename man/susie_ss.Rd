@@ -44,8 +44,8 @@ susie_ss(
   track_fit = FALSE,
   check_prior = FALSE,
   refine = FALSE,
-  alpha0 = 1/sqrt(n),
-  beta0 = 1/sqrt(n),
+  alpha0 = NULL,
+  beta0 = NULL,
   slot_prior = NULL
 )
 }
