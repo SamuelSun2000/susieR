@@ -250,7 +250,7 @@ em_update_prior_variance <- function(data, params, model, alpha, moments, V_init
 }
 #' @keywords internal
 em_update_prior_variance.default <- function(data, params, model, alpha, moments, V_init) {
-  if (!is.null(params$use_servin_stephens) && params$use_servin_stephens) {
+  if (!is.null(params$use_NIG) && params$use_NIG) {
     nig_ss <- get_nig_sufficient_stats(data, model)
     return(update_prior_variance_NIG_EM(data$n, model$predictor_weights,
                                          model$residuals, nig_ss$yy, nig_ss$sxy,

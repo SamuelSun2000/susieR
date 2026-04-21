@@ -169,9 +169,9 @@ check_convergence.default <- function(data, params, model, elbo, iter) {
                              " value. Using pip-based convergence this iteration."))
     }
 
-    # For Servin-Stephens prior, require at least 3 iterations and average convergence
+    # For NIG prior, require at least 3 iterations and average convergence
     # over 2 consecutive iterations for more stable convergence
-    if (!is.null(params$use_servin_stephens) && params$use_servin_stephens) {
+    if (!is.null(params$use_NIG) && params$use_NIG) {
       if (iter <= 2) {
         model$converged <- FALSE
         if (verbose)
@@ -286,7 +286,7 @@ get_objective.default <- function(data, params, model) {
       data$eigen_vectors, data$eigen_values,
       data$VtXty, data$yty
     )
-  } else if (params$use_servin_stephens && nrow(model$alpha) == 1) {
+  } else if (params$use_NIG && nrow(model$alpha) == 1) {
     objective <- model$marginal_loglik[1]
   } else {
     # Standard ELBO computation

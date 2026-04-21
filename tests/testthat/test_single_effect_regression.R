@@ -220,7 +220,7 @@ test_that("SER with strong signal has large V", {
 
   params <- create_base_params(L = 1, p = p, additional_params = list(
     estimate_prior_method = "optim",
-    use_servin_stephens = FALSE,
+    use_NIG = FALSE,
     check_null_threshold = 0.1
   ))
 
@@ -248,7 +248,7 @@ test_that("SER with no signal has V close to 0", {
 
   params <- create_base_params(L = 1, p = p, additional_params = list(
     estimate_prior_method = "optim",
-    use_servin_stephens = FALSE,
+    use_NIG = FALSE,
     check_null_threshold = 0.1
   ))
 
