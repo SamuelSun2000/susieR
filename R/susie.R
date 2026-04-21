@@ -188,7 +188,12 @@
 #' @param min_abs_corr Minimum absolute correlation allowed in a
 #'   credible set. The default, 0.5, corresponds to a squared
 #'   correlation of 0.25, which is a commonly used threshold for
-#'   genotype data in genetic studies.
+#'   genotype data in genetic studies. This "purity" filter is
+#'   applied to the CSs reported in the fit object, so the CS list
+#'   returned here may be a subset of the one produced by calling
+#'   \code{\link{susie_get_cs}} on the same fit without passing
+#'   \code{X} or \code{Xcorr} (in which case the purity filter is
+#'   skipped).
 #'
 #' @param compute_univariate_zscore If \code{compute_univariate_zscore
 #'   = TRUE}, the univariate regression z-scores are outputted for each

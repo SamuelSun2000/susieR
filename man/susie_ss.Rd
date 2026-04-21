@@ -199,7 +199,12 @@ than \code{tol}.}
 \item{min_abs_corr}{Minimum absolute correlation allowed in a
 credible set. The default, 0.5, corresponds to a squared
 correlation of 0.25, which is a commonly used threshold for
-genotype data in genetic studies.}
+genotype data in genetic studies. This "purity" filter is
+applied to the CSs reported in the fit object, so the CS list
+returned here may be a subset of the one produced by calling
+\code{\link{susie_get_cs}} on the same fit without passing
+\code{X} or \code{Xcorr} (in which case the purity filter is
+skipped).}
 
 \item{n_purity}{Passed as argument \code{n_purity} to
 \code{\link{susie_get_cs}}.}
