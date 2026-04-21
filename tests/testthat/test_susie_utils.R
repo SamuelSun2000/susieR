@@ -801,27 +801,14 @@ test_that("validate_and_override_params validates and adjusts parameters", {
     "alpha0 > 0 and beta0 > 0"
   )
 
-  # Test: NULL alpha0/beta0 get resolved to 1/sqrt(n) (NULL is the
-  # sentinel for "use the default"; the signature declares
-  # alpha0 = NULL, beta0 = NULL)
-  nig_null_alpha0 <- valid_params
-  nig_null_alpha0$estimate_residual_method <- "NIG"
-  nig_null_alpha0$alpha0 <- NULL
-  nig_null_alpha0$beta0  <- NULL
-  nig_null_alpha0$n      <- 100
-  result <- suppressMessages(validate_and_override_params(nig_null_alpha0))
-  expect_equal(result$alpha0, 1/sqrt(100))
-  expect_equal(result$beta0,  1/sqrt(100))
-
-  # Test: user-supplied alpha0/beta0 are NOT overridden by the default
-  nig_explicit <- valid_params
-  nig_explicit$estimate_residual_method <- "NIG"
-  nig_explicit$alpha0 <- 0.5
-  nig_explicit$beta0  <- 0.7
-  nig_explicit$n      <- 100
-  result <- suppressMessages(validate_and_override_params(nig_explicit))
-  expect_equal(result$alpha0, 0.5)
-  expect_equal(result$beta0,  0.7)
+  # Test: NIG rejects NULL alpha0/beta0 (non-numeric)
+  nig_null <- valid_params
+  nig_null$estimate_residual_method <- "NIG"
+  nig_null$alpha0 <- NULL
+  expect_error(
+    validate_and_override_params(nig_null),
+    "alpha0 > 0 and beta0 > 0"
+  )
 
   # Test: non-NIG path does NOT validate alpha0/beta0
   # (the NIG prior is unused, so invalid values must be silently ignored)

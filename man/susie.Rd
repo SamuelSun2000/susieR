@@ -38,8 +38,8 @@ susie(
   residual_variance_lowerbound = NULL,
   refine = FALSE,
   n_purity = 100,
-  alpha0 = NULL,
-  beta0 = NULL,
+  alpha0 = 1/sqrt(nrow(X)),
+  beta0 = 1/sqrt(nrow(X)),
   init_only = FALSE,
   slot_prior = NULL
 )

@@ -563,13 +563,6 @@ validate_and_override_params <- function(params) {
            "pass `n` explicitly.")
     }
 
-    # Resolve NULL alpha0/beta0 to the 1/sqrt(n) default. User-supplied
-    # values (any non-NULL) are preserved and flow into the validation
-    # below. Safe to compute 1/sqrt(params$n) because we just validated
-    # params$n is a positive finite scalar.
-    if (is.null(params$alpha0)) params$alpha0 <- 1/sqrt(params$n)
-    if (is.null(params$beta0))  params$beta0  <- 1/sqrt(params$n)
-
     # Validate NIG prior parameters: both must be strictly positive for a proper
     # Inverse-Gamma prior. Otherwise compute_null_loglik_NIG() evaluates
     # lgamma(alpha0 / 2) at <= 0 and the marginal log-likelihood (and ELBO)
