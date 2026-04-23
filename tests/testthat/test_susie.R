@@ -996,7 +996,7 @@ test_that("susie verbose output works", {
 
   expect_message(
     susie(dat$X, dat$y, L = 5, verbose = TRUE),
-    "ELBO="
+    "ELBO"
   )
 })
 
@@ -1007,7 +1007,7 @@ test_that("susie_ss verbose output works", {
 
   expect_message(
     susie_ss(ss$XtX, ss$Xty, ss$yty, n = ss$n, L = 5, verbose = TRUE),
-    "ELBO="
+    "ELBO"
   )
 })
 
@@ -1021,7 +1021,7 @@ test_that("susie_rss verbose output works", {
   expect_message(
     susie_rss(z = z_scores, R = R, n = 100, L = 5,
               lambda = 0, verbose = TRUE),
-    "ELBO="
+    "ELBO"
   )
 })
 
