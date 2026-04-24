@@ -41,7 +41,6 @@ r45 = {features = ["r45"]}
 "r-crayon" = "*"
 "r-ggplot2" = "*"
 "r-l0learn" = "*"
-"r-glmnet" = "*"
 "r-survival" = "*"
 
 # Suggested dependencies (for testing and documentation)

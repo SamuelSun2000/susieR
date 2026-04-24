@@ -1,9 +1,9 @@
 # =============================================================================
-# HELPER FUNCTIONS FOR SERVIN-STEPHENS REFERENCE COMPARISON
+# HELPER FUNCTIONS FOR NIG REFERENCE COMPARISON
 # =============================================================================
 #
 # These functions compare the local susieR implementation of
-# estimate_residual_method = "Servin_Stephens" against the reference
+# estimate_residual_method = "NIG" against the reference
 # implementation on stephenslab/susieR@fix-susie-small-sigma-update
 # (commit a999d44), where the equivalent feature is small = TRUE.
 #
@@ -13,28 +13,28 @@
 library(pkgload)
 library(rprojroot)
 
-# Reference package details for the Servin-Stephens comparison
-.ss_ref_repo   <- "stephenslab/susieR"
-.ss_ref_commit <- "a999d44"
+# Reference package details for the NIG comparison
+.nig_ref_repo   <- "stephenslab/susieR"
+.nig_ref_commit <- "a999d44"
 
 # Cached environments (separate from helper_reference.R's globals)
-.ss_ref_env         <- NULL
-.ss_dev_env         <- NULL
-.ss_ref_source_path <- NULL
+.nig_ref_env         <- NULL
+.nig_dev_env         <- NULL
+.nig_ref_source_path <- NULL
 
 # Get reference source for the fix-susie-small-sigma-update branch
-get_ss_reference_source <- function() {
-  if (!is.null(.ss_ref_source_path) && dir.exists(.ss_ref_source_path)) {
-    return(.ss_ref_source_path)
+get_nig_reference_source <- function() {
+  if (!is.null(.nig_ref_source_path) && dir.exists(.nig_ref_source_path)) {
+    return(.nig_ref_source_path)
   }
 
-  ref_source <- file.path(tempdir(), "susieR_ss_reference_source")
+  ref_source <- file.path(tempdir(), "susieR_nig_reference_source")
 
   if (!dir.exists(ref_source)) {
-    message("Downloading Servin-Stephens reference source from GitHub...")
+    message("Downloading NIG reference source from GitHub...")
 
     result <- system(sprintf("git clone -q https://github.com/%s.git %s 2>&1",
-                             .ss_ref_repo, ref_source),
+                             .nig_ref_repo, ref_source),
                      intern = FALSE)
 
     if (result != 0) {
@@ -42,43 +42,43 @@ get_ss_reference_source <- function() {
     }
 
     result <- system(sprintf("cd %s && git checkout -q %s 2>&1",
-                             ref_source, .ss_ref_commit),
+                             ref_source, .nig_ref_commit),
                      intern = FALSE)
 
     if (result != 0) {
-      stop("Failed to checkout commit ", .ss_ref_commit)
+      stop("Failed to checkout commit ", .nig_ref_commit)
     }
 
-    message("\u2713 Servin-Stephens reference source downloaded")
+    message("\u2713 NIG reference source downloaded")
   }
 
-  .ss_ref_source_path <<- ref_source
+  .nig_ref_source_path <<- ref_source
   return(ref_source)
 }
 
 # Load the fix-susie-small-sigma-update reference using pkgload
-load_ss_reference_env <- function() {
-  if (!is.null(.ss_ref_env)) {
-    return(.ss_ref_env)
+load_nig_reference_env <- function() {
+  if (!is.null(.nig_ref_env)) {
+    return(.nig_ref_env)
   }
 
   if (!requireNamespace("pkgload", quietly = TRUE)) {
     stop("Package 'pkgload' is required. Install with: install.packages('pkgload')")
   }
 
-  ref_source <- get_ss_reference_source()
+  ref_source <- get_nig_reference_source()
 
-  message("Loading Servin-Stephens reference package with pkgload...")
+  message("Loading NIG reference package with pkgload...")
   env <- pkgload::load_all(ref_source, export_all = FALSE, quiet = TRUE)
 
-  .ss_ref_env <<- env
+  .nig_ref_env <<- env
   return(env)
 }
 
 # Load development package using pkgload
-load_ss_development_env <- function() {
-  if (!is.null(.ss_dev_env)) {
-    return(.ss_dev_env)
+load_nig_development_env <- function() {
+  if (!is.null(.nig_dev_env)) {
+    return(.nig_dev_env)
   }
 
   if (!requireNamespace("pkgload", quietly = TRUE)) {
@@ -94,55 +94,66 @@ load_ss_development_env <- function() {
   message("Loading development package with pkgload...")
   env <- pkgload::load_all(dev_source, export_all = FALSE, quiet = TRUE)
 
-  .ss_dev_env <<- env
+  .nig_dev_env <<- env
   return(env)
 }
 
 # Skip test if reference not available
-skip_if_no_ss_reference <- function() {
+skip_if_no_nig_reference <- function() {
   tryCatch({
-    load_ss_reference_env()
-    load_ss_development_env()
+    load_nig_reference_env()
+    load_nig_development_env()
   }, error = function(e) {
-    skip(paste("Servin-Stephens reference comparison not available:", e$message))
+    skip(paste("NIG reference comparison not available:", e$message))
   })
 }
 
 # -----------------------------------------------------------------------
-# compare_servin_stephens_to_reference
+# compare_NIG_to_reference
 #
-# Runs susie() with estimate_residual_method = "Servin_Stephens" on the
+# Runs susie() with estimate_residual_method = "NIG" on the
 # development package and susie() with small = TRUE on the reference
 # branch, then compares all output fields.
 #
 # Parameters:
 #   dev_args  - named list of arguments for the development susie() call
 #               (must include X and y; estimate_residual_method is set
-#               automatically to "Servin_Stephens")
+#               automatically to "NIG")
 #   ref_args  - (optional) named list of arguments for the reference
 #               susie() call. If NULL, derived from dev_args by mapping
 #               estimate_residual_method -> small = TRUE and
 #               tol -> tol_small.
 #   tolerance - numeric tolerance for expect_equal comparisons
 # -----------------------------------------------------------------------
-compare_servin_stephens_to_reference <- function(dev_args,
-                                                  ref_args = NULL,
-                                                  tolerance = 1e-5) {
-  skip_if_no_ss_reference()
+compare_NIG_to_reference <- function(dev_args,
+                                      ref_args = NULL,
+                                      tolerance = 1e-5) {
+  skip_if_no_nig_reference()
 
-  ref_env <- load_ss_reference_env()
-  dev_env <- load_ss_development_env()
+  ref_env <- load_nig_reference_env()
+  dev_env <- load_nig_development_env()
 
-  # Ensure the dev call uses Servin_Stephens
-  dev_args$estimate_residual_method <- "Servin_Stephens"
+  # Ensure the dev call uses NIG
+  dev_args$estimate_residual_method <- "NIG"
 
   # Match reference behavior: disable V null threshold check and use
-
   # the same convergence tolerance as the reference (tol_small = 1e-4)
   if (is.null(dev_args$check_null_threshold))
     dev_args$check_null_threshold <- -Inf
   if (is.null(dev_args$tol))
     dev_args$tol <- 1e-4
+
+  # Match reference NIG hyperparameter defaults. Dev defaults changed in
+  # commit b0b0c40 ("new defaults") from alpha0 = beta0 = 0.1 to
+  # alpha0 = beta0 = 1/sqrt(n), a weakly-informative scaling. The reference
+  # (stephenslab/susieR@a999d44, small = TRUE) still uses 0.1. Force 0.1
+  # on the dev side when the caller hasn't set these so the two runs use
+  # the same prior; the change to 1/sqrt(n) is a deliberate design choice
+  # unrelated to mathematical parity with the reference.
+  if (is.null(dev_args$alpha0))
+    dev_args$alpha0 <- 0.1
+  if (is.null(dev_args$beta0))
+    dev_args$beta0 <- 0.1
 
   # Build reference args by mapping interface differences
   if (is.null(ref_args)) {
@@ -183,15 +194,15 @@ compare_servin_stephens_to_reference <- function(dev_args,
 }
 
 # -----------------------------------------------------------------------
-# expect_equal_servin_stephens_objects
+# expect_equal_NIG_objects
 #
-# Deep comparison of susie objects produced under the Servin-Stephens /
+# Deep comparison of susie objects produced under the NIG /
 # small = TRUE prior. Compares the standard fields (alpha, mu, mu2, V,
 # sigma2, elbo, fitted, intercept, pip, sets) plus the NIG-specific
 # rv field.
 # -----------------------------------------------------------------------
-expect_equal_servin_stephens_objects <- function(dev_obj, ref_obj,
-                                                 tolerance = 1e-5) {
+expect_equal_NIG_objects <- function(dev_obj, ref_obj,
+                                      tolerance = 1e-5) {
 
   # --- Core posterior quantities ---
   expect_equal(dev_obj$alpha, ref_obj$alpha, tolerance = tolerance,
@@ -269,17 +280,17 @@ expect_equal_servin_stephens_objects <- function(dev_obj, ref_obj,
 }
 
 # -----------------------------------------------------------------------
-# run_ss_and_individual_servin_stephens
+# run_ss_and_individual_NIG
 #
 # Given X, y, and extra arguments (L, standardize, intercept, alpha0,
 # beta0, etc.), runs both susie() and susie_ss() with
-# estimate_residual_method = "Servin_Stephens", ensuring that the
+# estimate_residual_method = "NIG", ensuring that the
 # sufficient statistics are computed to match susie()'s internal
 # preprocessing.
 #
 # Returns list(ind = ..., ss = ...) with both results.
 # -----------------------------------------------------------------------
-run_ss_and_individual_servin_stephens <- function(X, y, extra_args = list()) {
+run_ss_and_individual_NIG <- function(X, y, extra_args = list()) {
   n <- nrow(X)
   p <- ncol(X)
 
@@ -314,7 +325,7 @@ run_ss_and_individual_servin_stephens <- function(X, y, extra_args = list()) {
 
   # Run individual-level susie
   ind_args <- c(list(X = X, y = y,
-                     estimate_residual_method = "Servin_Stephens"),
+                     estimate_residual_method = "NIG"),
                 extra_args)
   res_ind <- suppressWarnings(do.call(susie, ind_args))
 
@@ -324,7 +335,7 @@ run_ss_and_individual_servin_stephens <- function(X, y, extra_args = list()) {
   ss_extra$standardize <- NULL
 
   ss_args <- c(list(XtX = XtX, Xty = Xty, yty = yty, n = n,
-                    estimate_residual_method = "Servin_Stephens",
+                    estimate_residual_method = "NIG",
                     standardize = FALSE,
                     X_colmeans = if (intercept) X_colmeans else NA,
                     y_mean     = if (intercept) y_mean else NA),
@@ -335,11 +346,11 @@ run_ss_and_individual_servin_stephens <- function(X, y, extra_args = list()) {
 }
 
 # -----------------------------------------------------------------------
-# run_rss_and_individual_servin_stephens
+# run_rss_and_individual_NIG
 #
 # Given X, y, and extra arguments (L, standardize, intercept, alpha0,
 # beta0, etc.), runs both susie() and susie_rss() with
-# estimate_residual_method = "Servin_Stephens", ensuring that the
+# estimate_residual_method = "NIG", ensuring that the
 # summary statistics (bhat, shat, R, var_y) are computed to match
 # susie()'s internal preprocessing.
 #
@@ -350,7 +361,7 @@ run_ss_and_individual_servin_stephens <- function(X, y, extra_args = list()) {
 #
 # Returns list(ind = ..., rss = ...) with both results.
 # -----------------------------------------------------------------------
-run_rss_and_individual_servin_stephens <- function(X, y, extra_args = list()) {
+run_rss_and_individual_NIG <- function(X, y, extra_args = list()) {
   n <- nrow(X)
   p <- ncol(X)
 
@@ -388,7 +399,7 @@ run_rss_and_individual_servin_stephens <- function(X, y, extra_args = list()) {
 
   # Run individual-level susie
   ind_args <- c(list(X = X, y = y,
-                     estimate_residual_method = "Servin_Stephens"),
+                     estimate_residual_method = "NIG"),
                 extra_args)
   res_ind <- suppressWarnings(do.call(susie, ind_args))
 
@@ -399,7 +410,7 @@ run_rss_and_individual_servin_stephens <- function(X, y, extra_args = list()) {
 
   rss_args <- c(list(bhat = ss$betahat, shat = ss$sebetahat,
                      R = R, n = n, var_y = var_y,
-                     estimate_residual_method = "Servin_Stephens",
+                     estimate_residual_method = "NIG",
                      standardize = FALSE),
                 rss_extra)
   res_rss <- suppressWarnings(do.call(susie_rss, rss_args))
@@ -411,7 +422,7 @@ run_rss_and_individual_servin_stephens <- function(X, y, extra_args = list()) {
 # expect_rss_matches_individual_ss
 #
 # Deep comparison of susie objects produced by the individual-level and
-# RSS interfaces under Servin-Stephens. Delegates to
+# RSS interfaces under NIG. Delegates to
 # expect_ss_matches_individual_ss by mapping rss -> ss.
 # -----------------------------------------------------------------------
 expect_rss_matches_individual_ss <- function(res, tolerance = 1e-6) {
@@ -425,7 +436,7 @@ expect_rss_matches_individual_ss <- function(res, tolerance = 1e-6) {
 # expect_ss_matches_individual_ss
 #
 # Deep comparison of susie objects produced by the individual-level and
-# sufficient-statistics interfaces under Servin-Stephens.
+# sufficient-statistics interfaces under NIG.
 # -----------------------------------------------------------------------
 expect_ss_matches_individual_ss <- function(res, tolerance = 1e-6) {
   ind <- res$ind

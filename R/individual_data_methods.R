@@ -47,8 +47,8 @@ initialize_susie_model.individual <- function(data, params, var_y, ...) {
   # Append predictor weights
   model$predictor_weights <- attr(data$X, "d")
 
-  # Initialize Servin-Stephens parameters
-  if (params$use_servin_stephens) {
+  # Initialize NIG parameters
+  if (params$use_NIG) {
     model$rv <- rep(1, params$L)
     model$marginal_loglik <- rep(as.numeric(NA), params$L)
   }
@@ -158,7 +158,7 @@ SER_posterior_e_loglik.individual <- function(data, params, model, l) {
 # Calculate posterior moments for single effect regression
 #' @keywords internal
 calculate_posterior_moments.individual <- function(data, params, model, V, l, ...) {
-  if (params$use_servin_stephens) {
+  if (params$use_NIG) {
     if (V <= 0) {
       # Zero variance case
       post_mean  <- rep(0, data$p)
@@ -194,8 +194,8 @@ calculate_posterior_moments.individual <- function(data, params, model, V, l, ..
 # Calculate KL divergence
 #' @keywords internal
 compute_kl.individual <- function(data, params, model, l) {
-  if (params$use_servin_stephens) {
-    # KL divergence for Servin-Stephens is only valid for L=1
+  if (params$use_NIG) {
+    # KL divergence for NIG is only valid for L=1
     if (params$L == 1) {
       kl <- compute_kl_NIG(model$alpha[l, ], model$mu[l, ], model$mu2[l, ], model$pi, model$V[l],
                            a0 = 1, b0 = 1, a_post = data$n / 2 + 1, b_post = data$n * model$sigma2 + 1)
@@ -241,8 +241,8 @@ Eloglik.individual <- function(data, model) {
 #' @importFrom stats cor
 #' @keywords internal
 loglik.individual <- function(data, params, model, V, ser_stats, l = NULL, ...) {
-  # Check if using Servin-Stephens prior
-  if (params$use_servin_stephens) {
+  # Check if using NIG prior
+  if (params$use_NIG) {
     # Compute log Bayes factors for NIG prior
     nig_ss <- get_nig_sufficient_stats(data, model)
     lbf <- compute_lbf_NIG(data$n, model$predictor_weights,
@@ -268,7 +268,7 @@ loglik.individual <- function(data, params, model, V, ser_stats, l = NULL, ...) 
     model$lbf_variable[l, ] <- stable_res$lbf
 
     # Compute and store marginal log-likelihood for NIG prior
-    if (params$use_servin_stephens) {
+    if (params$use_NIG) {
       model$marginal_loglik[l] <- compute_marginal_loglik(weights_res$lbf_model, data$n,
                                                            nig_ss$yy, params$alpha0, params$beta0,
                                                            TRUE)
@@ -437,8 +437,8 @@ cleanup_model.individual <- function(data, params, model, ...) {
   # Remove individual-specific temporary fields
   model$raw_residuals <- NULL
 
-  # Remove Servin-stephens specific temporary fields
-  if (params$use_servin_stephens) {
+  # Remove NIG specific temporary fields
+  if (params$use_NIG) {
     model$marginal_loglik <- NULL
     if (nrow(model$alpha) > 1) model$elbo <- NULL
   }

@@ -230,16 +230,71 @@ test_that("susie handles estimate_residual_method = MLE", {
   expect_true(fit$sigma2 > 0)
 })
 
-test_that("susie handles estimate_residual_method = Servin_Stephens", {
+test_that("susie handles estimate_residual_method = NIG", {
   set.seed(18)
   dat <- simulate_regression(n = 100, p = 50, k = 3)
 
   fit <- susie(dat$X, dat$y, L = 1,
-               estimate_residual_method = "Servin_Stephens",
+               estimate_residual_method = "NIG",
                verbose = FALSE)
 
   expect_s3_class(fit, "susie")
   expect_true(fit$sigma2 > 0)
+})
+
+test_that("susie errors clearly for invalid NIG alpha0/beta0", {
+  # Regression test for GitHub issue: NIG SER with alpha0 = 0 and beta0 > 0
+  # using L = 1 previously produced an infinite ELBO crash. The fix is to
+  # reject improper Inverse-Gamma priors at parameter validation, before the
+  # ELBO is ever computed.
+  set.seed(18)
+  dat <- simulate_regression(n = 100, p = 50, k = 3)
+
+  # Original failing case from the issue (L = 1, alpha0 = 0, beta0 > 0)
+  expect_error(
+    susie(dat$X, dat$y, L = 1,
+          min_abs_corr = 0, check_null_threshold = -1000,
+          estimate_residual_method = "NIG",
+          alpha0 = 0, beta0 = 0.5,
+          verbose = FALSE),
+    "alpha0 > 0 and beta0 > 0"
+  )
+
+  # Both zero -- previously produced silent NaN; should now error
+  expect_error(
+    susie(dat$X, dat$y, L = 1,
+          min_abs_corr = 0, check_null_threshold = -1000,
+          estimate_residual_method = "NIG",
+          alpha0 = 0, beta0 = 0,
+          verbose = FALSE),
+    "alpha0 > 0 and beta0 > 0"
+  )
+
+  # Same guard fires for L > 1 (the L=2 path no longer silently succeeds
+  # with improper priors)
+  expect_error(
+    susie(dat$X, dat$y, L = 2,
+          min_abs_corr = 0, check_null_threshold = -1000,
+          estimate_residual_method = "NIG",
+          alpha0 = 0, beta0 = 0.5,
+          verbose = FALSE),
+    "alpha0 > 0 and beta0 > 0"
+  )
+
+  # Sanity check: valid alpha0/beta0 still work for L=1 and L=2
+  fit_l1 <- susie(dat$X, dat$y, L = 1,
+                  min_abs_corr = 0, check_null_threshold = -1000,
+                  estimate_residual_method = "NIG",
+                  alpha0 = 0.1, beta0 = 0.1,
+                  verbose = FALSE)
+  expect_s3_class(fit_l1, "susie")
+
+  fit_l2 <- susie(dat$X, dat$y, L = 2,
+                  min_abs_corr = 0, check_null_threshold = -1000,
+                  estimate_residual_method = "NIG",
+                  alpha0 = 0.1, beta0 = 0.1,
+                  verbose = FALSE)
+  expect_s3_class(fit_l2, "susie")
 })
 
 test_that("susie handles estimate_prior_method options", {
@@ -941,7 +996,7 @@ test_that("susie verbose output works", {
 
   expect_message(
     susie(dat$X, dat$y, L = 5, verbose = TRUE),
-    "ELBO="
+    "ELBO"
   )
 })
 
@@ -952,7 +1007,7 @@ test_that("susie_ss verbose output works", {
 
   expect_message(
     susie_ss(ss$XtX, ss$Xty, ss$yty, n = ss$n, L = 5, verbose = TRUE),
-    "ELBO="
+    "ELBO"
   )
 })
 
@@ -966,7 +1021,7 @@ test_that("susie_rss verbose output works", {
   expect_message(
     susie_rss(z = z_scores, R = R, n = 100, L = 5,
               lambda = 0, verbose = TRUE),
-    "ELBO="
+    "ELBO"
   )
 })
 

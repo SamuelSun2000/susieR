@@ -963,6 +963,7 @@ test_that("susie_rss() matches reference with min_abs_corr=0.7 - simple", {
 # =============================================================================
 
 test_that("susie_rss() matches reference with prior_tol=1e-5 - optim", {
+  skip("Intentional change: susieR2.0 adds a post-convergence trim_null_effects() pass that zeros model$V entries where V < prior_tol. The reference uses prior_tol only to filter PIPs; it never zeros V. The args here use prior_tol=0.1 (despite the test name), which triggers the trim on dev and produces a V / alpha / mu divergence above 1e-5.")
   skip_if_no_reference()
 
   set.seed(15)
@@ -989,6 +990,7 @@ test_that("susie_rss() matches reference with prior_tol=1e-5 - optim", {
 })
 
 test_that("susie_rss() matches reference with prior_tol=1e-5 - EM", {
+  skip("Intentional change: susieR2.0 adds a post-convergence trim_null_effects() pass that zeros model$V entries where V < prior_tol. The reference uses prior_tol only to filter PIPs; it never zeros V. Triggers a V / alpha / mu divergence above 1e-5.")
   skip_if_no_reference()
 
   set.seed(15)
@@ -1068,6 +1070,7 @@ test_that("susie_rss() matches reference with check_null_threshold=0.1 - optim",
 })
 
 test_that("susie_rss() matches reference with check_null_threshold=0.1 - EM", {
+  skip("Not a bug: susieR2.0 intentionally skips the check_null_threshold V-zeroing step for EM (see R/single_effect_regression.R:169 and stephenslab/mvsusieR#26). The check would zero V without recomputing the posterior, creating an inconsistent (q, V) pair that can decrease the ELBO. Since dev ignores check_null_threshold for EM, this test cannot match a reference that always applies the check.")
   skip_if_no_reference()
 
   set.seed(16)

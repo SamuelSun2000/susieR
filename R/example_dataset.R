@@ -176,3 +176,69 @@ NULL
 #' @examples
 #' data(SummaryConsistency)
 NULL
+
+#' @name data_small
+#'
+#' @title Simulated Small-sample eQTL Data.
+#'
+#' @description A simulated eQTL data set with 47 individuals and 7,430
+#'   variables. The response is a simulated gene expression phenotype and
+#'   the variables are genotypes. This data set illustrates the small
+#'   sample-size setting considered in Denault \emph{et al} (2025).
+#'
+#' @format \code{data_small} is a list with the following elements:
+#'
+#' \describe{
+#'
+#'   \item{y}{Simulated gene expression response.}
+#'
+#'   \item{X}{Genotype matrix.}}
+#'
+#' @docType data
+#'
+#' @keywords data
+#'
+#' @seealso The \dQuote{Small data example} vignette.
+#'
+#' @references
+#' W. R. P. Denault \emph{et al} (2025). Accounting for uncertainty in
+#'   residual variances improves fine-mapping in small sample studies.
+#'   \emph{bioRxiv} \doi{10.1101/2025.05.16.654543}.
+#'
+#' @examples
+#' data(data_small)
+NULL
+
+#' @name unmappable_data
+#'
+#' @title Simulated Fine-mapping Data with Sparse, Oligogenic and Polygenic Effects.
+#'
+#' @description A simulated data set with 1,000 individuals and 5,000
+#'   variants, combining 3 sparse, 5 oligogenic and 15 polygenic
+#'   non-zero effects. The response is generated under a linear
+#'   regression model. This data set illustrates fine-mapping with
+#'   SuSiE-ash and SuSiE-inf.
+#'
+#' @format \code{unmappable_data} is a list with the following elements:
+#'
+#' \describe{
+#'
+#'   \item{X}{Centered and scaled genotype matrix.}
+#'
+#'   \item{y}{Simulated response.}
+#'
+#'   \item{beta}{Simulated effect sizes.}
+#'
+#'   \item{h2g}{Total proportion of variance in the response explained
+#'     by the simulated effects.}}
+#'
+#' @docType data
+#'
+#' @keywords data
+#'
+#' @seealso The \dQuote{Fine-mapping with SuSiE-ash and SuSiE-inf}
+#'   vignette.
+#'
+#' @examples
+#' data(unmappable_data)
+NULL

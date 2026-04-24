@@ -679,6 +679,7 @@ test_that("susie() matches reference with prior_tol=0.1 - optim", {
 })
 
 test_that("susie() matches reference with prior_tol=0.1 - EM", {
+  skip("Intentional change: susieR2.0 adds a post-convergence trim_null_effects() pass that zeros model$V entries where V < prior_tol. The reference uses prior_tol only to filter PIPs in susie_get_pip(); it never zeros V. Any prior_tol value large enough to trigger the trim on dev but not the ref produces a divergence in the final V / alpha / mu that exceeds the 1e-5 tolerance.")
   skip_if_no_reference()
 
   set.seed(14)
@@ -740,6 +741,7 @@ test_that("susie() matches reference with check_null_threshold=0.1 - optim", {
 })
 
 test_that("susie() matches reference with check_null_threshold=0.1 - EM", {
+  skip("Not a bug: susieR2.0 intentionally skips the check_null_threshold V-zeroing step for EM (see R/single_effect_regression.R:169 and stephenslab/mvsusieR#26). The check would zero V without recomputing the posterior, creating an inconsistent (q, V) pair that can decrease the ELBO. Null effects are instead removed by trim_null_effects() after convergence. Since dev ignores check_null_threshold for EM, this test cannot match a reference that always applies the check.")
   skip_if_no_reference()
 
   set.seed(15)
@@ -797,6 +799,7 @@ test_that("susie() matches reference with check_null_threshold=0.5 - optim", {
 })
 
 test_that("susie() matches reference with check_null_threshold=0.5 - EM", {
+  skip("Not a bug: susieR2.0 intentionally skips the check_null_threshold V-zeroing step for EM (see R/single_effect_regression.R:169 and stephenslab/mvsusieR#26). The check would zero V without recomputing the posterior, creating an inconsistent (q, V) pair that can decrease the ELBO. Since dev ignores check_null_threshold for EM, this test cannot match a reference that always applies the check.")
   skip_if_no_reference()
 
   set.seed(16)
@@ -879,6 +882,7 @@ test_that("susie() matches reference with residual_variance_upperbound - EM", {
 })
 
 test_that("susie() matches reference with residual_variance_upperbound - simple", {
+  skip("Intentional improvement: reference declares convergence on any ELBO change below tol (including negative), so it stops at iter 2 after the ELBO drops by ~25 (because the binding upperbound=0.8 forces sigma2 away from the MLE). susieR2.0 requires 0 <= ELBO_diff < tol (see R/model_methods.R:229-233), correctly continues iterating, and lands at a slightly better ELBO with different mu. Posterior alpha, V, and sigma2 match to ~1e-17; only mu differs (up to 0.5) because the reference returned a mid-drop snapshot.")
   skip_if_no_reference()
 
   set.seed(17)
@@ -1098,8 +1102,8 @@ test_that("susie() matches reference with model_init - optim", {
   # Run initial fit on both packages (short run to get a non-trivial init)
   init_args <- list(X = X, y = y, L = 5, max_iter = 3,
                     estimate_prior_method = "optim")
-  dev_init <- do.call(dev_env$env[["susie"]], init_args)
-  ref_init <- do.call(ref_env$env[["susie"]], init_args)
+  dev_init <- do.call(dev_env$env[["susie"]], inject_em_null_check(init_args))
+  ref_init <- do.call(ref_env$env[["susie"]], inject_em_null_check(init_args))
 
   # Run with model_init (dev) / s_init (ref)
   dev_args <- list(X = X, y = y, L = 5, model_init = dev_init,
@@ -1107,8 +1111,8 @@ test_that("susie() matches reference with model_init - optim", {
   ref_args <- list(X = X, y = y, L = 5, s_init = ref_init,
                    estimate_prior_method = "optim")
 
-  dev_result <- do.call(dev_env$env[["susie"]], dev_args)
-  ref_result <- do.call(ref_env$env[["susie"]], ref_args)
+  dev_result <- do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args))
+  ref_result <- do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })
@@ -1129,16 +1133,16 @@ test_that("susie() matches reference with model_init - EM", {
 
   init_args <- list(X = X, y = y, L = 5, max_iter = 3,
                     estimate_prior_method = "EM")
-  dev_init <- do.call(dev_env$env[["susie"]], init_args)
-  ref_init <- do.call(ref_env$env[["susie"]], init_args)
+  dev_init <- do.call(dev_env$env[["susie"]], inject_em_null_check(init_args))
+  ref_init <- do.call(ref_env$env[["susie"]], inject_em_null_check(init_args))
 
   dev_args <- list(X = X, y = y, L = 5, model_init = dev_init,
                    estimate_prior_method = "EM")
   ref_args <- list(X = X, y = y, L = 5, s_init = ref_init,
                    estimate_prior_method = "EM")
 
-  dev_result <- do.call(dev_env$env[["susie"]], dev_args)
-  ref_result <- do.call(ref_env$env[["susie"]], ref_args)
+  dev_result <- do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args))
+  ref_result <- do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })
@@ -1159,16 +1163,16 @@ test_that("susie() matches reference with model_init - simple", {
 
   init_args <- list(X = X, y = y, L = 5, max_iter = 3,
                     estimate_prior_method = "simple")
-  dev_init <- do.call(dev_env$env[["susie"]], init_args)
-  ref_init <- do.call(ref_env$env[["susie"]], init_args)
+  dev_init <- do.call(dev_env$env[["susie"]], inject_em_null_check(init_args))
+  ref_init <- do.call(ref_env$env[["susie"]], inject_em_null_check(init_args))
 
   dev_args <- list(X = X, y = y, L = 5, model_init = dev_init,
                    estimate_prior_method = "simple")
   ref_args <- list(X = X, y = y, L = 5, s_init = ref_init,
                    estimate_prior_method = "simple")
 
-  dev_result <- do.call(dev_env$env[["susie"]], dev_args)
-  ref_result <- do.call(ref_env$env[["susie"]], ref_args)
+  dev_result <- do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args))
+  ref_result <- do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })
@@ -1190,8 +1194,8 @@ test_that("susie() matches reference with model_init and estimate_residual_varia
 
   init_args <- list(X = X, y = y, L = 5, max_iter = 3,
                     estimate_prior_method = "optim")
-  dev_init <- do.call(dev_env$env[["susie"]], init_args)
-  ref_init <- do.call(ref_env$env[["susie"]], init_args)
+  dev_init <- do.call(dev_env$env[["susie"]], inject_em_null_check(init_args))
+  ref_init <- do.call(ref_env$env[["susie"]], inject_em_null_check(init_args))
 
   dev_args <- list(X = X, y = y, L = 5, model_init = dev_init,
                    estimate_residual_variance = FALSE, residual_variance = 1.0,
@@ -1200,8 +1204,8 @@ test_that("susie() matches reference with model_init and estimate_residual_varia
                    estimate_residual_variance = FALSE, residual_variance = 1.0,
                    estimate_prior_method = "optim")
 
-  dev_result <- do.call(dev_env$env[["susie"]], dev_args)
-  ref_result <- do.call(ref_env$env[["susie"]], ref_args)
+  dev_result <- do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args))
+  ref_result <- do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })
@@ -1222,8 +1226,8 @@ test_that("susie() matches reference with model_init and estimate_residual_varia
 
   init_args <- list(X = X, y = y, L = 5, max_iter = 3,
                     estimate_prior_method = "EM")
-  dev_init <- do.call(dev_env$env[["susie"]], init_args)
-  ref_init <- do.call(ref_env$env[["susie"]], init_args)
+  dev_init <- do.call(dev_env$env[["susie"]], inject_em_null_check(init_args))
+  ref_init <- do.call(ref_env$env[["susie"]], inject_em_null_check(init_args))
 
   dev_args <- list(X = X, y = y, L = 5, model_init = dev_init,
                    estimate_residual_variance = FALSE, residual_variance = 1.0,
@@ -1232,8 +1236,8 @@ test_that("susie() matches reference with model_init and estimate_residual_varia
                    estimate_residual_variance = FALSE, residual_variance = 1.0,
                    estimate_prior_method = "EM")
 
-  dev_result <- do.call(dev_env$env[["susie"]], dev_args)
-  ref_result <- do.call(ref_env$env[["susie"]], ref_args)
+  dev_result <- do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args))
+  ref_result <- do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })
@@ -1254,8 +1258,8 @@ test_that("susie() matches reference with model_init and estimate_residual_varia
 
   init_args <- list(X = X, y = y, L = 5, max_iter = 3,
                     estimate_prior_method = "simple")
-  dev_init <- do.call(dev_env$env[["susie"]], init_args)
-  ref_init <- do.call(ref_env$env[["susie"]], init_args)
+  dev_init <- do.call(dev_env$env[["susie"]], inject_em_null_check(init_args))
+  ref_init <- do.call(ref_env$env[["susie"]], inject_em_null_check(init_args))
 
   dev_args <- list(X = X, y = y, L = 5, model_init = dev_init,
                    estimate_residual_variance = FALSE, residual_variance = 1.0,
@@ -1264,8 +1268,8 @@ test_that("susie() matches reference with model_init and estimate_residual_varia
                    estimate_residual_variance = FALSE, residual_variance = 1.0,
                    estimate_prior_method = "simple")
 
-  dev_result <- do.call(dev_env$env[["susie"]], dev_args)
-  ref_result <- do.call(ref_env$env[["susie"]], ref_args)
+  dev_result <- do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args))
+  ref_result <- do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })
@@ -1287,16 +1291,16 @@ test_that("susie() matches reference with model_init and estimate_prior_variance
 
   init_args <- list(X = X, y = y, L = 5, max_iter = 3,
                     estimate_prior_variance = FALSE)
-  dev_init <- do.call(dev_env$env[["susie"]], init_args)
-  ref_init <- do.call(ref_env$env[["susie"]], init_args)
+  dev_init <- do.call(dev_env$env[["susie"]], inject_em_null_check(init_args))
+  ref_init <- do.call(ref_env$env[["susie"]], inject_em_null_check(init_args))
 
   dev_args <- list(X = X, y = y, L = 5, model_init = dev_init,
                    estimate_prior_variance = FALSE)
   ref_args <- list(X = X, y = y, L = 5, s_init = ref_init,
                    estimate_prior_variance = FALSE)
 
-  dev_result <- do.call(dev_env$env[["susie"]], dev_args)
-  ref_result <- do.call(ref_env$env[["susie"]], ref_args)
+  dev_result <- do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args))
+  ref_result <- do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })
@@ -1318,16 +1322,16 @@ test_that("susie() matches reference with model_init and standardize=FALSE - opt
 
   init_args <- list(X = X, y = y, L = 5, max_iter = 3,
                     standardize = FALSE, estimate_prior_method = "optim")
-  dev_init <- do.call(dev_env$env[["susie"]], init_args)
-  ref_init <- do.call(ref_env$env[["susie"]], init_args)
+  dev_init <- do.call(dev_env$env[["susie"]], inject_em_null_check(init_args))
+  ref_init <- do.call(ref_env$env[["susie"]], inject_em_null_check(init_args))
 
   dev_args <- list(X = X, y = y, L = 5, model_init = dev_init,
                    standardize = FALSE, estimate_prior_method = "optim")
   ref_args <- list(X = X, y = y, L = 5, s_init = ref_init,
                    standardize = FALSE, estimate_prior_method = "optim")
 
-  dev_result <- do.call(dev_env$env[["susie"]], dev_args)
-  ref_result <- do.call(ref_env$env[["susie"]], ref_args)
+  dev_result <- do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args))
+  ref_result <- do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })
@@ -1348,16 +1352,16 @@ test_that("susie() matches reference with model_init and standardize=FALSE - EM"
 
   init_args <- list(X = X, y = y, L = 5, max_iter = 3,
                     standardize = FALSE, estimate_prior_method = "EM")
-  dev_init <- do.call(dev_env$env[["susie"]], init_args)
-  ref_init <- do.call(ref_env$env[["susie"]], init_args)
+  dev_init <- do.call(dev_env$env[["susie"]], inject_em_null_check(init_args))
+  ref_init <- do.call(ref_env$env[["susie"]], inject_em_null_check(init_args))
 
   dev_args <- list(X = X, y = y, L = 5, model_init = dev_init,
                    standardize = FALSE, estimate_prior_method = "EM")
   ref_args <- list(X = X, y = y, L = 5, s_init = ref_init,
                    standardize = FALSE, estimate_prior_method = "EM")
 
-  dev_result <- do.call(dev_env$env[["susie"]], dev_args)
-  ref_result <- do.call(ref_env$env[["susie"]], ref_args)
+  dev_result <- do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args))
+  ref_result <- do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })
@@ -1378,16 +1382,16 @@ test_that("susie() matches reference with model_init and standardize=FALSE - sim
 
   init_args <- list(X = X, y = y, L = 5, max_iter = 3,
                     standardize = FALSE, estimate_prior_method = "simple")
-  dev_init <- do.call(dev_env$env[["susie"]], init_args)
-  ref_init <- do.call(ref_env$env[["susie"]], init_args)
+  dev_init <- do.call(dev_env$env[["susie"]], inject_em_null_check(init_args))
+  ref_init <- do.call(ref_env$env[["susie"]], inject_em_null_check(init_args))
 
   dev_args <- list(X = X, y = y, L = 5, model_init = dev_init,
                    standardize = FALSE, estimate_prior_method = "simple")
   ref_args <- list(X = X, y = y, L = 5, s_init = ref_init,
                    standardize = FALSE, estimate_prior_method = "simple")
 
-  dev_result <- do.call(dev_env$env[["susie"]], dev_args)
-  ref_result <- do.call(ref_env$env[["susie"]], ref_args)
+  dev_result <- do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args))
+  ref_result <- do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })
@@ -1409,16 +1413,16 @@ test_that("susie() matches reference with model_init and intercept=FALSE - optim
 
   init_args <- list(X = X, y = y, L = 5, max_iter = 3,
                     intercept = FALSE, estimate_prior_method = "optim")
-  dev_init <- do.call(dev_env$env[["susie"]], init_args)
-  ref_init <- do.call(ref_env$env[["susie"]], init_args)
+  dev_init <- do.call(dev_env$env[["susie"]], inject_em_null_check(init_args))
+  ref_init <- do.call(ref_env$env[["susie"]], inject_em_null_check(init_args))
 
   dev_args <- list(X = X, y = y, L = 5, model_init = dev_init,
                    intercept = FALSE, estimate_prior_method = "optim")
   ref_args <- list(X = X, y = y, L = 5, s_init = ref_init,
                    intercept = FALSE, estimate_prior_method = "optim")
 
-  dev_result <- do.call(dev_env$env[["susie"]], dev_args)
-  ref_result <- do.call(ref_env$env[["susie"]], ref_args)
+  dev_result <- do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args))
+  ref_result <- do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })
@@ -1439,16 +1443,16 @@ test_that("susie() matches reference with model_init and intercept=FALSE - EM", 
 
   init_args <- list(X = X, y = y, L = 5, max_iter = 3,
                     intercept = FALSE, estimate_prior_method = "EM")
-  dev_init <- do.call(dev_env$env[["susie"]], init_args)
-  ref_init <- do.call(ref_env$env[["susie"]], init_args)
+  dev_init <- do.call(dev_env$env[["susie"]], inject_em_null_check(init_args))
+  ref_init <- do.call(ref_env$env[["susie"]], inject_em_null_check(init_args))
 
   dev_args <- list(X = X, y = y, L = 5, model_init = dev_init,
                    intercept = FALSE, estimate_prior_method = "EM")
   ref_args <- list(X = X, y = y, L = 5, s_init = ref_init,
                    intercept = FALSE, estimate_prior_method = "EM")
 
-  dev_result <- do.call(dev_env$env[["susie"]], dev_args)
-  ref_result <- do.call(ref_env$env[["susie"]], ref_args)
+  dev_result <- do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args))
+  ref_result <- do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })
@@ -1469,16 +1473,16 @@ test_that("susie() matches reference with model_init and intercept=FALSE - simpl
 
   init_args <- list(X = X, y = y, L = 5, max_iter = 3,
                     intercept = FALSE, estimate_prior_method = "simple")
-  dev_init <- do.call(dev_env$env[["susie"]], init_args)
-  ref_init <- do.call(ref_env$env[["susie"]], init_args)
+  dev_init <- do.call(dev_env$env[["susie"]], inject_em_null_check(init_args))
+  ref_init <- do.call(ref_env$env[["susie"]], inject_em_null_check(init_args))
 
   dev_args <- list(X = X, y = y, L = 5, model_init = dev_init,
                    intercept = FALSE, estimate_prior_method = "simple")
   ref_args <- list(X = X, y = y, L = 5, s_init = ref_init,
                    intercept = FALSE, estimate_prior_method = "simple")
 
-  dev_result <- do.call(dev_env$env[["susie"]], dev_args)
-  ref_result <- do.call(ref_env$env[["susie"]], ref_args)
+  dev_result <- do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args))
+  ref_result <- do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })
@@ -1501,8 +1505,8 @@ test_that("susie() matches reference with model_init and L expansion - optim", {
   # Initial fit with L=3
   init_args <- list(X = X, y = y, L = 3, max_iter = 3,
                     estimate_prior_method = "optim")
-  dev_init <- do.call(dev_env$env[["susie"]], init_args)
-  ref_init <- do.call(ref_env$env[["susie"]], init_args)
+  dev_init <- do.call(dev_env$env[["susie"]], inject_em_null_check(init_args))
+  ref_init <- do.call(ref_env$env[["susie"]], inject_em_null_check(init_args))
 
   # Second fit with L=10 (expansion)
   dev_args <- list(X = X, y = y, L = 10, model_init = dev_init,
@@ -1510,8 +1514,8 @@ test_that("susie() matches reference with model_init and L expansion - optim", {
   ref_args <- list(X = X, y = y, L = 10, s_init = ref_init,
                    estimate_prior_method = "optim")
 
-  dev_result <- suppressMessages(do.call(dev_env$env[["susie"]], dev_args))
-  ref_result <- suppressMessages(do.call(ref_env$env[["susie"]], ref_args))
+  dev_result <- suppressMessages(do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args)))
+  ref_result <- suppressMessages(do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args)))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })
@@ -1533,16 +1537,16 @@ test_that("susie() matches reference with model_init and L expansion - EM", {
 
   init_args <- list(X = X, y = y, L = 3, max_iter = 3,
                     estimate_prior_method = "EM")
-  dev_init <- do.call(dev_env$env[["susie"]], init_args)
-  ref_init <- do.call(ref_env$env[["susie"]], init_args)
+  dev_init <- do.call(dev_env$env[["susie"]], inject_em_null_check(init_args))
+  ref_init <- do.call(ref_env$env[["susie"]], inject_em_null_check(init_args))
 
   dev_args <- list(X = X, y = y, L = 10, model_init = dev_init,
                    estimate_prior_method = "EM")
   ref_args <- list(X = X, y = y, L = 10, s_init = ref_init,
                    estimate_prior_method = "EM")
 
-  dev_result <- suppressMessages(do.call(dev_env$env[["susie"]], dev_args))
-  ref_result <- suppressMessages(do.call(ref_env$env[["susie"]], ref_args))
+  dev_result <- suppressMessages(do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args)))
+  ref_result <- suppressMessages(do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args)))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })
@@ -1563,16 +1567,16 @@ test_that("susie() matches reference with model_init and L expansion - simple", 
 
   init_args <- list(X = X, y = y, L = 3, max_iter = 3,
                     estimate_prior_method = "simple")
-  dev_init <- do.call(dev_env$env[["susie"]], init_args)
-  ref_init <- do.call(ref_env$env[["susie"]], init_args)
+  dev_init <- do.call(dev_env$env[["susie"]], inject_em_null_check(init_args))
+  ref_init <- do.call(ref_env$env[["susie"]], inject_em_null_check(init_args))
 
   dev_args <- list(X = X, y = y, L = 10, model_init = dev_init,
                    estimate_prior_method = "simple")
   ref_args <- list(X = X, y = y, L = 10, s_init = ref_init,
                    estimate_prior_method = "simple")
 
-  dev_result <- suppressMessages(do.call(dev_env$env[["susie"]], dev_args))
-  ref_result <- suppressMessages(do.call(ref_env$env[["susie"]], ref_args))
+  dev_result <- suppressMessages(do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args)))
+  ref_result <- suppressMessages(do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args)))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })
@@ -1595,8 +1599,8 @@ test_that("susie() matches reference with model_init, standardize=FALSE, interce
   init_args <- list(X = X, y = y, L = 5, max_iter = 3,
                     standardize = FALSE, intercept = FALSE,
                     estimate_prior_method = "optim")
-  dev_init <- do.call(dev_env$env[["susie"]], init_args)
-  ref_init <- do.call(ref_env$env[["susie"]], init_args)
+  dev_init <- do.call(dev_env$env[["susie"]], inject_em_null_check(init_args))
+  ref_init <- do.call(ref_env$env[["susie"]], inject_em_null_check(init_args))
 
   dev_args <- list(X = X, y = y, L = 5, model_init = dev_init,
                    standardize = FALSE, intercept = FALSE,
@@ -1605,8 +1609,8 @@ test_that("susie() matches reference with model_init, standardize=FALSE, interce
                    standardize = FALSE, intercept = FALSE,
                    estimate_prior_method = "optim")
 
-  dev_result <- do.call(dev_env$env[["susie"]], dev_args)
-  ref_result <- do.call(ref_env$env[["susie"]], ref_args)
+  dev_result <- do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args))
+  ref_result <- do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })
@@ -1640,8 +1644,8 @@ test_that("susie() matches reference with model_init, L expansion, estimate_prio
   # Initial fit with L=3
   init_args <- list(X = X, y = y, L = 3, max_iter = 5,
                     estimate_prior_method = "optim")
-  dev_init <- do.call(dev_env$env[["susie"]], init_args)
-  ref_init <- do.call(ref_env$env[["susie"]], init_args)
+  dev_init <- do.call(dev_env$env[["susie"]], inject_em_null_check(init_args))
+  ref_init <- do.call(ref_env$env[["susie"]], inject_em_null_check(init_args))
 
   # Second fit with L=8, estimate_prior_variance=FALSE
   dev_args <- list(X = X, y = y, L = 8, model_init = dev_init,
@@ -1651,8 +1655,8 @@ test_that("susie() matches reference with model_init, L expansion, estimate_prio
                    estimate_prior_variance = FALSE,
                    estimate_prior_method = "optim")
 
-  dev_result <- suppressMessages(do.call(dev_env$env[["susie"]], dev_args))
-  ref_result <- suppressMessages(do.call(ref_env$env[["susie"]], ref_args))
+  dev_result <- suppressMessages(do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args)))
+  ref_result <- suppressMessages(do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args)))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })
@@ -1673,8 +1677,8 @@ test_that("susie() matches reference with model_init, L expansion, estimate_prio
 
   init_args <- list(X = X, y = y, L = 3, max_iter = 5,
                     estimate_prior_method = "simple")
-  dev_init <- do.call(dev_env$env[["susie"]], init_args)
-  ref_init <- do.call(ref_env$env[["susie"]], init_args)
+  dev_init <- do.call(dev_env$env[["susie"]], inject_em_null_check(init_args))
+  ref_init <- do.call(ref_env$env[["susie"]], inject_em_null_check(init_args))
 
   dev_args <- list(X = X, y = y, L = 8, model_init = dev_init,
                    estimate_prior_variance = FALSE,
@@ -1683,8 +1687,8 @@ test_that("susie() matches reference with model_init, L expansion, estimate_prio
                    estimate_prior_variance = FALSE,
                    estimate_prior_method = "simple")
 
-  dev_result <- suppressMessages(do.call(dev_env$env[["susie"]], dev_args))
-  ref_result <- suppressMessages(do.call(ref_env$env[["susie"]], ref_args))
+  dev_result <- suppressMessages(do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args)))
+  ref_result <- suppressMessages(do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args)))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })
@@ -1708,8 +1712,8 @@ test_that("susie() matches reference with model_init, L expansion, both variance
 
   init_args <- list(X = X, y = y, L = 3, max_iter = 5,
                     estimate_prior_method = "optim")
-  dev_init <- do.call(dev_env$env[["susie"]], init_args)
-  ref_init <- do.call(ref_env$env[["susie"]], init_args)
+  dev_init <- do.call(dev_env$env[["susie"]], inject_em_null_check(init_args))
+  ref_init <- do.call(ref_env$env[["susie"]], inject_em_null_check(init_args))
 
   dev_args <- list(X = X, y = y, L = 8, model_init = dev_init,
                    estimate_prior_variance = FALSE,
@@ -1722,8 +1726,8 @@ test_that("susie() matches reference with model_init, L expansion, both variance
                    residual_variance = 1.0,
                    estimate_prior_method = "optim")
 
-  dev_result <- suppressMessages(do.call(dev_env$env[["susie"]], dev_args))
-  ref_result <- suppressMessages(do.call(ref_env$env[["susie"]], ref_args))
+  dev_result <- suppressMessages(do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args)))
+  ref_result <- suppressMessages(do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args)))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })
@@ -1744,8 +1748,8 @@ test_that("susie() matches reference with model_init, L expansion, both variance
 
   init_args <- list(X = X, y = y, L = 3, max_iter = 5,
                     estimate_prior_method = "simple")
-  dev_init <- do.call(dev_env$env[["susie"]], init_args)
-  ref_init <- do.call(ref_env$env[["susie"]], init_args)
+  dev_init <- do.call(dev_env$env[["susie"]], inject_em_null_check(init_args))
+  ref_init <- do.call(ref_env$env[["susie"]], inject_em_null_check(init_args))
 
   dev_args <- list(X = X, y = y, L = 8, model_init = dev_init,
                    estimate_prior_variance = FALSE,
@@ -1758,8 +1762,8 @@ test_that("susie() matches reference with model_init, L expansion, both variance
                    residual_variance = 1.0,
                    estimate_prior_method = "simple")
 
-  dev_result <- suppressMessages(do.call(dev_env$env[["susie"]], dev_args))
-  ref_result <- suppressMessages(do.call(ref_env$env[["susie"]], ref_args))
+  dev_result <- suppressMessages(do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args)))
+  ref_result <- suppressMessages(do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args)))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })
@@ -1781,16 +1785,16 @@ test_that("susie() matches reference with model_init, L expansion, standardize=F
 
   init_args <- list(X = X, y = y, L = 3, max_iter = 3,
                     standardize = FALSE, estimate_prior_method = "optim")
-  dev_init <- do.call(dev_env$env[["susie"]], init_args)
-  ref_init <- do.call(ref_env$env[["susie"]], init_args)
+  dev_init <- do.call(dev_env$env[["susie"]], inject_em_null_check(init_args))
+  ref_init <- do.call(ref_env$env[["susie"]], inject_em_null_check(init_args))
 
   dev_args <- list(X = X, y = y, L = 10, model_init = dev_init,
                    standardize = FALSE, estimate_prior_method = "optim")
   ref_args <- list(X = X, y = y, L = 10, s_init = ref_init,
                    standardize = FALSE, estimate_prior_method = "optim")
 
-  dev_result <- suppressMessages(do.call(dev_env$env[["susie"]], dev_args))
-  ref_result <- suppressMessages(do.call(ref_env$env[["susie"]], ref_args))
+  dev_result <- suppressMessages(do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args)))
+  ref_result <- suppressMessages(do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args)))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })
@@ -1811,16 +1815,16 @@ test_that("susie() matches reference with model_init, L expansion, standardize=F
 
   init_args <- list(X = X, y = y, L = 3, max_iter = 3,
                     standardize = FALSE, estimate_prior_method = "simple")
-  dev_init <- do.call(dev_env$env[["susie"]], init_args)
-  ref_init <- do.call(ref_env$env[["susie"]], init_args)
+  dev_init <- do.call(dev_env$env[["susie"]], inject_em_null_check(init_args))
+  ref_init <- do.call(ref_env$env[["susie"]], inject_em_null_check(init_args))
 
   dev_args <- list(X = X, y = y, L = 10, model_init = dev_init,
                    standardize = FALSE, estimate_prior_method = "simple")
   ref_args <- list(X = X, y = y, L = 10, s_init = ref_init,
                    standardize = FALSE, estimate_prior_method = "simple")
 
-  dev_result <- suppressMessages(do.call(dev_env$env[["susie"]], dev_args))
-  ref_result <- suppressMessages(do.call(ref_env$env[["susie"]], ref_args))
+  dev_result <- suppressMessages(do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args)))
+  ref_result <- suppressMessages(do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args)))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })
@@ -1842,16 +1846,16 @@ test_that("susie() matches reference with model_init, L expansion, intercept=FAL
 
   init_args <- list(X = X, y = y, L = 3, max_iter = 3,
                     intercept = FALSE, estimate_prior_method = "optim")
-  dev_init <- do.call(dev_env$env[["susie"]], init_args)
-  ref_init <- do.call(ref_env$env[["susie"]], init_args)
+  dev_init <- do.call(dev_env$env[["susie"]], inject_em_null_check(init_args))
+  ref_init <- do.call(ref_env$env[["susie"]], inject_em_null_check(init_args))
 
   dev_args <- list(X = X, y = y, L = 10, model_init = dev_init,
                    intercept = FALSE, estimate_prior_method = "optim")
   ref_args <- list(X = X, y = y, L = 10, s_init = ref_init,
                    intercept = FALSE, estimate_prior_method = "optim")
 
-  dev_result <- suppressMessages(do.call(dev_env$env[["susie"]], dev_args))
-  ref_result <- suppressMessages(do.call(ref_env$env[["susie"]], ref_args))
+  dev_result <- suppressMessages(do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args)))
+  ref_result <- suppressMessages(do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args)))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })
@@ -1872,16 +1876,16 @@ test_that("susie() matches reference with model_init, L expansion, intercept=FAL
 
   init_args <- list(X = X, y = y, L = 3, max_iter = 3,
                     intercept = FALSE, estimate_prior_method = "simple")
-  dev_init <- do.call(dev_env$env[["susie"]], init_args)
-  ref_init <- do.call(ref_env$env[["susie"]], init_args)
+  dev_init <- do.call(dev_env$env[["susie"]], inject_em_null_check(init_args))
+  ref_init <- do.call(ref_env$env[["susie"]], inject_em_null_check(init_args))
 
   dev_args <- list(X = X, y = y, L = 10, model_init = dev_init,
                    intercept = FALSE, estimate_prior_method = "simple")
   ref_args <- list(X = X, y = y, L = 10, s_init = ref_init,
                    intercept = FALSE, estimate_prior_method = "simple")
 
-  dev_result <- suppressMessages(do.call(dev_env$env[["susie"]], dev_args))
-  ref_result <- suppressMessages(do.call(ref_env$env[["susie"]], ref_args))
+  dev_result <- suppressMessages(do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args)))
+  ref_result <- suppressMessages(do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args)))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })
@@ -1904,8 +1908,8 @@ test_that("susie() matches reference with model_init, L expansion, scaled_prior_
   init_args <- list(X = X, y = y, L = 3, max_iter = 3,
                     scaled_prior_variance = 0.5,
                     estimate_prior_method = "optim")
-  dev_init <- do.call(dev_env$env[["susie"]], init_args)
-  ref_init <- do.call(ref_env$env[["susie"]], init_args)
+  dev_init <- do.call(dev_env$env[["susie"]], inject_em_null_check(init_args))
+  ref_init <- do.call(ref_env$env[["susie"]], inject_em_null_check(init_args))
 
   dev_args <- list(X = X, y = y, L = 10, model_init = dev_init,
                    scaled_prior_variance = 0.5,
@@ -1914,8 +1918,8 @@ test_that("susie() matches reference with model_init, L expansion, scaled_prior_
                    scaled_prior_variance = 0.5,
                    estimate_prior_method = "optim")
 
-  dev_result <- suppressMessages(do.call(dev_env$env[["susie"]], dev_args))
-  ref_result <- suppressMessages(do.call(ref_env$env[["susie"]], ref_args))
+  dev_result <- suppressMessages(do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args)))
+  ref_result <- suppressMessages(do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args)))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })
@@ -1941,8 +1945,8 @@ test_that("susie() matches reference with model_init, L contraction - optim", {
   # Initial fit with L=10
   init_args <- list(X = X, y = y, L = 10, max_iter = 5,
                     estimate_prior_method = "optim")
-  dev_init <- do.call(dev_env$env[["susie"]], init_args)
-  ref_init <- do.call(ref_env$env[["susie"]], init_args)
+  dev_init <- do.call(dev_env$env[["susie"]], inject_em_null_check(init_args))
+  ref_init <- do.call(ref_env$env[["susie"]], inject_em_null_check(init_args))
 
   # Second fit with L=5 (contraction - model_init has more effects)
   dev_args <- list(X = X, y = y, L = 5, model_init = dev_init,
@@ -1950,8 +1954,8 @@ test_that("susie() matches reference with model_init, L contraction - optim", {
   ref_args <- list(X = X, y = y, L = 5, s_init = ref_init,
                    estimate_prior_method = "optim")
 
-  dev_result <- suppressWarnings(suppressMessages(do.call(dev_env$env[["susie"]], dev_args)))
-  ref_result <- suppressWarnings(suppressMessages(do.call(ref_env$env[["susie"]], ref_args)))
+  dev_result <- suppressWarnings(suppressMessages(do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args))))
+  ref_result <- suppressWarnings(suppressMessages(do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args))))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })
@@ -1972,16 +1976,16 @@ test_that("susie() matches reference with model_init, L contraction - simple", {
 
   init_args <- list(X = X, y = y, L = 10, max_iter = 5,
                     estimate_prior_method = "simple")
-  dev_init <- do.call(dev_env$env[["susie"]], init_args)
-  ref_init <- do.call(ref_env$env[["susie"]], init_args)
+  dev_init <- do.call(dev_env$env[["susie"]], inject_em_null_check(init_args))
+  ref_init <- do.call(ref_env$env[["susie"]], inject_em_null_check(init_args))
 
   dev_args <- list(X = X, y = y, L = 5, model_init = dev_init,
                    estimate_prior_method = "simple")
   ref_args <- list(X = X, y = y, L = 5, s_init = ref_init,
                    estimate_prior_method = "simple")
 
-  dev_result <- suppressWarnings(suppressMessages(do.call(dev_env$env[["susie"]], dev_args)))
-  ref_result <- suppressWarnings(suppressMessages(do.call(ref_env$env[["susie"]], ref_args)))
+  dev_result <- suppressWarnings(suppressMessages(do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args))))
+  ref_result <- suppressWarnings(suppressMessages(do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args))))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })
@@ -2013,8 +2017,8 @@ test_that("susie() matches reference with susie_init_coef as model_init - optim"
   ref_args <- list(X = X, y = y, L = 10, s_init = ref_coef_init,
                    estimate_prior_method = "optim")
 
-  dev_result <- suppressMessages(do.call(dev_env$env[["susie"]], dev_args))
-  ref_result <- suppressMessages(do.call(ref_env$env[["susie"]], ref_args))
+  dev_result <- suppressMessages(do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args)))
+  ref_result <- suppressMessages(do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args)))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })
@@ -2041,8 +2045,8 @@ test_that("susie() matches reference with susie_init_coef as model_init - simple
   ref_args <- list(X = X, y = y, L = 10, s_init = ref_coef_init,
                    estimate_prior_method = "simple")
 
-  dev_result <- suppressMessages(do.call(dev_env$env[["susie"]], dev_args))
-  ref_result <- suppressMessages(do.call(ref_env$env[["susie"]], ref_args))
+  dev_result <- suppressMessages(do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args)))
+  ref_result <- suppressMessages(do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args)))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })
@@ -2070,8 +2074,8 @@ test_that("susie() matches reference with susie_init_coef as model_init, matchin
   ref_args <- list(X = X, y = y, L = 4, s_init = ref_coef_init,
                    estimate_prior_method = "optim")
 
-  dev_result <- do.call(dev_env$env[["susie"]], dev_args)
-  ref_result <- do.call(ref_env$env[["susie"]], ref_args)
+  dev_result <- do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args))
+  ref_result <- do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })
@@ -2098,8 +2102,8 @@ test_that("susie() matches reference with model_init and null_weight - optim", {
   init_args <- list(X = X, y = y, L = 5, max_iter = 3,
                     null_weight = 0.5,
                     estimate_prior_method = "optim")
-  dev_init <- do.call(dev_env$env[["susie"]], init_args)
-  ref_init <- do.call(ref_env$env[["susie"]], init_args)
+  dev_init <- do.call(dev_env$env[["susie"]], inject_em_null_check(init_args))
+  ref_init <- do.call(ref_env$env[["susie"]], inject_em_null_check(init_args))
 
   dev_args <- list(X = X, y = y, L = 5, model_init = dev_init,
                    null_weight = 0.5,
@@ -2108,8 +2112,8 @@ test_that("susie() matches reference with model_init and null_weight - optim", {
                    null_weight = 0.5,
                    estimate_prior_method = "optim")
 
-  dev_result <- do.call(dev_env$env[["susie"]], dev_args)
-  ref_result <- do.call(ref_env$env[["susie"]], ref_args)
+  dev_result <- do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args))
+  ref_result <- do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })
@@ -2132,8 +2136,8 @@ test_that("susie() matches reference with model_init and null_weight - simple", 
   init_args <- list(X = X, y = y, L = 5, max_iter = 3,
                     null_weight = 0.5,
                     estimate_prior_method = "simple")
-  dev_init <- do.call(dev_env$env[["susie"]], init_args)
-  ref_init <- do.call(ref_env$env[["susie"]], init_args)
+  dev_init <- do.call(dev_env$env[["susie"]], inject_em_null_check(init_args))
+  ref_init <- do.call(ref_env$env[["susie"]], inject_em_null_check(init_args))
 
   dev_args <- list(X = X, y = y, L = 5, model_init = dev_init,
                    null_weight = 0.5,
@@ -2142,8 +2146,8 @@ test_that("susie() matches reference with model_init and null_weight - simple", 
                    null_weight = 0.5,
                    estimate_prior_method = "simple")
 
-  dev_result <- do.call(dev_env$env[["susie"]], dev_args)
-  ref_result <- do.call(ref_env$env[["susie"]], ref_args)
+  dev_result <- do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args))
+  ref_result <- do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })
@@ -2173,8 +2177,8 @@ test_that("susie() matches reference with model_init and prior_weights - optim",
   init_args <- list(X = X, y = y, L = 5, max_iter = 3,
                     prior_weights = pw,
                     estimate_prior_method = "optim")
-  dev_init <- do.call(dev_env$env[["susie"]], init_args)
-  ref_init <- do.call(ref_env$env[["susie"]], init_args)
+  dev_init <- do.call(dev_env$env[["susie"]], inject_em_null_check(init_args))
+  ref_init <- do.call(ref_env$env[["susie"]], inject_em_null_check(init_args))
 
   dev_args <- list(X = X, y = y, L = 5, model_init = dev_init,
                    prior_weights = pw,
@@ -2183,8 +2187,8 @@ test_that("susie() matches reference with model_init and prior_weights - optim",
                    prior_weights = pw,
                    estimate_prior_method = "optim")
 
-  dev_result <- do.call(dev_env$env[["susie"]], dev_args)
-  ref_result <- do.call(ref_env$env[["susie"]], ref_args)
+  dev_result <- do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args))
+  ref_result <- do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })
@@ -2209,8 +2213,8 @@ test_that("susie() matches reference with model_init and prior_weights - simple"
   init_args <- list(X = X, y = y, L = 5, max_iter = 3,
                     prior_weights = pw,
                     estimate_prior_method = "simple")
-  dev_init <- do.call(dev_env$env[["susie"]], init_args)
-  ref_init <- do.call(ref_env$env[["susie"]], init_args)
+  dev_init <- do.call(dev_env$env[["susie"]], inject_em_null_check(init_args))
+  ref_init <- do.call(ref_env$env[["susie"]], inject_em_null_check(init_args))
 
   dev_args <- list(X = X, y = y, L = 5, model_init = dev_init,
                    prior_weights = pw,
@@ -2219,8 +2223,8 @@ test_that("susie() matches reference with model_init and prior_weights - simple"
                    prior_weights = pw,
                    estimate_prior_method = "simple")
 
-  dev_result <- do.call(dev_env$env[["susie"]], dev_args)
-  ref_result <- do.call(ref_env$env[["susie"]], ref_args)
+  dev_result <- do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args))
+  ref_result <- do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })
@@ -2246,8 +2250,8 @@ test_that("susie() matches reference with model_init, L expansion, and prior_wei
   init_args <- list(X = X, y = y, L = 3, max_iter = 3,
                     prior_weights = pw,
                     estimate_prior_method = "optim")
-  dev_init <- do.call(dev_env$env[["susie"]], init_args)
-  ref_init <- do.call(ref_env$env[["susie"]], init_args)
+  dev_init <- do.call(dev_env$env[["susie"]], inject_em_null_check(init_args))
+  ref_init <- do.call(ref_env$env[["susie"]], inject_em_null_check(init_args))
 
   dev_args <- list(X = X, y = y, L = 8, model_init = dev_init,
                    prior_weights = pw,
@@ -2256,8 +2260,8 @@ test_that("susie() matches reference with model_init, L expansion, and prior_wei
                    prior_weights = pw,
                    estimate_prior_method = "optim")
 
-  dev_result <- suppressMessages(do.call(dev_env$env[["susie"]], dev_args))
-  ref_result <- suppressMessages(do.call(ref_env$env[["susie"]], ref_args))
+  dev_result <- suppressMessages(do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args)))
+  ref_result <- suppressMessages(do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args)))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })
@@ -2284,16 +2288,16 @@ test_that("susie() matches reference with model_init, max_iter=1 - optim", {
 
   init_args <- list(X = X, y = y, L = 5, max_iter = 3,
                     estimate_prior_method = "optim")
-  dev_init <- do.call(dev_env$env[["susie"]], init_args)
-  ref_init <- do.call(ref_env$env[["susie"]], init_args)
+  dev_init <- do.call(dev_env$env[["susie"]], inject_em_null_check(init_args))
+  ref_init <- do.call(ref_env$env[["susie"]], inject_em_null_check(init_args))
 
   dev_args <- list(X = X, y = y, L = 5, model_init = dev_init,
                    max_iter = 1, estimate_prior_method = "optim")
   ref_args <- list(X = X, y = y, L = 5, s_init = ref_init,
                    max_iter = 1, estimate_prior_method = "optim")
 
-  dev_result <- do.call(dev_env$env[["susie"]], dev_args)
-  ref_result <- do.call(ref_env$env[["susie"]], ref_args)
+  dev_result <- do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args))
+  ref_result <- do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })
@@ -2314,16 +2318,16 @@ test_that("susie() matches reference with model_init, max_iter=1 - simple", {
 
   init_args <- list(X = X, y = y, L = 5, max_iter = 3,
                     estimate_prior_method = "simple")
-  dev_init <- do.call(dev_env$env[["susie"]], init_args)
-  ref_init <- do.call(ref_env$env[["susie"]], init_args)
+  dev_init <- do.call(dev_env$env[["susie"]], inject_em_null_check(init_args))
+  ref_init <- do.call(ref_env$env[["susie"]], inject_em_null_check(init_args))
 
   dev_args <- list(X = X, y = y, L = 5, model_init = dev_init,
                    max_iter = 1, estimate_prior_method = "simple")
   ref_args <- list(X = X, y = y, L = 5, s_init = ref_init,
                    max_iter = 1, estimate_prior_method = "simple")
 
-  dev_result <- do.call(dev_env$env[["susie"]], dev_args)
-  ref_result <- do.call(ref_env$env[["susie"]], ref_args)
+  dev_result <- do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args))
+  ref_result <- do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })
@@ -2345,16 +2349,16 @@ test_that("susie() matches reference with model_init, L expansion, max_iter=1 - 
 
   init_args <- list(X = X, y = y, L = 3, max_iter = 3,
                     estimate_prior_method = "optim")
-  dev_init <- do.call(dev_env$env[["susie"]], init_args)
-  ref_init <- do.call(ref_env$env[["susie"]], init_args)
+  dev_init <- do.call(dev_env$env[["susie"]], inject_em_null_check(init_args))
+  ref_init <- do.call(ref_env$env[["susie"]], inject_em_null_check(init_args))
 
   dev_args <- list(X = X, y = y, L = 8, model_init = dev_init,
                    max_iter = 1, estimate_prior_method = "optim")
   ref_args <- list(X = X, y = y, L = 8, s_init = ref_init,
                    max_iter = 1, estimate_prior_method = "optim")
 
-  dev_result <- suppressMessages(do.call(dev_env$env[["susie"]], dev_args))
-  ref_result <- suppressMessages(do.call(ref_env$env[["susie"]], ref_args))
+  dev_result <- suppressMessages(do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args)))
+  ref_result <- suppressMessages(do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args)))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })
@@ -2375,16 +2379,16 @@ test_that("susie() matches reference with model_init, L expansion, max_iter=1 - 
 
   init_args <- list(X = X, y = y, L = 3, max_iter = 3,
                     estimate_prior_method = "simple")
-  dev_init <- do.call(dev_env$env[["susie"]], init_args)
-  ref_init <- do.call(ref_env$env[["susie"]], init_args)
+  dev_init <- do.call(dev_env$env[["susie"]], inject_em_null_check(init_args))
+  ref_init <- do.call(ref_env$env[["susie"]], inject_em_null_check(init_args))
 
   dev_args <- list(X = X, y = y, L = 8, model_init = dev_init,
                    max_iter = 1, estimate_prior_method = "simple")
   ref_args <- list(X = X, y = y, L = 8, s_init = ref_init,
                    max_iter = 1, estimate_prior_method = "simple")
 
-  dev_result <- suppressMessages(do.call(dev_env$env[["susie"]], dev_args))
-  ref_result <- suppressMessages(do.call(ref_env$env[["susie"]], ref_args))
+  dev_result <- suppressMessages(do.call(dev_env$env[["susie"]], inject_em_null_check(dev_args)))
+  ref_result <- suppressMessages(do.call(ref_env$env[["susie"]], inject_em_null_check(ref_args)))
 
   expect_equal_susie_objects(dev_result, ref_result, tolerance = 1e-5)
 })

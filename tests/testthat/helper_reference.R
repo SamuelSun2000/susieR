@@ -126,6 +126,21 @@ compare_to_reference <- function(func_name, args, tolerance = 1e-8, ref_func_nam
     ref_args <- args
   }
 
+  # Dev skips the null-likelihood V-zeroing step for EM (intentional: avoids
+  # an inconsistent (q, V) pair that can decrease the ELBO; null effects are
+  # instead removed by trim_null_effects() post-convergence). The reference
+  # always runs the check. Setting check_null_threshold = -Inf disables the
+  # check on the reference side without affecting dev, making the two paths
+  # comparable. Only injected when the caller hasn't set it explicitly.
+  uses_em <- identical(args$estimate_prior_method, "EM") ||
+             identical(ref_args$estimate_prior_method, "EM")
+  if (uses_em) {
+    if (is.null(args$check_null_threshold))
+      args$check_null_threshold <- -Inf
+    if (is.null(ref_args$check_null_threshold))
+      ref_args$check_null_threshold <- -Inf
+  }
+
   # Get functions from each environment
   ref_func <- ref_env$env[[ref_func_name]]
   dev_func <- dev_env$env[[func_name]]
@@ -146,6 +161,21 @@ compare_to_reference <- function(func_name, args, tolerance = 1e-8, ref_func_nam
   expect_equal_susie_objects(dev_result, ref_result, tolerance)
 
   invisible(list(dev = dev_result, ref = ref_result))
+}
+
+# Inject check_null_threshold = -Inf when estimate_prior_method = "EM" and
+# the caller hasn't explicitly set a threshold. Needed because dev skips the
+# null-likelihood V-zeroing step for EM while the reference always runs it;
+# -Inf disables the check on the reference side. Safe for dev (the branch is
+# not executed). Used by direct do.call sites in tests that don't go through
+# compare_to_reference().
+#' @keywords internal
+inject_em_null_check <- function(args) {
+  if (identical(args$estimate_prior_method, "EM") &&
+      is.null(args$check_null_threshold)) {
+    args$check_null_threshold <- -Inf
+  }
+  args
 }
 
 # Deep comparison of susie objects

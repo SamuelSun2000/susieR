@@ -379,6 +379,41 @@ test_that("susie_get_cs errors when both X and Xcorr are provided", {
   )
 })
 
+test_that("susie_get_cs warns when neither X nor Xcorr is provided", {
+  set.seed(40)
+  dat <- simulate_regression(n = 200, p = 100, k = 3, signal_sd = 2)
+  fit <- susie(dat$X, dat$y, L = 10, verbose = FALSE)
+
+  # Warn even when min_abs_corr is left at its default, since purity
+  # filtering is skipped whenever neither X nor Xcorr is supplied.
+  expect_message(
+    susie_get_cs(fit),
+    "purity filtering is skipped"
+  )
+
+  # Same warning when min_abs_corr is explicitly set.
+  expect_message(
+    susie_get_cs(fit, min_abs_corr = 0.9),
+    "purity filtering is skipped"
+  )
+})
+
+test_that("susie_get_cs does not warn when X or Xcorr is provided", {
+  set.seed(41)
+  dat <- simulate_regression(n = 200, p = 100, k = 3, signal_sd = 2)
+  fit <- susie(dat$X, dat$y, L = 10, verbose = FALSE)
+
+  expect_no_message(
+    susie_get_cs(fit, X = dat$X, min_abs_corr = 0.5),
+    message = "purity filtering is skipped"
+  )
+
+  expect_no_message(
+    susie_get_cs(fit, Xcorr = cor(dat$X), min_abs_corr = 0.5),
+    message = "purity filtering is skipped"
+  )
+})
+
 test_that("susie_get_cs warns and fixes non-symmetric Xcorr", {
   set.seed(31)
   dat <- simulate_regression(n = 200, p = 100, k = 3, signal_sd = 2)

@@ -131,7 +131,7 @@ test_that("calculate_posterior_moments.individual handles V=0", {
   l <- 1
   V <- 0
 
-  setup$params$use_servin_stephens <- TRUE
+  setup$params$use_NIG <- TRUE
   model <- compute_residuals.individual(setup$data, setup$params, setup$model, l)
   model <- calculate_posterior_moments.individual(setup$data, setup$params, model, V, l)
 

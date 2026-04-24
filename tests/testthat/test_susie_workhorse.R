@@ -493,7 +493,7 @@ test_that("susie_workhorse recovers true signal on simple simulated data", {
     estimate_prior_variance = TRUE,
     estimate_prior_method = "optim",
     unmappable_effects = "none",
-    use_servin_stephens = FALSE,
+    use_NIG = FALSE,
     compute_univariate_zscore = TRUE,
     coverage = 0.95,
     min_abs_corr = 0.5,

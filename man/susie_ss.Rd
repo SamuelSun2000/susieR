@@ -24,7 +24,7 @@ susie_ss(
   model_init = NULL,
   s_init = NULL,
   estimate_residual_variance = TRUE,
-  estimate_residual_method = c("MoM", "MLE", "Servin_Stephens"),
+  estimate_residual_method = c("MoM", "MLE", "NIG"),
   residual_variance_lowerbound = 0,
   residual_variance_upperbound = Inf,
   estimate_prior_variance = TRUE,
@@ -44,8 +44,8 @@ susie_ss(
   track_fit = FALSE,
   check_prior = FALSE,
   refine = FALSE,
-  alpha0 = 0.1,
-  beta0 = 0.1,
+  alpha0 = 1/sqrt(n),
+  beta0 = 1/sqrt(n),
   slot_prior = NULL
 )
 }
@@ -109,7 +109,10 @@ initial estimate of the residual variance. By default, it is set to
 
 \item{prior_weights}{A vector of length p, in which each entry
 gives the prior probability that corresponding column of X has a
-nonzero effect on the outcome, y.}
+nonzero effect on the outcome, y. The weights are internally
+normalized to sum to 1. When \code{NULL} (the default), uniform
+prior weights are used (each variable is assigned probability
+\code{1/p}).}
 
 \item{null_weight}{Prior probability of no effect (a number between 0 and 1,
 and cannot be exactly 1).}
@@ -124,7 +127,7 @@ fixed to the value supplied by \code{residual_variance}.}
 
 \item{estimate_residual_method}{The method used for estimating residual variance.
 For the original SuSiE model, "MLE" and "MoM" estimation is equivalent, but for
-the infinitesimal model, "MoM" is more stable. We recommend using "Servin_Stephens"
+the infinitesimal model, "MoM" is more stable. We recommend using "NIG"
 when n < 80 for improved coverage, although it is currently only implemented
 for individual-level data.}
 
@@ -199,7 +202,12 @@ than \code{tol}.}
 \item{min_abs_corr}{Minimum absolute correlation allowed in a
 credible set. The default, 0.5, corresponds to a squared
 correlation of 0.25, which is a commonly used threshold for
-genotype data in genetic studies.}
+genotype data in genetic studies. This "purity" filter is
+applied to the CSs reported in the fit object, so the CS list
+returned here may be a subset of the one produced by calling
+\code{\link{susie_get_cs}} on the same fit without passing
+\code{X} or \code{Xcorr} (in which case the purity filter is
+skipped).}
 
 \item{n_purity}{Passed as argument \code{n_purity} to
 \code{\link{susie_get_cs}}.}
@@ -221,10 +229,16 @@ iterative refinement procedure is used, after the IBSS algorithm,
 to check and escape from local optima (see details).}
 
 \item{alpha0}{Numerical parameter for the NIG prior when using
-\code{estimate_residual_method = "Servin_Stephens"}.}
+\code{estimate_residual_method = "NIG"}. Defaults to
+\code{1/sqrt(n)}, where \code{n} is the sample size. When calling
+\code{susie_rss} with NIG, \code{n} must be supplied; otherwise
+validation errors.}
 
 \item{beta0}{Numerical parameter for the NIG prior when using
-\code{estimate_residual_method = "Servin_Stephens"}.}
+\code{estimate_residual_method = "NIG"}. Defaults to
+\code{1/sqrt(n)}, where \code{n} is the sample size. When calling
+\code{susie_rss} with NIG, \code{n} must be supplied; otherwise
+validation errors.}
 }
 \description{
 Performs SuSiE regression using sufficient statistics (XtX, Xty,

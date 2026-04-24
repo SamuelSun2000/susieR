@@ -62,9 +62,8 @@ susie_workhorse <- function(data, params) {
   # Set ELBO from iterations
   model$elbo <- elbo[2:(iter + 1)]
 
-  # For Servin-Stephens (NIG prior), scale prior variance by residual
-  # variance mode
-  if (params$use_servin_stephens)
+  # For NIG prior, scale prior variance by residual variance mode
+  if (params$use_NIG)
     model$V <- model$V * model$rv
     
   # Zero out effects with negligible prior variance

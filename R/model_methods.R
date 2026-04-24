@@ -84,7 +84,7 @@ initialize_matrices.default <- function(data, params, var_y) {
     alpha             = matrix(1 / data$p, L, data$p),
     mu                = matrix(0, L, data$p),
     mu2               = matrix(0, L, data$p),
-    V                 = rep(params$scaled_prior_variance * var_y, L),
+    V                 = expand_scaled_prior_variance(params$scaled_prior_variance, var_y, L),
     KL                = rep(as.numeric(NA), L),
     lbf               = rep(as.numeric(NA), L),
     lbf_variable      = matrix(as.numeric(NA), L, data$p),
@@ -142,17 +142,26 @@ check_convergence.default <- function(data, params, model, elbo, iter) {
   V_str <- format_V_summary(model$V)
   chat_str <- format_chat_summary(model)
 
+  # Tabular verbose format (ELBO-convergence path): columns are
+  # iter, ELBO, delta, sigma2, mem, V (variable-width, last).
+  verbose_row_fmt <- "%4d   %11.4f   %9s   %7.4f   %-7s  %s%s"
+  verbose_header  <- sprintf("%-4s   %11s   %9s   %7s   %-7s  %s",
+                             "iter", "ELBO", "delta", "sigma2", "mem", "V")
+
   # Skip convergence check on first iteration
   if (iter == 1) {
     model$converged <- FALSE
     if (verbose) {
       elbo_val <- elbo[iter + 1]
       if (!is.na(elbo_val) && is.finite(elbo_val)) {
-        message(sprintf("iter %3d: ELBO=%.4f, V=%s%s [mem: %.2f GB]",
-                        iter, elbo_val, V_str, chat_str, mem_used_gb()))
+        message(verbose_header)
+        message(sprintf(verbose_row_fmt,
+                        iter, elbo_val, "-", model$sigma2,
+                        sprintf("%.2f GB", mem_used_gb()),
+                        paste0(V_str, chat_str), ""))
       } else {
-        message(sprintf("iter %3d: V=%s%s [mem: %.2f GB]",
-                        iter, V_str, chat_str, mem_used_gb()))
+        message(sprintf("iter %3d: sigma2=%.4f, V=%s%s [mem: %.2f GB]",
+                        iter, model$sigma2, V_str, chat_str, mem_used_gb()))
       }
     }
     return(model)
@@ -167,7 +176,6 @@ check_convergence.default <- function(data, params, model, elbo, iter) {
       warning_message(paste0("Iteration ", iter, " produced an NA/infinite ELBO",
                              " value. Using pip-based convergence this iteration."))
     }
-
     # PIP convergence with stall detection.
     # Converges when max|dPIP| < tol, or when pip_diff has not improved
     # in stall_window consecutive iterations (oscillation of any period).
@@ -185,7 +193,6 @@ check_convergence.default <- function(data, params, model, elbo, iter) {
     }
     stalled <- (model$runtime$stall_count >= stall_window &&
                 pip_diff >= params$tol)
-
     model$converged <- (pip_diff < params$tol) || stalled
     if (verbose) {
       conv_tag <- if (stalled) " -- converged (stalled)"
@@ -214,10 +221,13 @@ check_convergence.default <- function(data, params, model, elbo, iter) {
   model$converged <- (ELBO_diff >= 0 && ELBO_diff < params$tol)
 
   if (verbose)
-    message(sprintf("iter %3d: ELBO=%.4f, delta=%.2e, V=%s%s%s [mem: %.2f GB]",
-                    iter, elbo[iter + 1], ELBO_diff, V_str, chat_str,
-                    if (model$converged) " -- converged" else "",
-                    mem_used_gb()))
+    message(sprintf(verbose_row_fmt,
+                    iter, elbo[iter + 1],
+                    sprintf("%.2e", ELBO_diff),
+                    model$sigma2,
+                    sprintf("%.2f GB", mem_used_gb()),
+                    paste0(V_str, chat_str),
+                    if (model$converged) "  converged" else ""))
 
   if (model$converged && !is.null(params$unmappable_effects) &&
       params$unmappable_effects %in% c("ash", "ash_filter_archived")) {
@@ -267,7 +277,7 @@ get_objective.default <- function(data, params, model) {
       data$eigen_vectors, data$eigen_values,
       data$VtXty, data$yty
     )
-  } else if (params$use_servin_stephens && nrow(model$alpha) == 1) {
+  } else if (params$use_NIG && nrow(model$alpha) == 1) {
     objective <- model$marginal_loglik[1]
   } else {
     # Standard ELBO computation

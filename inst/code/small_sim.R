@@ -52,7 +52,7 @@ for (iter in 1:N) {
   t0 <- proc.time()
   fit2 <- suppressMessages(
             susie(X,y,L = 10,standardize = FALSE,min_abs_corr = 0.5,
-                  estimate_residual_method = "Servin_Stephens",
+                  estimate_residual_method = "NIG",
                   estimate_prior_method = "EM",alpha0 = 0.1,beta0 = 0.1,
                   verbose = FALSE))
   t1 <- proc.time()

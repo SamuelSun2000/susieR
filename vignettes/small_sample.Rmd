@@ -74,7 +74,7 @@ abline(0, 1, col = "magenta", lty = "dotted")
 
 ## SuSiE with Servin-Stephens SER
 
-Setting `estimate_residual_method = "Servin_Stephens"` switches SuSiE
+Setting `estimate_residual_method = "NIG"` switches SuSiE
 to a variant of the single-effect regression (SER) model that accounts
 for uncertainty in the residual variance. This is based on the linear
 regression model for single-SNP association tests described in
@@ -82,7 +82,7 @@ regression model for single-SNP association tests described in
 
 ```{r run-susie-small, message=FALSE, warning=FALSE} 
 res_susie_small <-
-  susie(X,y,L = 1,estimate_residual_method = "Servin_Stephens",
+  susie(X,y,L = 1,estimate_residual_method = "NIG",
         verbose = TRUE)
 res_susie_small$sets$cs
 ```

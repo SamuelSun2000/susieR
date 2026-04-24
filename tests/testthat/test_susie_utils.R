@@ -580,12 +580,15 @@ test_that("validate_and_override_params validates and adjusts parameters", {
     estimate_prior_method = "EM",
     estimate_residual_method = "MLE",
     estimate_residual_variance = TRUE,
-    refine = FALSE
+    refine = FALSE,
+    alpha0 = 0.1,
+    beta0 = 0.1,
+    n = 100
   )
 
   result <- validate_and_override_params(valid_params)
   expect_equal(result$prior_tol, 1e-9)
-  expect_false(result$use_servin_stephens)
+  expect_false(result$use_NIG)
 
   # Test: invalid prior_tol
   bad_params <- valid_params
@@ -639,61 +642,61 @@ test_that("validate_and_override_params validates and adjusts parameters", {
     "Refinement is not supported with unmappable effects"
   )
 
-  # Test: Servin_Stephens overrides convergence method when L > 1
-  ss_params <- valid_params
-  ss_params$L <- 10
-  ss_params$estimate_residual_method <- "Servin_Stephens"
-  ss_params$convergence_method <- "elbo"
-  ss_params$estimate_prior_method <- "simple"
+  # Test: NIG overrides convergence method when L > 1
+  nig_params <- valid_params
+  nig_params$L <- 10
+  nig_params$estimate_residual_method <- "NIG"
+  nig_params$convergence_method <- "elbo"
+  nig_params$estimate_prior_method <- "simple"
 
   expect_message(
-    result <- validate_and_override_params(ss_params),
+    result <- validate_and_override_params(nig_params),
     "PIP convergence"
   )
   expect_message(
-    result <- validate_and_override_params(ss_params),
+    result <- validate_and_override_params(nig_params),
     "EM"
   )
 
-  expect_true(result$use_servin_stephens)
+  expect_true(result$use_NIG)
   expect_equal(result$convergence_method, "pip")
   expect_equal(result$estimate_prior_method, "EM")
 
-  # Test: Servin_Stephens does NOT override convergence method when L = 1
+  # Test: NIG does NOT override convergence method when L = 1
   # (ELBO is well-defined for single-effect models)
-  ss_params_l1 <- valid_params
-  ss_params_l1$L <- 1
-  ss_params_l1$estimate_residual_method <- "Servin_Stephens"
-  ss_params_l1$convergence_method <- "elbo"
-  ss_params_l1$estimate_prior_method <- "EM"
+  nig_params_l1 <- valid_params
+  nig_params_l1$L <- 1
+  nig_params_l1$estimate_residual_method <- "NIG"
+  nig_params_l1$convergence_method <- "elbo"
+  nig_params_l1$estimate_prior_method <- "EM"
 
-  result_l1 <- validate_and_override_params(ss_params_l1)
+  result_l1 <- validate_and_override_params(nig_params_l1)
 
-  expect_true(result_l1$use_servin_stephens)
+  expect_true(result_l1$use_NIG)
   expect_equal(result_l1$convergence_method, "elbo")  # Not overridden
   expect_equal(result_l1$estimate_prior_method, "EM")
 
-  # Test: Servin_Stephens overrides estimate_residual_variance = FALSE
-  ss_erv_params <- valid_params
-  ss_erv_params$estimate_residual_method <- "Servin_Stephens"
-  ss_erv_params$estimate_residual_variance <- FALSE
-  ss_erv_params$estimate_prior_method <- "EM"
+  # Test: NIG overrides estimate_residual_variance = FALSE
+  nig_erv_params <- valid_params
+  nig_erv_params$estimate_residual_method <- "NIG"
+  nig_erv_params$estimate_residual_variance <- FALSE
+  nig_erv_params$estimate_prior_method <- "EM"
 
   expect_message(
-    result <- validate_and_override_params(ss_erv_params),
+    result <- validate_and_override_params(nig_erv_params),
     "estimate_residual_variance = TRUE"
   )
   expect_true(result$estimate_residual_variance)
 
-  # Test: Servin_Stephens with explicit estimate_residual_variance = TRUE produces no warning
-  ss_erv_params2 <- valid_params
-  ss_erv_params2$estimate_residual_method <- "Servin_Stephens"
-  ss_erv_params2$estimate_residual_variance <- TRUE
-  ss_erv_params2$estimate_prior_method <- "EM"
+  # Test: NIG with explicit estimate_residual_variance = TRUE produces no warning
+  nig_erv_params2 <- valid_params
+  nig_erv_params2$estimate_residual_method <- "NIG"
+  nig_erv_params2$estimate_residual_variance <- TRUE
+  nig_erv_params2$estimate_prior_method <- "EM"
 
   # Should not produce the "estimate_residual_variance" warning
   expect_no_message(
-    result <- validate_and_override_params(ss_erv_params2),
+    result <- validate_and_override_params(nig_erv_params2),
     message = "integrates out residual variance"
   )
   expect_true(result$estimate_residual_variance)
@@ -704,31 +707,157 @@ test_that("validate_and_override_params validates and adjusts parameters", {
   result <- validate_and_override_params(no_est_params)
   expect_equal(result$estimate_prior_method, "none")
 
-  # Test: Servin_Stephens with estimate_prior_variance = FALSE respects user choice
+  # Test: NIG with estimate_prior_variance = FALSE respects user choice
   # The EM override should NOT happen when user explicitly disables prior variance estimation
-  ss_no_prior_params <- valid_params
-  ss_no_prior_params$estimate_residual_method <- "Servin_Stephens"
-  ss_no_prior_params$estimate_prior_variance <- FALSE
-  ss_no_prior_params$estimate_prior_method <- "optim"
+  nig_no_prior_params <- valid_params
+  nig_no_prior_params$estimate_residual_method <- "NIG"
+  nig_no_prior_params$estimate_prior_variance <- FALSE
+  nig_no_prior_params$estimate_prior_method <- "optim"
 
-  result <- validate_and_override_params(ss_no_prior_params)
-  expect_true(result$use_servin_stephens)
+  result <- validate_and_override_params(nig_no_prior_params)
+  expect_true(result$use_NIG)
   # estimate_prior_variance = FALSE -> estimate_prior_method stays "none" (set earlier)
   # The SS block should NOT override to "EM" because estimation is disabled
   expect_equal(result$estimate_prior_method, "none")
 
-  # Test: Servin_Stephens with estimate_prior_variance = TRUE overrides to EM
-  ss_yes_prior_params <- valid_params
-  ss_yes_prior_params$estimate_residual_method <- "Servin_Stephens"
-  ss_yes_prior_params$estimate_prior_variance <- TRUE
-  ss_yes_prior_params$estimate_prior_method <- "simple"
+  # Test: NIG with estimate_prior_variance = TRUE overrides to EM
+  nig_yes_prior_params <- valid_params
+  nig_yes_prior_params$estimate_residual_method <- "NIG"
+  nig_yes_prior_params$estimate_prior_variance <- TRUE
+  nig_yes_prior_params$estimate_prior_method <- "simple"
 
   expect_message(
-    result <- validate_and_override_params(ss_yes_prior_params),
+    result <- validate_and_override_params(nig_yes_prior_params),
     "EM"
   )
-  expect_true(result$use_servin_stephens)
+  expect_true(result$use_NIG)
   expect_equal(result$estimate_prior_method, "EM")
+
+  # Test: NIG rejects alpha0 = 0 (reproduces GitHub issue: L=1,
+  # alpha0 = 0, beta0 > 0 previously produced an infinite ELBO crash)
+  nig_bad_alpha <- valid_params
+  nig_bad_alpha$estimate_residual_method <- "NIG"
+  nig_bad_alpha$alpha0 <- 0
+  nig_bad_alpha$beta0 <- 0.5
+  expect_error(
+    validate_and_override_params(nig_bad_alpha),
+    "alpha0 > 0 and beta0 > 0"
+  )
+
+  # Test: NIG rejects alpha0 = 0, beta0 = 0 (previously produced
+  # a silent NaN ELBO rather than a proper error)
+  nig_both_zero <- valid_params
+  nig_both_zero$estimate_residual_method <- "NIG"
+  nig_both_zero$alpha0 <- 0
+  nig_both_zero$beta0 <- 0
+  expect_error(
+    validate_and_override_params(nig_both_zero),
+    "alpha0 > 0 and beta0 > 0"
+  )
+
+  # Test: NIG rejects negative alpha0
+  nig_neg_alpha <- valid_params
+  nig_neg_alpha$estimate_residual_method <- "NIG"
+  nig_neg_alpha$alpha0 <- -0.5
+  nig_neg_alpha$beta0 <- 1
+  expect_error(
+    validate_and_override_params(nig_neg_alpha),
+    "alpha0 > 0 and beta0 > 0"
+  )
+
+  # Test: NIG rejects negative beta0
+  nig_neg_beta <- valid_params
+  nig_neg_beta$estimate_residual_method <- "NIG"
+  nig_neg_beta$alpha0 <- 1
+  nig_neg_beta$beta0 <- -0.5
+  expect_error(
+    validate_and_override_params(nig_neg_beta),
+    "alpha0 > 0 and beta0 > 0"
+  )
+
+  # Test: NIG rejects non-finite alpha0/beta0
+  nig_inf <- valid_params
+  nig_inf$estimate_residual_method <- "NIG"
+  nig_inf$alpha0 <- Inf
+  expect_error(
+    validate_and_override_params(nig_inf),
+    "alpha0 > 0 and beta0 > 0"
+  )
+
+  nig_na <- valid_params
+  nig_na$estimate_residual_method <- "NIG"
+  nig_na$alpha0 <- NA_real_
+  expect_error(
+    validate_and_override_params(nig_na),
+    "alpha0 > 0 and beta0 > 0"
+  )
+
+  # Test: NIG rejects non-scalar alpha0/beta0
+  nig_vec <- valid_params
+  nig_vec$estimate_residual_method <- "NIG"
+  nig_vec$alpha0 <- c(0.1, 0.2)
+  expect_error(
+    validate_and_override_params(nig_vec),
+    "alpha0 > 0 and beta0 > 0"
+  )
+
+  # Test: NIG rejects NULL alpha0/beta0 (non-numeric)
+  nig_null <- valid_params
+  nig_null$estimate_residual_method <- "NIG"
+  nig_null$alpha0 <- NULL
+  expect_error(
+    validate_and_override_params(nig_null),
+    "alpha0 > 0 and beta0 > 0"
+  )
+
+  # Test: non-NIG path does NOT validate alpha0/beta0
+  # (the NIG prior is unused, so invalid values must be silently ignored)
+  no_nig_bad <- valid_params
+  no_nig_bad$estimate_residual_method <- "MLE"
+  no_nig_bad$alpha0 <- 0
+  no_nig_bad$beta0 <- 0
+  result <- validate_and_override_params(no_nig_bad)
+  expect_false(result$use_NIG)
+  expect_null(result$alpha0)
+  expect_null(result$beta0)
+
+  # Test: NIG requires a valid sample size params$n (the default alpha0/beta0
+  # scale as 1/sqrt(n), so n must be a positive finite scalar)
+  nig_needs_n <- valid_params
+  nig_needs_n$estimate_residual_method <- "NIG"
+
+  # NULL n rejected
+  nig_needs_n$n <- NULL
+  expect_error(
+    validate_and_override_params(nig_needs_n),
+    "requires a valid sample size"
+  )
+
+  # Zero n rejected
+  nig_needs_n$n <- 0
+  expect_error(
+    validate_and_override_params(nig_needs_n),
+    "requires a valid sample size"
+  )
+
+  # Negative n rejected
+  nig_needs_n$n <- -5
+  expect_error(
+    validate_and_override_params(nig_needs_n),
+    "requires a valid sample size"
+  )
+
+  # Non-scalar n rejected
+  nig_needs_n$n <- c(100, 200)
+  expect_error(
+    validate_and_override_params(nig_needs_n),
+    "requires a valid sample size"
+  )
+
+  # Valid n passes
+  nig_needs_n$n <- 100
+  result <- suppressMessages(validate_and_override_params(nig_needs_n))
+  expect_true(result$use_NIG)
 })
 
 # =============================================================================
@@ -779,6 +908,92 @@ test_that("initialize_matrices creates correct model matrices", {
   expect_equal(result$pi, params$prior_weights)
   expect_true(all(is.na(result$KL)))
   expect_true(all(is.na(result$lbf)))
+})
+
+test_that("initialize_matrices handles vector scaled_prior_variance of length L", {
+  # Regression for GitHub issue: scaled_prior_variance docs allow a length-L
+  # vector, but the refactor's rep(vec * var_y, L) produced length L*L.
+  n <- 100; p <- 50; L <- 5
+  data <- list(n = n, p = p)
+  spv <- c(0.1, 0.2, 0.3, 0.4, 0.5)
+  params <- list(
+    L = L,
+    scaled_prior_variance = spv,
+    residual_variance = 1.5,
+    prior_weights = rep(1 / p, p),
+    null_weight = 0
+  )
+  var_y <- 2.0
+
+  result <- initialize_matrices(data, params, var_y)
+
+  expect_length(result$V, L)
+  expect_equal(result$V, spv * var_y)
+})
+
+test_that("expand_scaled_prior_variance recycles scalar and preserves vector", {
+  expect_equal(expand_scaled_prior_variance(0.2, 2.0, 5), rep(0.4, 5))
+  expect_equal(
+    expand_scaled_prior_variance(c(0.1, 0.2, 0.3, 0.4, 0.5), 2.0, 5),
+    c(0.2, 0.4, 0.6, 0.8, 1.0)
+  )
+})
+
+test_that("validate_and_override_params rejects wrong-length scaled_prior_variance", {
+  base_params <- list(
+    prior_tol = 1e-9,
+    residual_variance_upperbound = 1e4,
+    scaled_prior_variance = c(0.1, 0.2, 0.3),
+    L = 5,
+    unmappable_effects = "none",
+    slot_prior = NULL
+  )
+  expect_error(
+    validate_and_override_params(base_params),
+    "scalar or a vector of length L"
+  )
+})
+
+test_that("susie with vector scaled_prior_variance runs end-to-end (pcarbo example)", {
+  # Regression for GitHub issue requesting per-slot prior variances.
+  # Before the fix, rep(vec * var_y, L) produced length L*L and poisoned
+  # downstream state; susie_get_cs eventually raised 'get_purity returned NaN/NA'.
+  set.seed(1)
+  n <- 200; p <- 100
+  beta <- rep(0, p); beta[1:4] <- 1
+  X <- matrix(rnorm(n * p), nrow = n)
+  X <- scale(X, center = TRUE, scale = TRUE)
+  y <- drop(X %*% beta + rnorm(n))
+
+  fit <- susie(X, y, L = 10,
+               estimate_prior_variance = FALSE,
+               scaled_prior_variance = rep(1, 10))
+
+  expect_length(fit$V, 10)
+  expect_true(all(is.finite(fit$V)))
+})
+
+test_that("vector scaled_prior_variance composes with model_init L expansion", {
+  # Confirms the preserve-fitted-V behavior (from the s_init/model_init PR)
+  # still applies when scaled_prior_variance is a length-L vector: the first
+  # num_effects entries come from model_init$V; the rest use the user vector.
+  set.seed(2)
+  n <- 200; p <- 80
+  beta <- rep(0, p); beta[1:3] <- 1
+  X <- scale(matrix(rnorm(n * p), nrow = n), center = TRUE, scale = TRUE)
+  y <- drop(X %*% beta + rnorm(n))
+
+  init <- susie(X, y, L = 2, estimate_prior_variance = TRUE)
+
+  L_new <- 5
+  spv <- c(0.1, 0.2, 0.3, 0.4, 0.5)
+  fit <- susie(X, y, L = L_new,
+               estimate_prior_variance = FALSE,
+               scaled_prior_variance = spv,
+               model_init = init)
+
+  expect_length(fit$V, L_new)
+  expect_true(all(is.finite(fit$V)))
 })
 
 test_that("initialize_null_index sets null index correctly", {
@@ -1167,27 +1382,27 @@ test_that("compute_lbf_gradient computes gradient for prior variance", {
   shat2 <- rgamma(p, shape = 2, rate = 1)
   V <- 1.0
 
-  result <- compute_lbf_gradient(alpha, betahat, shat2, V, use_servin_stephens = FALSE)
+  result <- compute_lbf_gradient(alpha, betahat, shat2, V, use_NIG = FALSE)
 
   # Check output is numeric scalar
   expect_length(result, 1)
   expect_true(is.finite(result))
 
   # Test with different V values
-  result_small_V <- compute_lbf_gradient(alpha, betahat, shat2, V = 0.1, use_servin_stephens = FALSE)
-  result_large_V <- compute_lbf_gradient(alpha, betahat, shat2, V = 10, use_servin_stephens = FALSE)
+  result_small_V <- compute_lbf_gradient(alpha, betahat, shat2, V = 0.1, use_NIG = FALSE)
+  result_large_V <- compute_lbf_gradient(alpha, betahat, shat2, V = 10, use_NIG = FALSE)
 
   expect_true(is.finite(result_small_V))
   expect_true(is.finite(result_large_V))
 
-  # Test with Servin-Stephens (should return NULL)
-  result_ss <- compute_lbf_gradient(alpha, betahat, shat2, V, use_servin_stephens = TRUE)
-  expect_null(result_ss)
+  # Test with NIG (should return NULL)
+  result_nig <- compute_lbf_gradient(alpha, betahat, shat2, V, use_NIG = TRUE)
+  expect_null(result_nig)
 
   # Test with NaN in intermediate calculations (should handle)
   shat2_zero <- rep(0, p)
   betahat_zero <- rep(0, p)
-  result_nan <- compute_lbf_gradient(alpha, betahat_zero, shat2_zero, V, use_servin_stephens = FALSE)
+  result_nan <- compute_lbf_gradient(alpha, betahat_zero, shat2_zero, V, use_NIG = FALSE)
   expect_true(is.finite(result_nan))
 })
 
@@ -1295,7 +1510,7 @@ test_that("mle_unmappable estimates variance using MLE", {
   expect_true(result_verbose_sigma$sigma2 > 0)
 })
 
-test_that("compute_lbf_servin_stephens computes log Bayes factor", {
+test_that("compute_lbf_NIG_univariate computes log Bayes factor", {
   set.seed(555)
   n <- 100
   x <- rnorm(n)
@@ -1304,7 +1519,7 @@ test_that("compute_lbf_servin_stephens computes log Bayes factor", {
   alpha0 <- 0
   beta0 <- 0
 
-  result <- compute_lbf_servin_stephens(x, y, s0, alpha0, beta0)
+  result <- compute_lbf_NIG_univariate(x, y, s0, alpha0, beta0)
 
   # Check output is numeric scalar
   expect_length(result, 1)
@@ -1316,22 +1531,22 @@ test_that("compute_lbf_servin_stephens computes log Bayes factor", {
   # Test with no signal
   x_null <- rnorm(n)
   y_null <- rnorm(n)
-  result_null <- compute_lbf_servin_stephens(x_null, y_null, s0, alpha0, beta0)
+  result_null <- compute_lbf_NIG_univariate(x_null, y_null, s0, alpha0, beta0)
   expect_true(is.finite(result_null))
 
   # Test with different prior parameters
-  result_alpha <- compute_lbf_servin_stephens(x, y, s0, alpha0 = 2, beta0 = 1)
+  result_alpha <- compute_lbf_NIG_univariate(x, y, s0, alpha0 = 2, beta0 = 1)
   expect_true(is.finite(result_alpha))
 })
 
-test_that("posterior_mean_servin_stephens computes posterior mean", {
+test_that("posterior_mean_NIG computes posterior mean", {
   set.seed(666)
   p <- 50
   xtx <- 100
   xty <- 50
   s0_t <- 1
 
-  result <- posterior_mean_servin_stephens(xtx, xty, s0_t)
+  result <- posterior_mean_NIG(xtx, xty, s0_t)
 
   # Check output is numeric
   expect_length(result, 1)
@@ -1342,11 +1557,11 @@ test_that("posterior_mean_servin_stephens computes posterior mean", {
   expect_true(abs(result) < abs(ols_est))
 
   # Test with very small prior (strong shrinkage)
-  result_small <- posterior_mean_servin_stephens(xtx, xty, s0_t = 0.01)
+  result_small <- posterior_mean_NIG(xtx, xty, s0_t = 0.01)
   expect_true(abs(result_small) < abs(result))
 })
 
-test_that("posterior_var_servin_stephens computes posterior variance", {
+test_that("posterior_var_NIG computes posterior variance", {
   set.seed(777)
   xtx <- 100
   xty <- 50
@@ -1354,7 +1569,7 @@ test_that("posterior_var_servin_stephens computes posterior variance", {
   n <- 100
   s0_t <- 1
 
-  result <- posterior_var_servin_stephens(xtx, xty, yty, n, s0_t)
+  result <- posterior_var_NIG(xtx, xty, yty, n, s0_t)
 
   # Check components
   expect_true(all(c("post_var", "beta1") %in% names(result)))
@@ -1365,7 +1580,7 @@ test_that("posterior_var_servin_stephens computes posterior variance", {
   expect_true(result$post_var > 0)
 
   # Test with very small prior (should return 0)
-  result_small <- posterior_var_servin_stephens(xtx, xty, yty, n, s0_t = 1e-6)
+  result_small <- posterior_var_NIG(xtx, xty, yty, n, s0_t = 1e-6)
   expect_equal(result_small$post_var, 0)
   expect_equal(result_small$beta1, 0)
 })
