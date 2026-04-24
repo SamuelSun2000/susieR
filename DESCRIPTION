@@ -30,7 +30,6 @@ BugReports: https://github.com/stephenslab/susieR/issues
 License: BSD_3_clause + file LICENSE
 Depends: R (>= 3.0.2)
 Imports:
-    Rcpp (>= 1.0.1),
     methods,
     graphics,
     grDevices,
@@ -42,8 +41,8 @@ Imports:
     crayon,
     ggplot2
 LinkingTo:
-    Rcpp,
-    RcppArmadillo (>= 0.9.700.2)
+    cpp11,
+    cpp11armadillo
 Suggests:
     curl,
     pkgload,

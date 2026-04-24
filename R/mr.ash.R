@@ -172,10 +172,9 @@
 #' Y. Kim (2020), Bayesian shrinkage methods for high dimensional
 #' regression. Ph.D. thesis, University of Chicago.
 #' 
-#' @useDynLib susieR
-#' 
+#' @useDynLib susieR, .registration = TRUE
+#'
 #' @importFrom utils modifyList
-#' @importFrom Rcpp evalCpp
 #' @importFrom stats var
 #' 
 #' @examples
