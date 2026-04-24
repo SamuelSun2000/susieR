@@ -308,7 +308,7 @@ mr.ash                      = function(X, y, Z = NULL, sa2 = NULL,
     o               = random_order(p, max.iter)
   }
   
-  out               = caisa_cpp (data$X, data$y, w, sa2, pi, data$beta, r, sigma2, o,
+  out               = caisa_cpp (data$X, w, sa2, pi, data$beta, r, sigma2, o,
                                  max.iter, min.iter, tol$convtol, tol$epstol,
                                  method_q, update.pi, update.sigma2, verbose)
 

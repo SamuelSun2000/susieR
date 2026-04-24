@@ -13,10 +13,10 @@ extern "C" SEXP _susieR_random_order(SEXP p, SEXP numiter) {
   END_CPP11
 }
 // caisa.cpp
-writable::list caisa_cpp(const doubles_matrix<>& X, const doubles& y, const doubles& w, const doubles& sa2, const doubles& pi_init, const doubles& beta_init, const doubles& r_init, double sigma2, const integers& o_r, int maxiter, int miniter, double convtol, double epstol, std::string method_q, bool updatepi, bool updatesigma, bool verbose);
-extern "C" SEXP _susieR_caisa_cpp(SEXP X, SEXP y, SEXP w, SEXP sa2, SEXP pi_init, SEXP beta_init, SEXP r_init, SEXP sigma2, SEXP o_r, SEXP maxiter, SEXP miniter, SEXP convtol, SEXP epstol, SEXP method_q, SEXP updatepi, SEXP updatesigma, SEXP verbose) {
+writable::list caisa_cpp(const doubles_matrix<>& X, const doubles& w, const doubles& sa2, const doubles& pi_init, const doubles& beta_init, const doubles& r_init, double sigma2, const integers& o_r, int maxiter, int miniter, double convtol, double epstol, std::string method_q, bool updatepi, bool updatesigma, bool verbose);
+extern "C" SEXP _susieR_caisa_cpp(SEXP X, SEXP w, SEXP sa2, SEXP pi_init, SEXP beta_init, SEXP r_init, SEXP sigma2, SEXP o_r, SEXP maxiter, SEXP miniter, SEXP convtol, SEXP epstol, SEXP method_q, SEXP updatepi, SEXP updatesigma, SEXP verbose) {
   BEGIN_CPP11
-    return cpp11::as_sexp(caisa_cpp(cpp11::as_cpp<cpp11::decay_t<const doubles_matrix<>&>>(X), cpp11::as_cpp<cpp11::decay_t<const doubles&>>(y), cpp11::as_cpp<cpp11::decay_t<const doubles&>>(w), cpp11::as_cpp<cpp11::decay_t<const doubles&>>(sa2), cpp11::as_cpp<cpp11::decay_t<const doubles&>>(pi_init), cpp11::as_cpp<cpp11::decay_t<const doubles&>>(beta_init), cpp11::as_cpp<cpp11::decay_t<const doubles&>>(r_init), cpp11::as_cpp<cpp11::decay_t<double>>(sigma2), cpp11::as_cpp<cpp11::decay_t<const integers&>>(o_r), cpp11::as_cpp<cpp11::decay_t<int>>(maxiter), cpp11::as_cpp<cpp11::decay_t<int>>(miniter), cpp11::as_cpp<cpp11::decay_t<double>>(convtol), cpp11::as_cpp<cpp11::decay_t<double>>(epstol), cpp11::as_cpp<cpp11::decay_t<std::string>>(method_q), cpp11::as_cpp<cpp11::decay_t<bool>>(updatepi), cpp11::as_cpp<cpp11::decay_t<bool>>(updatesigma), cpp11::as_cpp<cpp11::decay_t<bool>>(verbose)));
+    return cpp11::as_sexp(caisa_cpp(cpp11::as_cpp<cpp11::decay_t<const doubles_matrix<>&>>(X), cpp11::as_cpp<cpp11::decay_t<const doubles&>>(w), cpp11::as_cpp<cpp11::decay_t<const doubles&>>(sa2), cpp11::as_cpp<cpp11::decay_t<const doubles&>>(pi_init), cpp11::as_cpp<cpp11::decay_t<const doubles&>>(beta_init), cpp11::as_cpp<cpp11::decay_t<const doubles&>>(r_init), cpp11::as_cpp<cpp11::decay_t<double>>(sigma2), cpp11::as_cpp<cpp11::decay_t<const integers&>>(o_r), cpp11::as_cpp<cpp11::decay_t<int>>(maxiter), cpp11::as_cpp<cpp11::decay_t<int>>(miniter), cpp11::as_cpp<cpp11::decay_t<double>>(convtol), cpp11::as_cpp<cpp11::decay_t<double>>(epstol), cpp11::as_cpp<cpp11::decay_t<std::string>>(method_q), cpp11::as_cpp<cpp11::decay_t<bool>>(updatepi), cpp11::as_cpp<cpp11::decay_t<bool>>(updatesigma), cpp11::as_cpp<cpp11::decay_t<bool>>(verbose)));
   END_CPP11
 }
 // mr_ash_rss.cpp
@@ -29,9 +29,9 @@ extern "C" SEXP _susieR_mr_ash_rss_cpp(SEXP bhat, SEXP shat, SEXP z, SEXP R, SEX
 
 extern "C" {
 static const R_CallMethodDef CallEntries[] = {
-    {"_susieR_caisa_cpp",       (DL_FUNC) &_susieR_caisa_cpp,       17},
-    {"_susieR_mr_ash_rss_cpp",  (DL_FUNC) &_susieR_mr_ash_rss_cpp,  17},
-    {"_susieR_random_order",    (DL_FUNC) &_susieR_random_order,     2},
+    {"_susieR_caisa_cpp",      (DL_FUNC) &_susieR_caisa_cpp,      16},
+    {"_susieR_mr_ash_rss_cpp", (DL_FUNC) &_susieR_mr_ash_rss_cpp, 17},
+    {"_susieR_random_order",   (DL_FUNC) &_susieR_random_order,    2},
     {NULL, NULL, 0}
 };
 }

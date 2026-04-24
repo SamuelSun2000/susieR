@@ -4,8 +4,8 @@ random_order <- function(p, numiter) {
   .Call(`_susieR_random_order`, p, numiter)
 }
 
-caisa_cpp <- function(X, y, w, sa2, pi_init, beta_init, r_init, sigma2, o_r, maxiter, miniter, convtol, epstol, method_q, updatepi, updatesigma, verbose) {
-  .Call(`_susieR_caisa_cpp`, X, y, w, sa2, pi_init, beta_init, r_init, sigma2, o_r, maxiter, miniter, convtol, epstol, method_q, updatepi, updatesigma, verbose)
+caisa_cpp <- function(X, w, sa2, pi_init, beta_init, r_init, sigma2, o_r, maxiter, miniter, convtol, epstol, method_q, updatepi, updatesigma, verbose) {
+  .Call(`_susieR_caisa_cpp`, X, w, sa2, pi_init, beta_init, r_init, sigma2, o_r, maxiter, miniter, convtol, epstol, method_q, updatepi, updatesigma, verbose)
 }
 
 mr_ash_rss_cpp <- function(bhat, shat, z, R, var_y, n, sigma2_e, s0, w0, mu1_init, tol, max_iter, update_w0, update_sigma, compute_ELBO, standardize, ncpus) {
