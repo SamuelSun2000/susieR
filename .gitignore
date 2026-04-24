@@ -14,5 +14,6 @@ pixi.lock
 **/*.html
 **/*.so
 **/*.o
-.claude
 susieR.Rcheck
+**/.*.swp
+**/.*.swo
