@@ -1458,195 +1458,197 @@ init_ash_fields_filter_archived <- function(model, n, p, L, is_individual = FALS
 #   to be merged into model via modifyList.
 #
 # @keywords internal
+## V0-faithful three-case classification for BB+ash filter
+## Replaces the body of update_ash_variance_components()
+## Key change: standard purity (not effect_purity) for case classification
+## + force_mask for diffuse slots' sentinel LD (from V0)
+
 update_ash_variance_components <- function(data, model, params) {
 
-  # ---- Parameters (all tunable thresholds) ----
-  purity_threshold        <- 0.5    # CS purity required for trust (subtraction)
-  cs_coverage             <- 0.9    # alpha coverage for working CS used in trust purity check
-  collision_threshold     <- 0.9    # flag if sentinel |r| > this across SERs
-  jump_threshold          <- 0.5    # flag if sentinel jumps to |r| < this
-  masking_threshold       <- 0.5    # LD radius for masking (|r| > this)
-  nPIP_threshold          <- 0.05   # mask if neighborhood PIP > this
-  direct_pip_threshold    <- 0.1    # mask if direct PIP > this
-  active_c_hat            <- 0.5    # slot must exceed this to be active
-  c_hat_excess_threshold  <- 0.2    # c_hat must exceed prior null by this much
-  alpha_entropy_threshold <- log(5) # expose if spread across >5 effective variants
-  alpha_k                 <- 10    # also mask positions where alpha > k/p (k times
-                                   # the uniform baseline 1/p). Broadens sentinel mask
-                                   # when multiple low_chat slots share a sentinel.
-  diffuse_pip_neff        <- 50    # max effective variants for PIP mask contribution;
-                                   # high_chat slots with N_eff > max(N_ld, this) are
-                                   # too diffuse to warrant PIP protection and are
-                                   # excluded from the mask so mr.ash can compete.
-                                   # Based on SparsePro (Zhang et al.) reasoning that
-                                   # a legitimate CS has at most ~50 variants in LD.
-  #
-  # Derived quantities (from parameters above):
-  #   c_hat_excess = c_hat - c_hat_null, where c_hat_null = sigmoid(BB prior log-odds)
-  #   c_hat_excess < threshold: low_chat tier (sentinel mask, born weak)
-  #   c_hat_excess >= threshold: high_chat tier (PIP mask, real signal)
-  #   low_chat + c_hat_excess rises above threshold + entropy > log(5): expose to mr.ash
+  # BB+ash filter: V0's 3-tier classifier (diffuse / uncertain / confident)
+  # with c_hat marginalization of CASE 3 subtraction.
+  # Output: b_confident (subtract from mr.ash residual) and mask.
+
+  # --- User parameters ---
+  purity_threshold <- if (!is.null(params$purity_threshold)) params$purity_threshold else 0.5
+  pip_threshold    <- if (!is.null(params$pip_threshold))    params$pip_threshold    else 0.1
+  ld_threshold     <- if (!is.null(params$ld_threshold))     params$ld_threshold     else 0.5
+
+  # --- Internal constants ---
+  diffuse_purity             <- 0.1   # purity below this = CASE 1
+  cs_threshold               <- 0.9   # working CS coverage
+  neighborhood_pip_threshold <- 0.4   # LD-spread mask threshold
+  collision_threshold        <- 0.9   # strong LD = same signal
+  tight_ld_threshold         <- 0.95  # WTE exposure region
+  diffuse_iter_count         <- 2L    # CASE 2 stable iters before WTE
+  second_chance_wait         <- 3L    # iters after expose before re-mask
+  delayed_unmask_iter        <- 2L    # iters unwanted before unmask
 
   is_individual <- inherits(data, "individual")
-  p <- ncol(model$alpha)
   L <- nrow(model$alpha)
-  iter <- if (!is.null(model$ash_iter)) model$ash_iter else 0
-  model$ash_iter <- iter + 1
+  p <- ncol(model$alpha)
+  if (is.null(model$ash_iter)) model$ash_iter <- 0L
+  model$ash_iter <- model$ash_iter + 1L
 
-  # ---- Step 1: Correlation matrix (cached) ----
+  # Lazy-init state
+  if (is.null(model$prev_case))              model$prev_case <- rep(0L, L)
+  if (is.null(model$prev_sentinel))          model$prev_sentinel <- rep(0L, L)
+  if (is.null(model$ever_diffuse))           model$ever_diffuse <- rep(0L, L)
+  if (is.null(model$diffuse_iter_count))     model$diffuse_iter_count <- rep(0L, L)
+  if (is.null(model$masked))                 model$masked <- rep(FALSE, p)
+  if (is.null(model$ever_unmasked))          model$ever_unmasked <- rep(FALSE, p)
+  if (is.null(model$unmask_candidate_iters)) model$unmask_candidate_iters <- rep(0L, p)
+  if (is.null(model$force_exposed_iter))     model$force_exposed_iter <- rep(0L, p)
+  if (is.null(model$second_chance_used))     model$second_chance_used <- rep(FALSE, p)
+
   xcorr_result <- get_xcorr(data)
   Xcorr <- xcorr_result$Xcorr
   data <- xcorr_result$data
 
-  # ---- Step 2: Identify active effects and sentinels ----
+  # c_hat = BB posterior slot-active weight (fallback 1 = V0).
   c_hat <- if (!is.null(model$slot_weights)) model$slot_weights else rep(1, L)
-  active_slots <- which(c_hat > active_c_hat & model$V > 0)
 
-  sentinels <- integer(L)
-  for (l in active_slots) sentinels[l] <- which.max(model$alpha[l, ])
-
-  # ---- Step 3: Detect spillover ----
-
-  # Across-SER: sentinel collision
-  sentinel_collision <- rep(FALSE, L)
-  if (length(active_slots) > 1) {
-    s_active <- sentinels[active_slots]
-    R_sentinels <- abs(Xcorr[s_active, s_active])
-    diag(R_sentinels) <- 0
-    sentinel_collision[active_slots] <- apply(
-      R_sentinels > collision_threshold, 1, any)
-  }
-
-  # Confident = active, not colliding, and CS purity >= threshold
-  # Low purity means the effect spans weakly-correlated variants
-  # (within-SER spillover) and should not be trusted yet.
-  is_confident_now <- rep(FALSE, L)
-  effect_purity <- rep(0, L)
-  for (l in active_slots) {
-    if (sentinel_collision[l]) next
-    alpha_l <- model$alpha[l, ]
-    cs_order <- order(alpha_l, decreasing = TRUE)
-    cs_size <- min(which(cumsum(alpha_l[cs_order]) >= cs_coverage))
-    effect_purity[l] <- get_purity(cs_order[1:cs_size], X = NULL, Xcorr = Xcorr,
-                                   use_rfast = FALSE)[1]
-    is_confident_now[l] <- (effect_purity[l] >= purity_threshold)
-  }
-
-  # Track collision and sentinel jumps for trust decision
-  if (is.null(model$ever_uncertain)) model$ever_uncertain <- rep(FALSE, L)
-  if (is.null(model$prev_sentinel)) model$prev_sentinel <- rep(0L, L)
-
-  for (l in active_slots) {
-    if (model$prev_sentinel[l] > 0 && sentinels[l] != model$prev_sentinel[l]) {
-      if (abs(Xcorr[sentinels[l], model$prev_sentinel[l]]) < jump_threshold)
-        model$ever_uncertain[l] <- TRUE
+  # First pass: sentinels, purity, activity
+  sentinels     <- apply(model$alpha, 1, which.max)
+  effect_purity <- rep(1.0, L)
+  is_active     <- rep(FALSE, L)
+  for (l in 1:L) {
+    a <- model$alpha[l, ]
+    is_active[l] <- (max(a) - min(a)) >= 5e-5
+    alpha_order <- order(a, decreasing = TRUE)
+    cs_size <- min(sum(cumsum(a[alpha_order]) <= cs_threshold) + 1L, p)
+    if (cs_size > 1) {
+      cs_indices <- alpha_order[1:cs_size]
+      R_cs <- abs(Xcorr[cs_indices, cs_indices])
+      effect_purity[l] <- min(R_cs[upper.tri(R_cs)])
     }
-    if (sentinel_collision[l])
-      model$ever_uncertain[l] <- TRUE
-    if (sentinels[l] > 0) model$prev_sentinel[l] <- sentinels[l]
   }
 
-  is_trusted <- is_confident_now & !model$ever_uncertain
-
-  # ---- Step 5: Build subtraction and mask ----
-
-  # Subtraction: trusted effects, c_hat-weighted for consistency with
-  # SuSiE's fitted values (Xr = sum_l c_hat[l] * bbar[l])
-  b_confident <- rep(0, p)
-  for (l in which(is_trusted)) {
-    b_confident <- b_confident + c_hat[l] * model$alpha[l, ] * model$mu[l, ]
+  # Collision: sentinels of two active slots in strong LD -> bump ever_diffuse
+  current_collision <- rep(FALSE, L)
+  for (l in which(is_active)) {
+    others <- setdiff(which(is_active), l)
+    if (length(others) == 0) next
+    if (any(abs(Xcorr[sentinels[l], sentinels[others]]) > collision_threshold)) {
+      current_collision[l] <- TRUE
+      model$ever_diffuse[l] <- model$ever_diffuse[l] + 1L
+    }
   }
 
-  # c_hat_excess masking: compare c_hat to prior null expectation.
-  # Sticky: once flagged as low_chat, stays permanently.
-  if (is.null(model$was_low_chat)) model$was_low_chat <- rep(FALSE, L)
-  sp <- params$slot_prior
-  for (l in active_slots) {
-    # Compute c_hat_excess = c_hat - c_hat_null
-    k_others <- sum(c_hat[-l])
-    if (!is.null(sp) && !is.null(sp$a_beta)) {
-      prior_lo <- log(sp$a_beta + k_others) - log(sp$b_beta + L - 1 - k_others)
+  b_confident     <- rep(0, p)
+  alpha_protected <- matrix(0, nrow = L, ncol = p)
+  force_unmask    <- rep(FALSE, p)
+  force_mask      <- rep(FALSE, p)
+
+  # Second pass: classify slots
+  current_case <- rep(0L, L)
+  for (l in 1:L) {
+    purity   <- effect_purity[l]
+    sentinel <- sentinels[l]
+
+    # Sentinel-jump reset: if sentinel moved to a non-tight-LD position, reset
+    # the CASE 2 stability counter so WTE doesn't fire on a newly-picked signal.
+    if (sentinel != model$prev_sentinel[l] && model$prev_sentinel[l] > 0L) {
+      if (abs(Xcorr[sentinel, model$prev_sentinel[l]]) < tight_ld_threshold) {
+        model$diffuse_iter_count[l] <- 0L
+      }
+    }
+
+    can_be_confident <- (purity >= purity_threshold) && (model$ever_diffuse[l] == 0L)
+
+    if (purity < diffuse_purity) {
+      # CASE 1: diffuse. Narrow protection + force_mask on sentinel LD.
+      current_case[l] <- 1L
+      model$diffuse_iter_count[l] <- 0L
+      moderate_ld <- abs(Xcorr[sentinel, ]) > ld_threshold
+      to_protect  <- moderate_ld | (model$alpha[l, ] > 5 / p)
+      alpha_protected[l, to_protect] <- model$alpha[l, to_protect]
+      force_mask <- force_mask | moderate_ld
+    } else if (!can_be_confident) {
+      # CASE 2: uncertain. Collision -> reset counter only (no alpha protection).
+      # Otherwise full alpha protection + wait-then-expose.
+      current_case[l] <- 2L
+      if (current_collision[l]) {
+        model$diffuse_iter_count[l] <- 0L
+      } else {
+        model$diffuse_iter_count[l] <- model$diffuse_iter_count[l] + 1L
+        alpha_protected[l, ] <- model$alpha[l, ]
+        if (model$diffuse_iter_count[l] >= diffuse_iter_count) {
+          tight_ld <- abs(Xcorr[sentinel, ]) > tight_ld_threshold
+          expose   <- tight_ld & !model$second_chance_used
+          newly    <- expose & (model$force_exposed_iter == 0L)
+          model$force_exposed_iter[newly] <- model$ash_iter
+          if (any(newly)) model$diffuse_iter_count[l] <- 0L
+          alpha_protected[l, expose] <- 0
+          force_unmask <- force_unmask | expose
+        }
+      }
     } else {
-      prior_lo <- 0  # no prior info, fall back to c_hat alone
-    }
-    c_hat_null <- 1 / (1 + exp(-prior_lo))
-    c_hat_excess <- c_hat[l] - c_hat_null
-    if (c_hat_excess < c_hat_excess_threshold) model$was_low_chat[l] <- TRUE
-  }
-  high_chat <- active_slots[!model$was_low_chat[active_slots]]
-  low_chat  <- active_slots[model$was_low_chat[active_slots]]
-
-  mask <- rep(FALSE, p)
-  # High_chat PIP mask: exclude slots whose alpha spread beyond their LD block.
-  # A real signal concentrates within the sentinel's LD neighborhood.
-  # N_eff = exp(entropy) = effective number of variants alpha is spread across.
-  # N_ld = number of positions with |r| > 0.5 with sentinel (LD block size).
-  # If N_eff > max(N_ld, 50), the slot is too diffuse to be a real signal —
-  # don't protect it with PIP mask, let mr.ash compete for the signal.
-  high_chat_mask <- high_chat
-  for (l in high_chat) {
-    N_ld <- sum(abs(Xcorr[sentinels[l], ]) > masking_threshold)
-    alpha_l <- model$alpha[l, ]
-    alpha_nz <- alpha_l[alpha_l > 1e-10]
-    N_eff <- exp(-sum(alpha_nz * log(alpha_nz)))
-    if (N_eff > max(N_ld, diffuse_pip_neff)) {
-      high_chat_mask <- high_chat_mask[high_chat_mask != l]
-      # Fallback: N_eff-excluded slots get sentinel mask (not naked)
-      mask <- mask | (abs(Xcorr[sentinels[l], ]) > masking_threshold)
-    }
-  }
-  if (length(high_chat_mask) > 0) {
-    pip_high <- 1 - apply(
-      1 - model$alpha[high_chat_mask, , drop = FALSE], 2, prod)
-    LD_adj <- abs(Xcorr) > masking_threshold
-    nPIP <- as.vector(LD_adj %*% pip_high)
-    mask <- (nPIP > nPIP_threshold) | (pip_high > direct_pip_threshold)
-  }
-  # low_chat slots: protect if still weak, expose if gained confidence.
-  # Sticky: once c_hat_excess crosses the threshold (slot gained real evidence)
-  # AND alpha is spread (entropy > log(5)), expose to mr.ash permanently.
-  # A localized signal (low entropy) is protected even if born weak.
-  if (is.null(model$was_exposed)) model$was_exposed <- rep(FALSE, L)
-  for (l in low_chat) {
-    k_others <- sum(c_hat[-l])
-    if (!is.null(sp) && !is.null(sp$a_beta)) {
-      prior_lo <- log(sp$a_beta + k_others) - log(sp$b_beta + L - 1 - k_others)
-    } else {
-      prior_lo <- 0
-    }
-    c_hat_null <- 1 / (1 + exp(-prior_lo))
-    excess_now <- c_hat[l] - c_hat_null
-    if (excess_now >= c_hat_excess_threshold) {
-      alpha_l <- model$alpha[l, ]
-      alpha_nz <- alpha_l[alpha_l > 1e-10]
-      ent <- -sum(alpha_nz * log(alpha_nz))
-      if (ent > alpha_entropy_threshold) model$was_exposed[l] <- TRUE
-    }
-    if (!model$was_exposed[l]) {
-      mask <- mask | (abs(Xcorr[sentinels[l], ]) > masking_threshold) |
-                    (model$alpha[l, ] > alpha_k / p)
+      # CASE 3: confident. Full protection + c_hat-weighted subtraction.
+      current_case[l] <- 3L
+      model$diffuse_iter_count[l] <- 0L
+      alpha_protected[l, ] <- model$alpha[l, ]
+      b_confident <- b_confident + c_hat[l] * model$alpha[l, ] * model$mu[l, ]
     }
   }
 
-  # ---- Fit Mr.ASH ----
-  # Zero theta at masked positions before and after Mr.ASH.
-  # Mr.ASH sees residuals = y - X*b_confident at unmasked positions.
-  # Set options(susie.skip_mrash = TRUE) to diagnose without mr.ash.
+  # Oscillation: slot flipping between CASE 2 and CASE 3 is unstable -> mark
+  # sticky-diffuse, and if it landed on CASE 3 this iter, reverse the
+  # subtraction we just added (slot is not trustworthy yet).
+  oscillated    <- model$prev_case != 0L & current_case != 0L &
+                   ((model$prev_case == 2L & current_case == 3L) |
+                    (model$prev_case == 3L & current_case == 2L))
+  unstable_case3 <- oscillated & (current_case == 3L)
+  model$ever_diffuse[oscillated] <- model$ever_diffuse[oscillated] + 1L
+  for (l in which(unstable_case3)) {
+    b_confident <- b_confident - c_hat[l] * model$alpha[l, ] * model$mu[l, ]
+  }
+  model$prev_case     <- current_case
+  model$prev_sentinel <- sentinels
+
+  # Mask: PIP-based union, with per-position persistence
+  pip_protected    <- susie_get_pip(alpha_protected)
+  LD_adj           <- abs(Xcorr) > ld_threshold
+  neighborhood_pip <- as.vector(LD_adj %*% pip_protected)
+  want_masked <- (neighborhood_pip > neighborhood_pip_threshold) |
+                 (pip_protected    > pip_threshold) |
+                 force_mask
+
+  # Delayed unmask: count iters a masked position is no longer wanted
+  reset_idx <- want_masked | !model$masked
+  model$unmask_candidate_iters[!reset_idx] <- model$unmask_candidate_iters[!reset_idx] + 1L
+  model$unmask_candidate_iters[reset_idx]  <- 0L
+  ready_to_unmask <- model$masked &
+    ((model$unmask_candidate_iters >= delayed_unmask_iter & !model$ever_unmasked) | force_unmask)
+
+  model$ever_unmasked[ready_to_unmask] <- TRUE
+  masked <- (model$masked | want_masked) & !ready_to_unmask & !model$ever_unmasked
+
+  # Second chance
+  should_restore <- (model$force_exposed_iter > 0L) &
+                    (model$ash_iter - model$force_exposed_iter >= second_chance_wait) &
+                    !model$second_chance_used
+  if (any(should_restore)) {
+    model$second_chance_used[should_restore] <- TRUE
+    model$force_exposed_iter[should_restore] <- 0L
+    model$ever_unmasked[should_restore]      <- FALSE
+    masked[should_restore]                   <- TRUE
+  }
+  model$masked <- masked
+  mask <- masked
+
+  # Mr.ASH fit
   .skip_mrash <- getOption("susie.skip_mrash", FALSE)
   model$theta[mask] <- 0
-
   if (.skip_mrash) {
-    theta_new <- model$theta
-    theta_new[mask] <- 0
+    theta_new <- model$theta; theta_new[mask] <- 0
     ash_result <- list(
       beta = theta_new,
       sigma2 = if (!is.null(model$sigma2)) model$sigma2 else 1,
       pi = model$ash_pi,
-      tau2 = if (!is.null(model$tau2)) model$tau2 else 0
-    )
+      tau2 = if (!is.null(model$tau2)) model$tau2 else 0)
   } else {
-    # Looser tolerance for first few mr.ash calls (residuals still changing fast)
-    convtol <- if (iter < 3) 1e-3 else 1e-4
+    convtol <- if (model$ash_iter < 2) 1e-3 else 1e-4
     if (is_individual) {
       ash_result <- compute_ash_from_individual_data(
         data$X, data$y, b_confident, model, params, convtol)
@@ -1658,42 +1660,52 @@ update_ash_variance_components <- function(data, model, params) {
     theta_new[mask] <- 0
   }
 
-  # BB+ash diagnostic: capture data.frame and accumulate on model
+  # Diagnostic
   .ash_debug <- TRUE
   if (.ash_debug) {
+    model$ever_uncertain <- model$ever_diffuse > 0
     diag_df <- diagnose_bb_ash_iter(
       model, Xcorr, mask, b_confident,
-      sentinels, sentinel_collision,
-      is_confident_now, is_trusted,
-      setdiff(active_slots, which(is_trusted)),
-      active_slots, c_hat,
-      list(beta = theta_new, sigma2 = ash_result$sigma2,
-           pi = ash_result$pi), p,
-      high_chat = high_chat, low_chat = low_chat,
+      sentinels, current_collision,
+      current_case == 3L, current_case == 3L,
+      which(current_case == 2L), which(model$V > 0), c_hat,
+      list(beta = theta_new, sigma2 = ash_result$sigma2, pi = ash_result$pi),
+      p,
+      high_chat = integer(0), low_chat = integer(0),
       collision_threshold = collision_threshold,
-      purity_threshold = purity_threshold,
-      masking_threshold = masking_threshold,
-      nPIP_threshold = nPIP_threshold,
-      c_hat_excess_threshold = c_hat_excess_threshold,
-      alpha_entropy_threshold = alpha_entropy_threshold,
-      slot_prior = params$slot_prior)
-    # Use environment for accumulation (survives modifyList)
+      purity_threshold = ld_threshold,
+      masking_threshold = ld_threshold,
+      nPIP_threshold = pip_threshold,
+      c_hat_excess_threshold = NA,
+      alpha_entropy_threshold = NA,
+      slot_prior = params$slot_prior,
+      mask_smoothness = effect_purity,
+      mask_amount = c_hat,
+      mask_concentration = current_case,
+      mask_burnin = model$ever_diffuse,
+      mask_spread_pip_at_sent = pip_protected[sentinels],
+      mask_pip_prot_at_sent = pip_protected[sentinels])
     if (is.null(model$.diag_env)) model$.diag_env <- new.env(parent = emptyenv())
     if (is.null(model$.diag_env$history)) model$.diag_env$history <- list()
     model$.diag_env$history[[length(model$.diag_env$history) + 1]] <- diag_df
   }
 
   result <- list(
-    sigma2           = ash_result$sigma2,
-    tau2             = ash_result$tau2,
-    theta            = theta_new,
-    ash_pi           = ash_result$pi,
-    ash_iter         = model$ash_iter,
-    ever_uncertain   = model$ever_uncertain,
-    prev_sentinel    = model$prev_sentinel,
-    was_low_chat     = model$was_low_chat,
-    was_exposed      = model$was_exposed,
-    .diag_env        = model$.diag_env
+    sigma2                 = ash_result$sigma2,
+    tau2                   = ash_result$tau2,
+    theta                  = theta_new,
+    ash_pi                 = ash_result$pi,
+    ash_iter               = model$ash_iter,
+    prev_case              = model$prev_case,
+    prev_sentinel          = model$prev_sentinel,
+    ever_diffuse           = model$ever_diffuse,
+    diffuse_iter_count     = model$diffuse_iter_count,
+    masked                 = model$masked,
+    ever_unmasked          = model$ever_unmasked,
+    unmask_candidate_iters = model$unmask_candidate_iters,
+    force_exposed_iter     = model$force_exposed_iter,
+    second_chance_used     = model$second_chance_used,
+    .diag_env              = model$.diag_env
   )
 
   if (is_individual) {
@@ -1817,7 +1829,7 @@ update_ash_variance_components_filter_archived <- function(data, model, params) 
 # @keywords internal
 cleanup_ash_fields <- function(model) {
   # Remove internal tracking fields from the new ash path.
-  # Keep: tau2, theta, ash_pi, was_low_chat (user-visible results)
+  # Keep: tau2, theta, ash_pi (user-visible results)
   for (field in c("X_theta", "XtX_theta", "ash_iter", "ash_s0",
                    "ever_uncertain", "prev_sentinel")) {
     model[[field]] <- NULL
@@ -1910,7 +1922,7 @@ compute_ash_masking <- function(Xcorr, model, params) {
   # --- Protection thresholds ---
   neighborhood_pip_threshold <- if (!is.null(params$neighborhood_pip_threshold)) params$neighborhood_pip_threshold else 0.4
   direct_pip_threshold <- if (!is.null(params$direct_pip_threshold)) params$direct_pip_threshold else 0.1
-  ld_threshold <- if (!is.null(params$ld_threshold)) params$ld_threshold else 0.5
+  signal_separation_ld <- if (!is.null(params$signal_separation_ld)) params$signal_separation_ld else 0.5
 
   # --- Purity thresholds ---
   cs_threshold <- if (!is.null(params$working_cs_threshold)) params$working_cs_threshold else 0.9
@@ -1918,7 +1930,7 @@ compute_ash_masking <- function(Xcorr, model, params) {
   purity_threshold <- if (!is.null(params$purity_threshold)) params$purity_threshold else 0.5
 
   # --- LD thresholds for collision and exposure ---
-  collision_ld_threshold <- if (!is.null(params$collision_ld_threshold)) params$collision_ld_threshold else 0.9
+  collision_threshold <- if (!is.null(params$collision_threshold)) params$collision_threshold else 0.9
   tight_ld_threshold <- if (!is.null(params$tight_ld_threshold)) params$tight_ld_threshold else 0.95
 
   # --- Iteration counters for CASE 2 ---
@@ -1956,7 +1968,7 @@ compute_ash_masking <- function(Xcorr, model, params) {
     sentinel_l <- sentinels[l]
     for (other_l in (1:L)[-l]) {
       if (max(model$alpha[other_l,]) - min(model$alpha[other_l,]) < 5e-5) next
-      if (abs(Xcorr[sentinel_l, sentinels[other_l]]) > collision_ld_threshold) {
+      if (abs(Xcorr[sentinel_l, sentinels[other_l]]) > collision_threshold) {
         current_collision[l] <- TRUE
       }
     }
@@ -1991,7 +2003,7 @@ compute_ash_masking <- function(Xcorr, model, params) {
       # CASE 1: Diffuse within effect
       current_case[l] <- 1
       model$diffuse_iter_count[l] <- 0
-      moderate_ld_with_sentinel <- abs(Xcorr[sentinel,]) > ld_threshold
+      moderate_ld_with_sentinel <- abs(Xcorr[sentinel,]) > signal_separation_ld
       meaningful_alpha <- model$alpha[l,] > 5/p
       to_protect <- moderate_ld_with_sentinel | meaningful_alpha
       alpha_protected[l, to_protect] <- model$alpha[l, to_protect]
@@ -2052,7 +2064,7 @@ compute_ash_masking <- function(Xcorr, model, params) {
   # =========================================================================
   pip_protected <- susie_get_pip(alpha_protected)
 
-  LD_adj <- abs(Xcorr) > ld_threshold
+  LD_adj <- abs(Xcorr) > signal_separation_ld
   neighborhood_pip <- as.vector(LD_adj %*% pip_protected)
   want_masked <- (neighborhood_pip > neighborhood_pip_threshold) |
                  (pip_protected > direct_pip_threshold) |
