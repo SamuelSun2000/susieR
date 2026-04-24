@@ -31,9 +31,9 @@ r45 = {features = ["r45"]}
 "gcc" = "*"
 
 [dependencies]
-# Core dependencies (from Imports)
-"r-rcpp" = "*"
-"r-rcpparmadillo" = "*"
+# Core dependencies (from Imports / LinkingTo)
+"r-cpp11" = "*"
+"r-cpp11armadillo" = "*"
 "r-matrix" = "*"
 "r-matrixstats" = "*"
 "r-mixsqp" = "*"
@@ -57,4 +57,5 @@ r45 = {features = ["r45"]}
 "r-covr" = "*"
 "r-rcmdcheck" = "*"
 "r-pkgdown" = "*"
+"r-decor" = "*"         # required by cpp11::cpp_register() during devtools::document()
 "qpdf" = "*"
