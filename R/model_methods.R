@@ -163,65 +163,46 @@ check_convergence.default <- function(data, params, model, elbo, iter) {
   ELBO_failed <- is.na(ELBO_diff) || is.infinite(ELBO_diff)
 
   if (params$convergence_method == "pip" || ELBO_failed) {
-    # Fallback to PIP-based convergence if ELBO calculation fails
     if (ELBO_failed && params$convergence_method == "elbo") {
       warning_message(paste0("Iteration ", iter, " produced an NA/infinite ELBO",
                              " value. Using pip-based convergence this iteration."))
     }
 
-    # For Servin-Stephens prior, require at least 3 iterations and average convergence
-    # over 2 consecutive iterations for more stable convergence
-    if (!is.null(params$use_servin_stephens) && params$use_servin_stephens) {
-      if (iter <= 2) {
-        model$converged <- FALSE
-        if (verbose)
-          message(sprintf("iter %3d: V=%s%s [mem: %.2f GB]",
-                          iter, V_str, chat_str, mem_used_gb()))
-        return(model)  # Require at least 3 iterations
-      }
-
-      # Current iteration PIP difference
-      current_diff <- max(abs(model$runtime$prev_alpha - model$alpha))
-
-      # Average with previous iteration's difference if available
-      if (!is.null(model$runtime$prev_pip_diff)) {
-        avg_diff <- (current_diff + model$runtime$prev_pip_diff) / 2
-      } else {
-        avg_diff <- current_diff
-      }
-
-      # Store current diff for next iteration
-      model$runtime$prev_pip_diff <- current_diff
-
-      model$converged <- (avg_diff < params$tol)
-      if (verbose)
-        message(sprintf("iter %3d: max|dPIP|(avg)=%.2e, V=%s%s%s [mem: %.2f GB]",
-                        iter, avg_diff, V_str, chat_str,
-                        if (model$converged) " -- converged" else "",
-                        mem_used_gb()))
-
-      if (model$converged && !is.null(params$unmappable_effects) &&
-          params$unmappable_effects %in% c("ash", "ash_filter_archived")) {
-        model <- run_final_ash_pass(data, params, model)
-      }
-      return(model)
+    # PIP convergence with stall detection.
+    # Converges when max|dPIP| < tol, or when pip_diff has not improved
+    # in stall_window consecutive iterations (oscillation of any period).
+    pip_diff <- max(abs(model$runtime$prev_alpha - model$alpha))
+    stall_window <- if (!is.null(params$pip_stall_window)) params$pip_stall_window else 5
+    if (is.null(model$runtime$best_pip_diff))
+      model$runtime$best_pip_diff <- Inf
+    if (is.null(model$runtime$stall_count))
+      model$runtime$stall_count <- 0
+    if (pip_diff < model$runtime$best_pip_diff) {
+      model$runtime$best_pip_diff <- pip_diff
+      model$runtime$stall_count <- 0
     } else {
-      # Standard PIP convergence
-      PIP_diff <- max(abs(model$runtime$prev_alpha - model$alpha))
-
-      model$converged <- (PIP_diff < params$tol)
-      if (verbose)
-        message(sprintf("iter %3d: max|dPIP|=%.2e, V=%s%s%s [mem: %.2f GB]",
-                        iter, PIP_diff, V_str, chat_str,
-                        if (model$converged) " -- converged" else "",
-                        mem_used_gb()))
-
-      if (model$converged && !is.null(params$unmappable_effects) &&
-          params$unmappable_effects %in% c("ash", "ash_filter_archived")) {
-        model <- run_final_ash_pass(data, params, model)
-      }
-      return(model)
+      model$runtime$stall_count <- model$runtime$stall_count + 1
     }
+    stalled <- (model$runtime$stall_count >= stall_window &&
+                pip_diff >= params$tol)
+
+    model$converged <- (pip_diff < params$tol) || stalled
+    if (verbose) {
+      conv_tag <- if (stalled) " -- converged (stalled)"
+                  else if (model$converged) " -- converged"
+                  else ""
+      message(sprintf("iter %3d: max|dPIP|=%.2e, V=%s%s%s [mem: %.2f GB]",
+                      iter, pip_diff, V_str, chat_str, conv_tag, mem_used_gb()))
+    }
+    if (stalled)
+      warning_message("PIP convergence stalled (no improvement in ",
+                      stall_window, " iterations); returning current state.")
+
+    if (model$converged && !is.null(params$unmappable_effects) &&
+        params$unmappable_effects %in% c("ash", "ash_filter_archived")) {
+      model <- run_final_ash_pass(data, params, model)
+    }
+    return(model)
   }
 
   # Converge when ELBO stabilizes: small non-negative change.

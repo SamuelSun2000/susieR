@@ -23,9 +23,8 @@ susie_workhorse <- function(data, params) {
 
   # Initialize runtime state (convergence tracking, cleaned up at finalization)
   model$runtime <- list(
-    prev_elbo     = -Inf,
-    prev_alpha    = model$alpha,
-    prev_pip_diff = NULL
+    prev_elbo  = -Inf,
+    prev_alpha = model$alpha
   )
 
   # Main IBSS iteration loop

@@ -16,3 +16,9 @@ pixi.lock
 **/*.o
 .claude
 susieR.Rcheck
+CLAUDE.md
+CLAUDE_WORK_LOG.md
+**/.*.swp
+**/.*.swo
+ash_filter_known_issues.md
+ash_filter_diagnosis_protocol.md

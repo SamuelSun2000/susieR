@@ -50,7 +50,13 @@ diagnose_bb_ash_iter <- function(model, Xcorr, mask, b_confident,
                                  nPIP_threshold = 0.05,
                                  c_hat_excess_threshold = 0.2,
                                  alpha_entropy_threshold = log(5),
-                                 slot_prior = NULL) {
+                                 slot_prior = NULL,
+                                 mask_smoothness = NULL,
+                                 mask_amount = NULL,
+                                 mask_concentration = NULL,
+                                 mask_burnin = NULL,
+                                 mask_spread_pip_at_sent = NULL,
+                                 mask_pip_prot_at_sent = NULL) {
   L <- nrow(model$alpha)
   theta_raw <- ash_result$beta
   theta_masked <- theta_raw
@@ -194,6 +200,13 @@ diagnose_bb_ash_iter <- function(model, Xcorr, mask, b_confident,
       param_nPIP_threshold = nPIP_threshold,
       param_c_hat_excess_threshold = c_hat_excess_threshold,
       param_alpha_entropy_threshold = alpha_entropy_threshold,
+      # Unified mask diagnostics
+      smoothness = if (!is.null(mask_smoothness)) mask_smoothness[l] else NA,
+      amount = if (!is.null(mask_amount)) mask_amount[l] else NA,
+      concentration = if (!is.null(mask_concentration)) mask_concentration[l] else NA,
+      burnin = if (!is.null(mask_burnin)) mask_burnin[l] else NA,
+      spread_pip_at_sent = if (!is.null(mask_spread_pip_at_sent) && sent > 0) mask_spread_pip_at_sent[l] else NA,
+      pip_prot_at_sent = if (!is.null(mask_pip_prot_at_sent) && sent > 0) mask_pip_prot_at_sent[l] else NA,
       stringsAsFactors = FALSE
     )
   }
