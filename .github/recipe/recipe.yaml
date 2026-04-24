@@ -34,8 +34,8 @@ requirements:
     - r-matrixstats
     - r-microbenchmark
     - r-mixsqp
-    - r-rcpp
-    - r-rcpparmadillo
+    - r-cpp11
+    - r-cpp11armadillo
     - r-reshape
     - r-rfast
     - r-rmarkdown
@@ -53,8 +53,8 @@ requirements:
     - r-matrixstats
     - r-microbenchmark
     - r-mixsqp
-    - r-rcpp
-    - r-rcpparmadillo
+    - r-cpp11
+    - r-cpp11armadillo
     - r-reshape
     - r-rfast
     - r-rmarkdown

@@ -1,7 +1,7 @@
 #ifndef MR_ASH_RSS_H
 #define MR_ASH_RSS_H
 
-#include <RcppArmadillo.h>
+#include <cpp11armadillo.hpp>
 #include <cmath>
 #include <vector>
 #include <string>
@@ -17,7 +17,7 @@ using namespace std;
  * @param x Input vector
  * @return Softmax output vector
  */
-vec softmax_rss(const vec& x) {
+inline vec softmax_rss(const vec& x) {
 	vec y = exp(x - max(x));
 	return y / sum(y);
 }
@@ -31,7 +31,7 @@ vec softmax_rss(const vec& x) {
  * @param sigma2_0 Prior variance
  * @return An unordered_map containing the least-squares estimate (bhat, s2), the posterior mean and standard deviation (mu1, sigma2_1), and the log-Bayes factor (logbf)
  */
-unordered_map<string, double> bayes_ridge_sufficient(double xTx, double xTy, double sigma2_e, double sigma2_0) {
+inline unordered_map<string, double> bayes_ridge_sufficient(double xTx, double xTy, double sigma2_e, double sigma2_0) {
 	// Compute the least-squares estimate and its variance
 	double bhat = xTy / xTx;
 	double s2 = sigma2_e / xTx;
@@ -57,7 +57,7 @@ unordered_map<string, double> bayes_ridge_sufficient(double xTx, double xTy, dou
  * @param sigma2_0 Mixture variances
  * @return An unordered_map containing the log-Bayes factor (logbf), the posterior assignment probabilities (w1), the posterior mean (mu1) and variance (sigma2_1) of the coefficients, and the posterior mean (mu1_k) and variance (sigma2_1_k) for each mixture component
  */
-unordered_map<string, vec> bayes_mix_sufficient(double xTx, double xTy, double sigma2_e, const vec& w0, const vec& sigma2_0) {
+inline unordered_map<string, vec> bayes_mix_sufficient(double xTx, double xTy, double sigma2_e, const vec& w0, const vec& sigma2_0) {
 	// Get the number of mixture components (K)
 	int K = sigma2_0.n_elem;
 
@@ -114,7 +114,7 @@ unordered_map<string, vec> bayes_mix_sufficient(double xTx, double xTy, double s
  * @param ncpus Number of CPUs to use for parallel processing
  * @return An unordered_map containing the posterior assignment probabilities (w1), the posterior mean (mu1) and variance (sigma2_1) of the coefficients, the error variance (sigma2_e), the mixture weights (w0), and optionally the ELBO
  */
-unordered_map<string, mat> mr_ash_sufficient(const vec& XTy, const mat& XTX, double yTy, int n, double& sigma2_e,
+inline unordered_map<string, mat> mr_ash_sufficient(const vec& XTy, const mat& XTX, double yTy, int n, double& sigma2_e,
                                              const vec& sigma2_0, vec& w0, const vec& mu1_init, double tol = 1e-8,
                                              int max_iter = 1e5, bool update_w0 = true, bool update_sigma = true,
                                              bool compute_ELBO = true, bool verbose = false, int ncpus = 1) {
@@ -232,7 +232,7 @@ unordered_map<string, mat> mr_ash_sufficient(const vec& XTy, const mat& XTX, dou
  * @param sx Scaling vector
  * @return An unordered_map containing the rescaled posterior mean (mu1_orig) and covariance (sigma2_1_orig)
  */
-unordered_map<string, mat> rescale_post_mean_covar(const vec& mu1, const mat& sigma2_1, const vec& sx) {
+inline unordered_map<string, mat> rescale_post_mean_covar(const vec& mu1, const mat& sigma2_1, const vec& sx) {
 	vec mu1_orig = mu1 / sx;
 	mat sigma2_1_orig = diagmat(1 / sx) * sigma2_1 * diagmat(1 / sx);
 	return {{"mu1_orig", mat(mu1_orig)}, {"sigma2_1_orig", sigma2_1_orig}};
@@ -260,7 +260,7 @@ unordered_map<string, mat> rescale_post_mean_covar(const vec& mu1, const mat& si
  * @param ncpus Number of CPUs to use for parallel processing
  * @return An unordered_map containing the posterior mean (mu1) and covariance (sigma2_1) of the coefficients, the posterior assignment probabilities (w1), the error variance (sigma2_e), the mixture weights (w0), and optionally the ELBO
  */
-unordered_map<string, mat> mr_ash_rss(const vec& bhat, const vec& shat, const vec& z, const mat& R, double var_y, int n,
+inline unordered_map<string, mat> mr_ash_rss(const vec& bhat, const vec& shat, const vec& z, const mat& R, double var_y, int n,
                                       double sigma2_e, const vec& s0, vec& w0, const vec& mu1_init, double tol = 1e-8,
                                       int max_iter = 1e5, bool update_w0 = true, bool update_sigma = true, bool compute_ELBO = true,
                                       bool standardize = false, int ncpus = 1) {
