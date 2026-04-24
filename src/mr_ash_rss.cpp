@@ -7,13 +7,13 @@ using namespace arma;
 using namespace std;
 
 [[cpp11::register]]
-writable::list rcpp_mr_ash_rss(const doubles& bhat, const doubles& shat, const doubles& z,
-                               const doubles_matrix<>& R, double var_y, int n, double sigma2_e,
-                               const doubles& s0, const doubles& w0, const doubles& mu1_init,
-                               double tol = 1e-8, int max_iter = 1e5,
-                               bool update_w0 = true, bool update_sigma = true,
-                               bool compute_ELBO = true, bool standardize = false,
-                               int ncpus = 1) {
+writable::list mr_ash_rss_cpp(const doubles& bhat, const doubles& shat, const doubles& z,
+                              const doubles_matrix<>& R, double var_y, int n, double sigma2_e,
+                              const doubles& s0, const doubles& w0, const doubles& mu1_init,
+                              double tol = 1e-8, int max_iter = 1e5,
+                              bool update_w0 = true, bool update_sigma = true,
+                              bool compute_ELBO = true, bool standardize = false,
+                              int ncpus = 1) {
 
 	// Convert input types
 	vec bhat_vec = as_Col(bhat);
@@ -30,8 +30,7 @@ writable::list rcpp_mr_ash_rss(const doubles& bhat, const doubles& shat, const d
 	                                               standardize, ncpus);
 
 	// Convert the result to a named list (matrices returned as doubles_matrix).
-	// The original implementation iterates an unordered_map, which does not
-	// preserve insertion order, so R-side ordering matches the Rcpp build.
+	// The unordered_map iteration does not preserve insertion order.
 	writable::list ret;
 	for (const auto& item : result) {
 		cpp11::named_arg na(item.first.c_str());

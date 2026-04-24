@@ -5,8 +5,7 @@
 #include <cpp11armadillo.hpp>
 
 // Helper: build a random permutation vector of length p * numiter.
-// Not exported directly in the cpp11 build; wrapped by a registered entry
-// point in caisa_rcpp.cpp so decor can pick it up.
+// Wrapped by a registered entry point in caisa.cpp.
 inline arma::uvec random_order_impl(int p, int numiter) {
   arma::uvec o(p * numiter);
   for (int i = 0 ; i < numiter; i++) {

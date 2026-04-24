@@ -6,8 +6,7 @@ using namespace cpp11;
 using namespace arma;
 
 // Exported: random permutation index vector of length p * numiter,
-// returned as an R integer vector (1-based indices are built on the R side;
-// here we return 0-based Armadillo-style indices like the Rcpp build did).
+// returned as an R integer vector (0-based Armadillo-style indices).
 [[cpp11::register]]
 integers random_order(int p, int numiter) {
   uvec o = random_order_impl(p, numiter);
@@ -16,28 +15,22 @@ integers random_order(int p, int numiter) {
 
 // Exported: mr.ash coordinate-ascent in suff-stat form.
 //
-// Non-const arma::vec& parameters in the original Rcpp signature (pi, beta, r)
-// were never relied upon for in-place mutation at the R level — the R caller
-// reads the returned list. Here we take them by value (as cpp11 doubles),
-// materialise local Armadillo copies, mutate locally, and return copies.
+// pi, beta, r are passed by value (as cpp11 doubles); we materialise local
+// Armadillo copies, mutate locally, and return them in the result list so the
+// R caller reads the updated values from there.
 [[cpp11::register]]
-writable::list caisa_rcpp(const doubles_matrix<>& X, const doubles& y,
-                          const doubles& w, const doubles& sa2,
-                          const doubles& pi_init, const doubles& beta_init,
-                          const doubles& r_init, double sigma2,
-                          const integers& o_r,
-                          int maxiter, int miniter,
-                          double convtol, double epstol, std::string method_q,
-                          bool updatepi, bool updatesigma,
-                          bool verbose) {
+writable::list caisa_cpp(const doubles_matrix<>& X, const doubles& y,
+                         const doubles& w, const doubles& sa2,
+                         const doubles& pi_init, const doubles& beta_init,
+                         const doubles& r_init, double sigma2,
+                         const integers& o_r,
+                         int maxiter, int miniter,
+                         double convtol, double epstol, std::string method_q,
+                         bool updatepi, bool updatesigma,
+                         bool verbose) {
 
-  // ---------------------------------------------------------------------
-  // CONVERT INPUTS (cpp11 -> Armadillo)
-  // ---------------------------------------------------------------------
-  // cpp11armadillo's as_Mat/as_Col build Armadillo views over R memory
-  // (copy_aux_mem=false). Read-only inputs can keep view semantics safely;
-  // pi, beta, r are mutated in-place below, so force owned deep copies
-  // via conv_to to avoid writing back into R caller memory.
+  // Convert inputs (cpp11 -> Armadillo). Read-only inputs keep view semantics;
+  // pi, beta, r are mutated locally, so force owned deep copies via conv_to.
   mat X_mat   = as_Mat(X);
   vec y_vec   = as_Col(y);
   vec w_vec   = as_Col(w);

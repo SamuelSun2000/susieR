@@ -111,7 +111,7 @@ mr.ash.rss <- function(bhat, shat, R, var_y, n,
     sigma2_e <- if (is.finite(var_y)) var_y else 1
   }
 
-  result <- rcpp_mr_ash_rss(
+  result <- mr_ash_rss_cpp(
     bhat = bhat, shat = shat, z = z, R = R,
     var_y = var_y, n = n, sigma2_e = sigma2_e,
     s0 = s0, w0 = w0, mu1_init = mu1_init,
