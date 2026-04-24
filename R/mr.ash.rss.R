@@ -31,8 +31,6 @@
 #'   Evidence Lower Bound (ELBO). Default is TRUE.
 #' @param standardize Logical value indicating whether to standardize the
 #'   input data. Default is FALSE.
-#' @param ncpu An integer specifying the number of CPU cores to use for
-#'   parallel computation. Default is 1.
 #'
 #' @return A list containing the following components:
 #' \describe{
@@ -95,12 +93,7 @@ mr.ash.rss <- function(bhat, shat, R, var_y, n,
                        sigma2_e = NULL, mu1_init = numeric(0),
                        tol = 1e-8, max_iter = 1e5, z = numeric(0),
                        update_w0 = TRUE, update_sigma = TRUE,
-                       compute_ELBO = TRUE, standardize = FALSE, ncpu = 1L) {
-  # Check if ncpu is greater than 0 and is an integer
-  if (ncpu <= 0 || !is.integer(ncpu)) {
-    stop("ncpu must be a positive integer.")
-  }
-
+                       compute_ELBO = TRUE, standardize = FALSE) {
   if (is.null(var_y)) var_y <- Inf
   if (identical(z, numeric(0))) z <- bhat / shat
 
@@ -117,8 +110,7 @@ mr.ash.rss <- function(bhat, shat, R, var_y, n,
     s0 = s0, w0 = w0, mu1_init = mu1_init,
     tol = tol, max_iter = max_iter,
     update_w0 = update_w0, update_sigma = update_sigma,
-    compute_ELBO = compute_ELBO, standardize = standardize,
-    ncpus = ncpu
+    compute_ELBO = compute_ELBO, standardize = standardize
   )
 
   # Add mr.ash-compatible output names for consistency

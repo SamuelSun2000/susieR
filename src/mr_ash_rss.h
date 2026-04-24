@@ -111,13 +111,12 @@ inline unordered_map<string, vec> bayes_mix_sufficient(double xTx, double xTy, d
  * @param update_w0 Whether to update w0
  * @param update_sigma Whether to update sigma2_e
  * @param compute_ELBO Whether to compute the Evidence Lower Bound (ELBO)
- * @param ncpus Number of CPUs to use for parallel processing
  * @return An unordered_map containing the posterior assignment probabilities (w1), the posterior mean (mu1) and variance (sigma2_1) of the coefficients, the error variance (sigma2_e), the mixture weights (w0), and optionally the ELBO
  */
 inline unordered_map<string, mat> mr_ash_sufficient(const vec& XTy, const mat& XTX, double yTy, int n, double& sigma2_e,
                                              const vec& sigma2_0, vec& w0, const vec& mu1_init, double tol = 1e-8,
                                              int max_iter = 1e5, bool update_w0 = true, bool update_sigma = true,
-                                             bool compute_ELBO = true, bool verbose = false, int ncpus = 1) {
+                                             bool compute_ELBO = true) {
 
 	// Initialize parameters
 	int p = XTX.n_cols;
@@ -134,7 +133,6 @@ inline unordered_map<string, mat> mr_ash_sufficient(const vec& XTy, const mat& X
 
 	// Iterate until convergence
 	while (!converged) {
-		double ELBO0 = ELBO;
 		double var_part_ERSS = 0;
 		double neg_KL = 0;
 
@@ -194,13 +192,6 @@ inline unordered_map<string, mat> mr_ash_sufficient(const vec& XTy, const mat& X
 		double ERSS = yTy - 2 * dot(XTy, mu1_t) + as_scalar(mu1_t.t() * XTX * mu1_t) + var_part_ERSS;
 		if (compute_ELBO) {
 			ELBO = -0.5 * log(n) - 0.5 * n * log(2 * datum::pi * sigma2_e) - (1 / (2 * sigma2_e)) * ERSS + neg_KL;
-			if (verbose) {
-				cout << "Iteration: " << t << ", Beta diff: " << beta_diff << ", ELBO diff: " << ELBO - ELBO0 << ", ELBO: " << ELBO << endl;
-			}
-		} else {
-			if (verbose) {
-				cout << "Iteration: " << t << ", Beta diff: " << beta_diff << endl;
-			}
 		}
 		varobj_vec[t - 1] = ELBO;
 
@@ -257,13 +248,12 @@ inline unordered_map<string, mat> rescale_post_mean_covar(const vec& mu1, const 
  * @param update_sigma Whether to update the error variance
  * @param compute_ELBO Whether to compute the Evidence Lower Bound (ELBO)
  * @param standardize Whether to standardize the input data
- * @param ncpus Number of CPUs to use for parallel processing
  * @return An unordered_map containing the posterior mean (mu1) and covariance (sigma2_1) of the coefficients, the posterior assignment probabilities (w1), the error variance (sigma2_e), the mixture weights (w0), and optionally the ELBO
  */
 inline unordered_map<string, mat> mr_ash_rss(const vec& bhat, const vec& shat, const vec& z, const mat& R, double var_y, int n,
                                       double sigma2_e, const vec& s0, vec& w0, const vec& mu1_init, double tol = 1e-8,
                                       int max_iter = 1e5, bool update_w0 = true, bool update_sigma = true, bool compute_ELBO = true,
-                                      bool standardize = false, int ncpus = 1) {
+                                      bool standardize = false) {
 	// Get number of variables
 	int p = z.n_elem;
 
@@ -313,7 +303,7 @@ inline unordered_map<string, mat> mr_ash_rss(const vec& bhat, const vec& shat, c
 
 	// Run variational inference
 	unordered_map<string, mat> result = mr_ash_sufficient(Xty, XtX, var_y * (n - 1), n, sigma2_e, s0, w0, mu1_init_use,
-	                                                      tol, max_iter, update_w0, update_sigma, compute_ELBO, standardize, ncpus);
+	                                                      tol, max_iter, update_w0, update_sigma, compute_ELBO);
 
 	// Rescale posterior mean and covariance if X was standardized
 	if (standardize) {
