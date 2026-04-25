@@ -41,7 +41,7 @@ susie_rss(
   coverage = 0.95,
   min_abs_corr = 0.5,
   max_iter = 100,
-  tol = 0.001,
+  tol = 1e-04,
   convergence_method = c("elbo", "pip"),
   verbose = FALSE,
   track_fit = FALSE,

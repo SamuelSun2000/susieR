@@ -35,7 +35,7 @@ susie_ss(
   check_null_threshold = 0,
   prior_tol = 1e-09,
   max_iter = 100,
-  tol = 0.001,
+  tol = 1e-04,
   convergence_method = c("elbo", "pip"),
   coverage = 0.95,
   min_abs_corr = 0.5,

@@ -26,7 +26,13 @@ diagnose_bb_ash_iter(
   nPIP_threshold = 0.05,
   c_hat_excess_threshold = 0.2,
   alpha_entropy_threshold = log(5),
-  slot_prior = NULL
+  slot_prior = NULL,
+  mask_smoothness = NULL,
+  mask_amount = NULL,
+  mask_concentration = NULL,
+  mask_burnin = NULL,
+  mask_spread_pip_at_sent = NULL,
+  mask_pip_prot_at_sent = NULL
 )
 }
 \value{

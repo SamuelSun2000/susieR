@@ -7,16 +7,19 @@
 susie_workhorse(data, params)
 }
 \arguments{
-\item{data}{Data object (individual, ss, or rss_lambda)}
+\item{data}{Data object (individual, ss, or rss_lambda).}
 
-\item{params}{Validated params object}
+\item{params}{Validated params object.}
 }
 \value{
-Complete fitted SuSiE model object with credible sets, PIPs, and
-  other results.
+Complete fitted SuSiE model.
 }
 \description{
-Main orchestration function for the IBSS algorithm. Coordinates the complete
-fitting pipeline from initialization through iteration to finalization.
+Main orchestration for the IBSS algorithm. When `params$L_greedy`
+is non-NULL, runs a greedy outer loop that grows `L` in linear
+steps of `params$L_greedy` until the fit has at least one empty
+slot (`min(lbf) < params$lbf_min`, default `0.1`) or `L` reaches
+`params$L`. With `params$L_greedy = NULL` (default), runs a
+single fixed-`L` IBSS, output bit-identical to prior susieR.
 }
 \keyword{internal}

@@ -161,6 +161,80 @@ calc_z = function (X, Y, center = FALSE, scale = FALSE) {
 }
 
 
+#' @title Per-Position Marginal OLS Regression of `Y` on Each Column of `X`
+#'
+#' @description Computes the marginal OLS regression coefficient and
+#'   standard error for each `(X column, Y column)` pair, treating
+#'   the regressions as independent. `X` is assumed column-centred
+#'   (no intercept term in the per-pair regression); each `Y`
+#'   column is treated independently. Returns the J x T matrices
+#'   `Bhat` and `Shat`.
+#'
+#' Used internally by single-effect-regression style routines that
+#' need a per-position marginal estimate. Vectorised across columns
+#' of `Y` so callers can pass either a numeric vector (T = 1) or a
+#' numeric matrix (T > 1) without looping at the call site.
+#'
+#' @param X numeric matrix `n x J`, expected column-centred.
+#' @param Y numeric matrix `n x T` or numeric vector of length `n`.
+#'   When a vector, is treated as a one-column matrix.
+#' @param predictor_weights optional numeric vector of length `J`
+#'   giving `colSums(X^2)`. Computed internally when `NULL`.
+#'   Callers that have this cached on the data object pass it
+#'   through to avoid recomputation.
+#' @param sigma2 optional numeric scalar giving a known residual
+#'   variance. When supplied, `Shat[j, t] = sqrt(sigma2 /
+#'   predictor_weights[j])` (single-effect-residual form). When
+#'   `NULL`, `Shat` is the per-pair empirical residual standard
+#'   error: for each `(j, t)` pair, the sample SD of `Y[, t] -
+#'   X[, j] * Bhat[j, t]` divided by `sqrt(n - 1)`. The latter
+#'   matches the form used by data-driven prior init routines
+#'   (e.g., for fitting a normal-mixture prior via `ashr::ash`).
+#'
+#' @return list with elements `Bhat` (`J x T`) and `Shat` (`J x T`).
+#'
+#' @examples
+#' set.seed(1)
+#' X <- matrix(rnorm(50 * 5), 50, 5)
+#' X <- scale(X, center = TRUE, scale = FALSE)
+#' Y <- matrix(rnorm(50 * 3), 50, 3)
+#' out <- compute_marginal_bhat_shat(X, Y)
+#' dim(out$Bhat)   # 5 x 3
+#' dim(out$Shat)   # 5 x 3
+#'
+#' @importFrom Rfast colVars
+#' @export
+compute_marginal_bhat_shat <- function(X, Y,
+                                       predictor_weights = NULL,
+                                       sigma2 = NULL) {
+  if (is.null(dim(Y))) {
+    Y <- matrix(Y, ncol = 1)
+  }
+  n <- nrow(Y)
+  J <- ncol(X)
+  T_y <- ncol(Y)
+
+  if (is.null(predictor_weights)) {
+    predictor_weights <- colSums(X^2)
+  }
+
+  Bhat <- crossprod(X, Y) / predictor_weights      # J x T
+
+  if (!is.null(sigma2)) {
+    Shat <- matrix(sqrt(sigma2 / predictor_weights), nrow = J, ncol = T_y)
+  } else {
+    Shat <- vapply(
+      seq_len(T_y),
+      function(t) Rfast::colVars(Y[, t] - sweep(X, 2, Bhat[, t], "*")),
+      numeric(J)
+    )
+    if (!is.matrix(Shat)) Shat <- matrix(Shat, nrow = J, ncol = T_y)
+    Shat <- sqrt(pmax(Shat, 1e-64)) / sqrt(n - 1)
+  }
+
+  list(Bhat = Bhat, Shat = Shat)
+}
+
 # ----------------------------------------------------------------------
 # Some miscellaneuous auxiliary functions are listed below.
 # Some functions are directly copied from varbvs,
