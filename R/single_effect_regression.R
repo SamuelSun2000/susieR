@@ -39,10 +39,13 @@ single_effect_regression <- function(data, params, model, l) {
     # Compute SER statistics (betahat, shat2, initial value for prior variance optimization)
     ser_stats <- compute_ser_statistics(data, params, model, l)
 
-    # Optimize Prior Variance of lth effect
+    # Optimize Prior Variance of lth effect. `optimize_prior_variance`
+    # is an S3 generic; the return is a list `(V, model)`.
     if (params$estimate_prior_method != "EM" && params$estimate_prior_method != "none") {
-      V <- optimize_prior_variance(data, params, model, ser_stats,
-        V_init = V)
+      out <- optimize_prior_variance(data, params, model, ser_stats,
+                                     l = l, V_init = V)
+      V     <- out$V
+      model <- out$model
     }
 
     # Compute logged Bayes factors and posterior inclusion probabilities
@@ -56,11 +59,15 @@ single_effect_regression <- function(data, params, model, l) {
 
     # Expectation-maximization prior variance update using posterior moments
     if (params$estimate_prior_method == "EM") {
-      V <- optimize_prior_variance(data, params, model, ser_stats,
-                                    get_alpha_l(model, l),
-                                    get_posterior_moments_l(model, l),
-                                    V_init = V)
+      out <- optimize_prior_variance(data, params, model, ser_stats,
+                                     l       = l,
+                                     alpha   = get_alpha_l(model, l),
+                                     moments = get_posterior_moments_l(model, l),
+                                     V_init  = V)
+      V     <- out$V
+      model <- out$model
     }
+
 
     # Store prior variance
     model <- set_prior_variance_l(model, l, V)
@@ -84,11 +91,31 @@ single_effect_regression <- function(data, params, model, l) {
 #'
 #' @return Optimized prior variance (scalar)
 #'
+#' Per-effect prior variance update.
+#'
+#' S3 generic dispatched on the data class so downstream packages
+#' (e.g., mfsusieR's adaptive mixture-of-normals prior) can run a
+#' per-effect prior update step here while reusing the surrounding
+#' SER scaffolding. Returns a list `(V, model)`: `V` is the scalar
+#' prior variance for effect l; `model` is the (possibly mutated)
+#' model object. The default path leaves `model` unchanged.
 #' @keywords internal
 #' @noRd
 optimize_prior_variance <- function(data, params, model, ser_stats,
-                                    alpha = NULL, moments = NULL,
-                                    V_init = NULL) {
+                                    l       = NULL,
+                                    alpha   = NULL,
+                                    moments = NULL,
+                                    V_init  = NULL) {
+  UseMethod("optimize_prior_variance")
+}
+
+#' @keywords internal
+#' @noRd
+optimize_prior_variance.default <- function(data, params, model, ser_stats,
+                                            l       = NULL,
+                                            alpha   = NULL,
+                                            moments = NULL,
+                                            V_init  = NULL) {
   V <- V_init
   if (params$estimate_prior_method != "simple") {
     if (params$estimate_prior_method == "optim") {
@@ -174,7 +201,7 @@ optimize_prior_variance <- function(data, params, model, ser_stats,
     }
   }
 
-  return(V)
+  list(V = V, model = model)
 }
 
 # =============================================================================
