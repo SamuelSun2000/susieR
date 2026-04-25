@@ -81,24 +81,44 @@ single_effect_regression <- function(data, params, model, l) {
 # Optimizes prior variance for single effects using different methods.
 # Handles optim, EM, simple methods and null threshold checking.
 # =============================================================================
+
+#' Per-effect prior variance update (S3 generic)
 #'
-#' @param data Data object
-#' @param params Validated params object
-#' @param model Current SuSiE model object
-#' @param ser_stats SER statistics and optimization parameters from compute_ser_statistics
-#' @param moments Posterior moments from calculate_posterior_moments
-#' @param ... Additional method-specific parameters
+#' Dispatched on the data class so downstream packages with non-scalar
+#' prior structures (e.g., mfsusieR's adaptive mixture-of-normals
+#' prior, future cross-modality priors) can run a per-effect prior
+#' update step here while reusing the surrounding SER scaffolding.
 #'
-#' @return Optimized prior variance (scalar)
+#' The default path implements the standard susieR scalar-V
+#' optimization (`optim` Brent / `uniroot` / `EM` / `simple` /
+#' `none`) plus the post-optimization null-threshold check.
 #'
-#' Per-effect prior variance update.
+#' @param data Data object (e.g., `individual`, `ss`, `rss_lambda`,
+#'   or a downstream class such as `mv_individual`, `mf_individual`).
+#' @param params Validated params object.
+#' @param model Current SuSiE model object.
+#' @param ser_stats SER statistics and optimization parameters from
+#'   `compute_ser_statistics`.
+#' @param l Index of the effect being updated. Used by downstream
+#'   methods that need per-effect state (e.g., the EM mixture-weight
+#'   path); the default method uses it only for diagnostic purposes.
+#' @param alpha Per-SNP posterior weights for effect `l`, supplied by
+#'   the EM path (`get_alpha_l(model, l)`); `NULL` on the pre-loglik
+#'   call.
+#' @param moments Posterior moments for effect `l`, supplied by the
+#'   EM path (`get_posterior_moments_l(model, l)`); `NULL` on the
+#'   pre-loglik call.
+#' @param V_init Initial value for the prior variance scalar.
 #'
-#' S3 generic dispatched on the data class so downstream packages
-#' (e.g., mfsusieR's adaptive mixture-of-normals prior) can run a
-#' per-effect prior update step here while reusing the surrounding
-#' SER scaffolding. Returns a list `(V, model)`: `V` is the scalar
-#' prior variance for effect l; `model` is the (possibly mutated)
-#' model object. The default path leaves `model` unchanged.
+#' @return A named list with two elements:
+#' \describe{
+#'   \item{`V`}{numeric scalar, the optimized prior variance for
+#'     effect `l`.}
+#'   \item{`model`}{the (possibly mutated) model object. The default
+#'     method leaves `model` unchanged; downstream methods may write
+#'     prior-state updates here (e.g., mixture-weight vectors).}
+#' }
+#'
 #' @keywords internal
 #' @noRd
 optimize_prior_variance <- function(data, params, model, ser_stats,
@@ -109,6 +129,17 @@ optimize_prior_variance <- function(data, params, model, ser_stats,
   UseMethod("optimize_prior_variance")
 }
 
+#' Default scalar-V prior-variance optimization
+#'
+#' Backbone implementation of `optimize_prior_variance`. Handles the
+#' five `params$estimate_prior_method` cases (`optim`, `uniroot`,
+#' `EM`, `simple`, `none`) on a scalar prior variance and runs the
+#' post-optimization null-threshold check.
+#'
+#' @inheritParams optimize_prior_variance
+#' @return A named list `list(V = ..., model = model)` (see
+#'   `optimize_prior_variance` for the full contract). `model` is
+#'   returned unchanged by this default method.
 #' @keywords internal
 #' @noRd
 optimize_prior_variance.default <- function(data, params, model, ser_stats,
