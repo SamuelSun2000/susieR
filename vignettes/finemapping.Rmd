@@ -189,6 +189,61 @@ This introduces some subtleties in terms of interpreting the results.
 For this reason, we provide covariate adjustment procedure as a tip in the documentation
 and not part of `susieR::susie()` function. Cautions should be taken when applying this procedure and interpreting the result from it.
 
+
+## Sufficient statistics: `compute_suff_stat` and `susie_ss`
+
+When individual-level data $(X, y)$ are available and the sample size $N$
+is much larger than the number of variables $P$, calling `susie(X, y)`
+directly is wasteful: each IBSS iteration touches `X` again, and when many
+response vectors are fit against the same `X` (for example, many proteins
+or genes on a shared locus), $X'X$ is rebuilt every time. The sufficient
+statistics $(X'X, X'y, y'y, n)$ capture everything `susie` needs; once they
+are computed, `susie_ss` can be called directly and $X'X$ reused across
+response vectors.
+
+The function `compute_suff_stat` produces these sufficient statistics from
+$(X, y)$:
+
+```{r}
+ss <- compute_suff_stat(X, Y[,1])
+str(ss)
+```
+
+They pass directly to `susie_ss`:
+
+```{r}
+fitted_ss <- susie_ss(XtX = ss$XtX, Xty = ss$Xty, yty = ss$yty, n = ss$n,
+                      X_colmeans = ss$X_colmeans, y_mean = ss$y_mean,
+                      L = 10, estimate_residual_variance = TRUE)
+```
+
+With matched hyperparameters, `susie_ss(...)` is numerically equivalent to
+running `susie` on $(X, y)$ directly:
+
+```{r}
+fitted <- susie(X, Y[,1], L = 10)
+all.equal(fitted$pip, fitted_ss$pip)
+```
+
+For a second response vector on the same `X`, only `Xty` and `yty` need to
+be recomputed; the costly $X'X$ is reused:
+
+```{r}
+y2_centered <- Y[,2] - mean(Y[,2])
+ss2 <- ss
+ss2$Xty <- drop(y2_centered %*% X)
+ss2$yty <- sum(y2_centered^2)
+ss2$y_mean <- mean(Y[,2])
+fitted_ss2 <- susie_ss(XtX = ss2$XtX, Xty = ss2$Xty, yty = ss2$yty,
+                       n = ss2$n, X_colmeans = ss2$X_colmeans,
+                       y_mean = ss2$y_mean, L = 10)
+```
+
+`susie()` emits a hint suggesting this workflow whenever
+`nrow(X) >= 2 * ncol(X)`.
+
+
+
 ## Session information
 
 Here are some details about the computing environment, including the

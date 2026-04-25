@@ -348,6 +348,20 @@ susie <- function(X, y, L = min(10, ncol(X)),
   prior_variance_grid     <- mp$prior_variance_grid
   mixture_weights         <- mp$mixture_weights
 
+  # Hint: when N is much larger than p, fitting from sufficient statistics
+  # is more memory-efficient and lets the user reuse XtX across multiple
+  # response vectors. See vignette "finemapping_summary_statistics" for the
+  # workflow.
+  if (nrow(X) >= 2 * ncol(X)) {
+    warning_message(
+      "nrow(X) = ", nrow(X), " >= 2 * ncol(X) = ", 2 * ncol(X), ". ",
+      "Consider precomputing sufficient statistics with compute_suff_stat() ",
+      "and fitting with susie_ss() instead -- this avoids holding X in ",
+      "memory at every iteration and lets you reuse XtX across multiple y.",
+      style = "hint"
+    )
+  }
+
   # Construct data and params objects
   susie_objects <- individual_data_constructor(
     X, y, L, scaled_prior_variance, residual_variance,

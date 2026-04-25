@@ -610,3 +610,157 @@ test_that("cleanup_model.ss removes omega fields for unmappable_effects='inf'", 
   expect_false("XtOmegay" %in% names(cleaned))
   expect_false("residuals" %in% names(cleaned))
 })
+
+context("susie() N>=2P hint and compute_suff_stat() workflow")
+
+# These tests cover the two changes added in
+#   - R/susie.R (the N>=2P hint)
+#   - vignettes/finemapping.Rmd (compute_suff_stat -> susie_ss)
+# They intentionally do NOT modify the existing
+#   "susie_ss agrees with susie on same data"
+# test in test_susie.R; that test stays as-is and uses hand-rolled crossprod.
+# The tests below exercise the user-facing compute_suff_stat() composition
+# instead, which is the path the new vignette section recommends.
+
+# -----------------------------------------------------------------------------
+# Hint behaviour
+# -----------------------------------------------------------------------------
+
+test_that("susie emits a hint pointing to compute_suff_stat() when nrow(X) >= 2 * ncol(X)", {
+  set.seed(2026)
+  n <- 200; p <- 50            # n >= 2 * p, so the hint should fire
+  X <- matrix(rnorm(n * p), n, p)
+  y <- rnorm(n)
+
+  # warning_message(..., style = "hint") emits a message() call whose body
+  # contains the literal "compute_suff_stat". expect_message matches any
+  # emitted message; other messages (e.g. non-convergence warnings from
+  # max_iter = 2) are tolerated.
+  expect_message(
+    susie(X, y, L = 3, max_iter = 2, verbose = FALSE),
+    "compute_suff_stat"
+  )
+})
+
+test_that("susie does not emit the compute_suff_stat hint when nrow(X) < 2 * ncol(X)", {
+  set.seed(2027)
+  n <- 60; p <- 50             # n < 2 * p, so the hint must stay silent
+  X <- matrix(rnorm(n * p), n, p)
+  y <- rnorm(n)
+
+  msgs <- suppressWarnings(capture_messages(
+    susie(X, y, L = 3, max_iter = 2, verbose = FALSE)
+  ))
+  expect_false(any(grepl("compute_suff_stat", msgs, fixed = TRUE)))
+})
+
+test_that("the hint does not interfere with susie's normal control flow", {
+  # Regression check: the hint is advisory only. Adding it must not change
+  # the algorithm's output relative to running with the hint suppressed.
+  set.seed(2028)
+  n <- 200; p <- 50
+  X <- matrix(rnorm(n * p), n, p)
+  beta <- rep(0, p); beta[c(5, 15, 25)] <- c(1, -1, 1.5)
+  y <- as.vector(X %*% beta + rnorm(n, sd = 0.5))
+
+  fit <- suppressMessages(
+    susie(X, y, L = 5, max_iter = 100, verbose = FALSE)
+  )
+
+  expect_s3_class(fit, "susie")
+  expect_length(fit$pip, p)
+  expect_equal(rowSums(fit$alpha), rep(1, 5), tolerance = 1e-10)
+  expect_true(all(is.finite(fit$elbo)))
+})
+
+# -----------------------------------------------------------------------------
+# Vignette workflow: compute_suff_stat() -> susie_ss()
+# -----------------------------------------------------------------------------
+
+test_that("compute_suff_stat() + susie_ss() agrees with susie() on the same data", {
+  # This is the workflow the new vignette section demonstrates: feed the
+  # output of compute_suff_stat directly into susie_ss with matching
+  # standardize/intercept settings, and recover the susie() fit.
+  set.seed(2029)
+  n <- 100; p <- 50            # same dims as the existing 1e-3 reference test
+  X <- matrix(rnorm(n * p), n, p)
+  beta <- rep(0, p); beta[c(5, 15, 25)] <- c(1, -1, 1.5)
+  y <- as.vector(X %*% beta + rnorm(n, sd = 0.5))
+
+  # n = 2 * p triggers the hint; suppress it for clean output here.
+  fit_ind <- suppressMessages(susie(
+    X, y, L = 5,
+    standardize = TRUE, intercept = TRUE,
+    verbose = FALSE
+  ))
+
+  ss <- compute_suff_stat(X, y, standardize = FALSE)
+
+  fit_ss <- susie_ss(
+    XtX = ss$XtX, Xty = ss$Xty, yty = ss$yty, n = ss$n,
+    X_colmeans = ss$X_colmeans, y_mean = ss$y_mean,
+    L = 5, standardize = TRUE, verbose = FALSE
+  )
+
+  # Tolerance matched to the existing
+  #   "susie_ss agrees with susie on same data"  (test_susie.R, seed 33)
+  # test, which uses the same configuration via hand-rolled crossprod.
+  # compute_suff_stat() produces XtX/Xty/yty that are algebraically
+  # identical to that hand-rolled computation, so the bound carries over.
+  expect_equal(fit_ind$pip,    fit_ss$pip,    tolerance = 1e-3)
+  expect_equal(fit_ind$V,      fit_ss$V,      tolerance = 1e-3)
+  expect_equal(fit_ind$sigma2, fit_ss$sigma2, tolerance = 1e-3)
+})
+
+test_that("compute_suff_stat: XtX can be reused across multiple y vectors", {
+  # This is the workhorse of the vignette example -- compute the heavy
+  # XtX once, swap only Xty/yty/y_mean for each new response. The test
+  # locks in two invariants:
+  #   (1) X-only quantities (XtX, X_colmeans, n) are byte-identical
+  #       between a reused-stats object and a freshly recomputed one.
+  #   (2) Feeding either into susie_ss produces the same fit.
+  # Either invariant breaking would silently bite users iterating over
+  # many proteins on the same locus.
+  set.seed(2030)
+  n <- 80; p <- 30
+  X <- matrix(rnorm(n * p), n, p)
+  Y <- matrix(rnorm(n * 2), n, 2)
+
+  ss1 <- compute_suff_stat(X, Y[, 1], standardize = FALSE)
+
+  # Reuse path: keep XtX/X_colmeans, recompute the y-dependent slots.
+  y2_mean <- mean(Y[, 2])
+  y2c     <- Y[, 2] - y2_mean
+  ss_reused        <- ss1
+  ss_reused$Xty    <- drop(y2c %*% X)
+  ss_reused$yty    <- sum(y2c^2)
+  ss_reused$y_mean <- y2_mean
+
+  # Reference path: compute_suff_stat from scratch on Y[, 2].
+  ss_fresh <- compute_suff_stat(X, Y[, 2], standardize = FALSE)
+
+  # X-only quantities must be byte-identical: same X, same code path.
+  expect_identical(ss_reused$XtX,        ss_fresh$XtX)
+  expect_identical(ss_reused$X_colmeans, ss_fresh$X_colmeans)
+  expect_identical(ss_reused$n,          ss_fresh$n)
+  # y-only quantities are computed differently but should match numerically.
+  expect_equal(ss_reused$Xty,    ss_fresh$Xty,    tolerance = 1e-12)
+  expect_equal(ss_reused$yty,    ss_fresh$yty,    tolerance = 1e-12)
+  expect_equal(ss_reused$y_mean, ss_fresh$y_mean, tolerance = 1e-12)
+
+  # End-to-end: fits from the two stat sets must be the same.
+  fit_reused <- susie_ss(
+    XtX = ss_reused$XtX, Xty = ss_reused$Xty, yty = ss_reused$yty,
+    n = ss_reused$n,
+    X_colmeans = ss_reused$X_colmeans, y_mean = ss_reused$y_mean,
+    L = 5, verbose = FALSE
+  )
+  fit_fresh <- susie_ss(
+    XtX = ss_fresh$XtX, Xty = ss_fresh$Xty, yty = ss_fresh$yty,
+    n = ss_fresh$n,
+    X_colmeans = ss_fresh$X_colmeans, y_mean = ss_fresh$y_mean,
+    L = 5, verbose = FALSE
+  )
+  expect_equal(fit_reused$pip, fit_fresh$pip, tolerance = 1e-10)
+  expect_equal(fit_reused$V,   fit_fresh$V,   tolerance = 1e-10)
+})
