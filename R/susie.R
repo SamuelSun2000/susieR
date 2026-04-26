@@ -348,11 +348,7 @@ susie <- function(X, y, L = min(10, ncol(X)),
   prior_variance_grid     <- mp$prior_variance_grid
   mixture_weights         <- mp$mixture_weights
 
-  # Hint: when N is much larger than p, fitting from sufficient statistics
-  # is more memory-efficient and lets the user reuse XtX across multiple
-  # response vectors. See vignette "finemapping_summary_statistics" for the
-  # workflow. Gate on `verbose` so batch / programmatic callers (e.g.,
-  # reference-test loops) are not flooded.
+  # See vignette "finemapping_summary_statistics" for the recommended workflow
   if (verbose && nrow(X) >= 2 * ncol(X)) {
     warning_message(
       "nrow(X) = ", nrow(X), " >= 2 * ncol(X) = ", 2 * ncol(X), ". ",
