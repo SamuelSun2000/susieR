@@ -351,8 +351,9 @@ susie <- function(X, y, L = min(10, ncol(X)),
   # Hint: when N is much larger than p, fitting from sufficient statistics
   # is more memory-efficient and lets the user reuse XtX across multiple
   # response vectors. See vignette "finemapping_summary_statistics" for the
-  # workflow.
-  if (nrow(X) >= 2 * ncol(X)) {
+  # workflow. Gate on `verbose` so batch / programmatic callers (e.g.,
+  # reference-test loops) are not flooded.
+  if (verbose && nrow(X) >= 2 * ncol(X)) {
     warning_message(
       "nrow(X) = ", nrow(X), " >= 2 * ncol(X) = ", 2 * ncol(X), ". ",
       "Consider precomputing sufficient statistics with compute_suff_stat() ",
