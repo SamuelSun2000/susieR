@@ -1184,6 +1184,26 @@ get_nig_sufficient_stats <- function(data, model) {
   list(yy = yy, sxy = sxy, tau = tau)
 }
 
+# Inputs for compute_kl_NIG: single-IG projection of the SER posterior.
+# a_post = (alpha0+n)/2; b_post = (beta0 + sum_j alpha_j RSS_j)/2 with
+# RSS_j = yy*(1 - r0_j*sxy_j^2); s_j_sq = r0_j * tau / xx_j.
+#' @keywords internal
+nig_kl_inputs <- function(data, params, model, l) {
+  nig_ss  <- get_nig_sufficient_stats(data, model)
+  V_l     <- model$V[l]
+  r0      <- V_l / (V_l + nig_ss$tau / model$predictor_weights)
+  s_j_sq  <- r0 * nig_ss$tau / model$predictor_weights
+
+  alpha_l <- model$alpha[l, ]
+  rss_avg <- nig_ss$yy * (1 - sum(alpha_l * r0 * nig_ss$sxy^2))
+
+  list(
+    a_post = (params$alpha0 + data$n) / 2,
+    b_post = (params$beta0 + rss_avg) / 2,
+    s_j_sq = s_j_sq
+  )
+}
+
 # Compute log Bayes factor for NIG prior (univariate form on raw x, y)
 #' @keywords internal
 compute_lbf_NIG_univariate <- function(x, y, s0, alpha0 = 0, beta0 = 0) {
@@ -1249,7 +1269,7 @@ compute_stats_NIG <- function(n, xx, xy, yy, sxy, s0, a0, b0, tau = 1) {
   # Compute posterior variance
   post_var <- b1 / (a1 - 2) * r0 * tau / xx
 
-  # Compute posterior mode of residual variance
+  # Posterior mean of residual variance under IG((a0+n)/2, (b0+RSS)/2)
   rv <- (b1 / 2) / (a1 / 2 - 1)
 
   return(list(
@@ -1296,13 +1316,14 @@ compute_posterior_moments_NIG <- function(n, xx, xy, yy, sxy, s0, a0, b0, tau = 
   # Compute posterior variance
   post_var <- b1 / (a1 - 2) * r0 * tau / xx
 
-  # Compute posterior mode of residual variance
+  # Posterior mean of residual variance under IG((a0+n)/2, (b0+RSS)/2)
   rv <- (b1 / 2) / (a1 / 2 - 1)
 
   return(list(
     post_mean  = post_mean,
     post_mean2 = post_var + post_mean^2,
     post_var   = post_var,
+    s_j_sq     = r0 * tau / xx,
     rv         = rv
   ))
 }
@@ -1329,40 +1350,31 @@ update_prior_variance_NIG_EM <- function(n, xx, xy, yy, sxy, pip, s0, a0, b0, ta
   return(sum(pip * (vb + mb^2)))
 }
 
-# Compute KL divergence for Normal-Inverse-Gamma (NIG) prior
+# KL divergence for the NIG variational form. KL_beta uses the Gaussian-
+# Gaussian KL with shared sigma^2 scaling (sigma^2 log-dets cancel; only
+# mu^2/(sigma^2 V) survives). KL_sigma2 is the closed form for IG||IG.
 #' @keywords internal
-compute_kl_NIG <- function(alpha, post_mean, post_mean2, pi, V, a0, b0, a_post, b_post) {
+compute_kl_NIG <- function(alpha, post_mean, post_mean2, pi, V, a0, b0, a_post, b_post,
+                           s_j_sq) {
   eps <- .Machine$double.eps
 
-  # Posterior variance from second moment
-  post_var <- pmax(post_mean2 - post_mean^2, eps)
-
-  # Prior precision (tau2 = 1/V)
-  tau2 <- 1 / V
-
-  # KL for gamma
+  # KL for categorical assignment q(gamma) || p(gamma)
   KL_gamma <- sum(alpha * (log(pmax(alpha, eps)) - log(pmax(pi, eps))))
 
-  # Expectations under posterior q(sigma^2) ~ IG(a_post, b_post)
-  E_log_sigma2 <- digamma(a_post) - log(b_post)
+  # KL for b given sigma^2, integrated over q(sigma^2)
   E_inv_sigma2 <- a_post / b_post
-
-  # KL divergence for beta given sigma^2
   KL_beta <- 0.5 * sum(alpha * (
-    E_log_sigma2 + log(tau2) - log(pmax(post_var, eps)) +
-      E_inv_sigma2 * (post_var + post_mean^2) / tau2 - 1
+    log(V) - log(pmax(s_j_sq, eps)) + s_j_sq / V +
+      post_mean^2 * E_inv_sigma2 / V - 1
   ))
 
-  # KL divergence between IG posterior and IG prior
+  # KL between IG posterior and IG prior (closed form)
   KL_sigma2 <- lgamma(a0) - lgamma(a_post) +
     a0 * log(b_post / b0) +
     (a_post - a0) * digamma(a_post) -
     a_post + (a_post * b0) / b_post
 
-  # Total KL divergence
-  KL_total <- KL_gamma + KL_beta + KL_sigma2
-
-  return(as.numeric(KL_total))
+  return(as.numeric(KL_gamma + KL_beta + KL_sigma2))
 }
 
 # Compute log-normalizing factor for the IG(a,b) distribution

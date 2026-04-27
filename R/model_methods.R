@@ -279,6 +279,10 @@ get_objective.default <- function(data, params, model) {
     )
   } else if (params$use_NIG && nrow(model$alpha) == 1) {
     objective <- model$marginal_loglik[1]
+  } else if (isTRUE(params$use_NIG)) {
+    # NIG L>1: KL[l] is gated to 0 (gIBSS has no coherent ELBO); use the
+    # proper variational expected log-likelihood.
+    objective <- nig_eloglik(data, params, model)
   } else {
     # Standard ELBO computation
     objective <- Eloglik(data, model) - sum(model$KL)

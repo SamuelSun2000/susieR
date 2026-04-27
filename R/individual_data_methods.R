@@ -195,10 +195,14 @@ calculate_posterior_moments.individual <- function(data, params, model, V, l, ..
 #' @keywords internal
 compute_kl.individual <- function(data, params, model, l) {
   if (params$use_NIG) {
-    # KL divergence for NIG is only valid for L=1
+    # NIG KL only valid for L=1 (gIBSS for L>1 has no coherent ELBO; supp. line 503)
     if (params$L == 1) {
-      kl <- compute_kl_NIG(model$alpha[l, ], model$mu[l, ], model$mu2[l, ], model$pi, model$V[l],
-                           a0 = 1, b0 = 1, a_post = data$n / 2 + 1, b_post = data$n * model$sigma2 + 1)
+      ki <- nig_kl_inputs(data, params, model, l)
+      kl <- compute_kl_NIG(model$alpha[l, ], model$mu[l, ], model$mu2[l, ],
+                           model$pi, model$V[l],
+                           a0 = params$alpha0 / 2, b0 = params$beta0 / 2,
+                           a_post = ki$a_post, b_post = ki$b_post,
+                           s_j_sq = ki$s_j_sq)
     } else {
       kl <- 0
     }
@@ -440,7 +444,6 @@ cleanup_model.individual <- function(data, params, model, ...) {
   # Remove NIG specific temporary fields
   if (params$use_NIG) {
     model$marginal_loglik <- NULL
-    if (nrow(model$alpha) > 1) model$elbo <- NULL
   }
 
   # Remove ash-specific runtime fields

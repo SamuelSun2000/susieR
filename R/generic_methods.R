@@ -197,6 +197,32 @@ Eloglik.default <- function(data, model) {
   stop("Eloglik: no method for class '", class(data)[1], "'")
 }
 
+# Variational E_q[log p(y|b, sigma^2)] under SuSiE-NIG. Non-S3 helper called
+# from get_objective so we don't break the Eloglik(data, model) signature
+# that downstream packages override (mvsusieR, mfsusieR).
+# Decomposition: E_q[||y-Xb||^2 | sigma^2] = A + sigma^2 B,
+#   B = sum_l sum_j alpha^(l)_j * r0^(l)_j * tau_j,
+#   A = get_ER2 - E[sigma^2] * B.
+# Eloglik = -n/2 log(2 pi) - n/2 (log b - digamma(a)) - 0.5 (A * a/b + B).
+#' @keywords internal
+nig_eloglik <- function(data, params, model) {
+  n         <- data$n
+  ERSS_marg <- get_ER2(data, model)
+  a_post    <- (params$alpha0 + n) / 2
+  b_post    <- (params$beta0 + ERSS_marg) / 2
+
+  tau_v <- if (!is.null(model$shat2_inflation)) model$shat2_inflation else 1
+  pw    <- model$predictor_weights
+  B     <- 0
+  for (l in seq_len(nrow(model$alpha))) {
+    r0_l <- model$V[l] / (model$V[l] + tau_v / pw)
+    B    <- B + sum(model$alpha[l, ] * r0_l * tau_v)
+  }
+  A <- ERSS_marg - (b_post / (a_post - 1)) * B
+  -n / 2 * log(2 * pi) - n / 2 * (log(b_post) - digamma(a_post)) -
+    0.5 * (A * a_post / b_post + B)
+}
+
 # Log-likelihood and posterior moments for fixed mixture prior
 # (estimate_prior_method = "fixed_mixture"). Evaluates BFs on a
 # pre-specified variance grid with given mixture weights.
@@ -288,7 +314,13 @@ update_variance_components <- function(data, params, model, ...) {
 }
 #' @keywords internal
 update_variance_components.default <- function(data, params, model, ...) {
-  sigma2 <- est_residual_variance(data, model)
+  if (isTRUE(params$use_NIG)) {
+    # Posterior mean of IG((alpha0+n)/2, (beta0+ERSS)/2)
+    sigma2 <- (params$beta0 + get_ER2(data, model)) /
+              (params$alpha0 + data$n - 2)
+  } else {
+    sigma2 <- est_residual_variance(data, model)
+  }
   return(list(sigma2 = sigma2))
 }
 
