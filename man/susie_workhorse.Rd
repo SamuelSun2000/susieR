@@ -18,7 +18,7 @@ Complete fitted SuSiE model.
 Main orchestration for the IBSS algorithm. When `params$L_greedy`
 is non-NULL, runs a greedy outer loop that grows `L` in linear
 steps of `params$L_greedy` until the fit has at least one empty
-slot (`min(lbf) < params$lbf_min`, default `0.1`) or `L` reaches
+slot (`min(lbf) < params$greedy_lbf_cutoff`, default `0.1`) or `L` reaches
 `params$L`. With `params$L_greedy = NULL` (default), runs a
 single fixed-`L` IBSS, output bit-identical to prior susieR.
 }
