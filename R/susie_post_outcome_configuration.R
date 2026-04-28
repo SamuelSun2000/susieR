@@ -39,12 +39,12 @@
 #'     indices.}
 #'   \item{\code{"outcome"}}{Multi-output fits fan out into per-outcome views,
 #'     each with its own per-(CS, SNP) log Bayes factors read from
-#'     \code{fit$lbf_outcome} (an \eqn{L \times J \times R} or
+#'     \code{fit$lbf_variable_outcome} (an \eqn{L \times J \times R} or
 #'     \eqn{L \times J \times M} array). All per-outcome views share the
 #'     joint fit's PIP matrix and CS list, so the configuration enumeration
 #'     reduces to a single index \eqn{l \in 1..L}. Single-output \code{susie}
-#'     fits pass through unchanged. Requires \code{$lbf_outcome} on the
-#'     fit (set \code{attach_lbf_outcome = TRUE} when fitting).}
+#'     fits pass through unchanged. Requires \code{$lbf_variable_outcome} on the
+#'     fit (set \code{attach_lbf_variable_outcome = TRUE} when fitting).}
 #' }
 #'
 #' \subsection{SuSiEx algorithm}{
@@ -225,22 +225,22 @@ expand_one_fit <- function(fit, base_name, by) {
   # by = "outcome": multi-output fits fan out; single-output fits pass
   # through as one view.
   if (inherits(fit, "mvsusie") || inherits(fit, "mfsusie")) {
-    if (is.null(fit$lbf_outcome)) {
-      stop("Fit '", base_name, "': `by = \"outcome\"` requires `$lbf_outcome` ",
+    if (is.null(fit$lbf_variable_outcome)) {
+      stop("Fit '", base_name, "': `by = \"outcome\"` requires `$lbf_variable_outcome` ",
            "(an L x J x R or L x J x M array) on the fit. ",
-           "Refit with `attach_lbf_outcome = TRUE` (the default in mfsusie / ",
+           "Refit with `attach_lbf_variable_outcome = TRUE` (the default in mfsusie / ",
            "mvsusie), or pass `by = \"fit\"` to use the joint composite log ",
            "BF instead.")
     }
-    R <- dim(fit$lbf_outcome)[3L]
-    out_names <- dimnames(fit$lbf_outcome)[[3L]]
+    R <- dim(fit$lbf_variable_outcome)[3L]
+    out_names <- dimnames(fit$lbf_variable_outcome)[[3L]]
     if (is.null(out_names)) out_names <- paste0("outcome_", seq_len(R))
     views <- vector("list", R)
     for (r in seq_len(R)) {
       views[[r]] <- make_view(
         name    = paste0(base_name, "_", out_names[r]),
         alpha   = fit$alpha,
-        lbf     = fit$lbf_outcome[, , r, drop = TRUE],
+        lbf     = fit$lbf_variable_outcome[, , r, drop = TRUE],
         sets_cs = fit$sets$cs
       )
     }
