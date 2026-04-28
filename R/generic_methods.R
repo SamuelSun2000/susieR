@@ -410,13 +410,30 @@ get_zscore.default <- function(data, params, model, ...) {
 cleanup_model <- function(data, params, model, ...) {
   UseMethod("cleanup_model")
 }
+
+#' Class-specific extra fields to strip in cleanup_model.default
+#'
+#' Default returns `character(0)`. Subclasses (e.g., mfsusieR's
+#' `raw_residuals`, mvsusieR's `Y_imputed`/`llik_cache`) override
+#' to add their per-class scratch fields. Result is unioned with
+#' the standard temp_fields list inside `cleanup_model.default`.
+#' @keywords internal
+cleanup_extra_fields <- function(data) {
+  UseMethod("cleanup_extra_fields")
+}
+#' @keywords internal
+cleanup_extra_fields.default <- function(data) {
+  character(0)
+}
+
 #' @keywords internal
 cleanup_model.default <- function(data, params, model, ...) {
   # Remove temporary fields common to all data types
   temp_fields <- c("null_weight", "predictor_weights", "runtime",
                    "prev_elbo", "prev_alpha",
                    "residuals", "fitted_without_l", "residual_variance",
-                   "shat2_inflation")
+                   "shat2_inflation",
+                   cleanup_extra_fields(data))
 
   for (field in temp_fields) {
     if (field %in% names(model)) {

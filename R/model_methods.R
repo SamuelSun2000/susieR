@@ -136,17 +136,51 @@ check_convergence <- function(data, params, model, elbo, iter) {
   UseMethod("check_convergence")
 }
 
+#' Format the per-iter sigma2 cell for verbose output
+#'
+#' Default returns the scalar sigma2 in `%.4f`. Subclasses
+#' (e.g., mfsusieR's list-of-vectors sigma2; mvsusieR's
+#' matrix sigma2) override to a compact summary string of
+#' fixed width.
+#' @keywords internal
+format_sigma2_summary <- function(model) {
+  UseMethod("format_sigma2_summary")
+}
+#' @keywords internal
+format_sigma2_summary.default <- function(model) {
+  sprintf("%.4f", model$sigma2)
+}
+
+#' Append class-specific extra-diag columns to the verbose row
+#'
+#' Default returns an empty string. Subclasses override to inject
+#' columns such as `max_pi_null`, `max_KL_l`, alpha-entropy
+#' n_eff. Output is appended after the V column in the per-iter
+#' tabular line.
+#' @keywords internal
+format_extra_diag <- function(model) {
+  UseMethod("format_extra_diag")
+}
+#' @keywords internal
+format_extra_diag.default <- function(model) {
+  ""
+}
+
 #' @keywords internal
 check_convergence.default <- function(data, params, model, elbo, iter) {
   verbose <- isTRUE(params$verbose)
   V_str <- format_V_summary(model$V)
   chat_str <- format_chat_summary(model)
+  sigma2_str <- format_sigma2_summary(model)
+  extra_str  <- format_extra_diag(model)
 
   # Tabular verbose format (ELBO-convergence path): columns are
-  # iter, ELBO, delta, sigma2, mem, V (variable-width, last).
-  verbose_row_fmt <- "%4d   %11.4f   %9s   %7.4f   %-7s  %s%s"
-  verbose_header  <- sprintf("%-4s   %11s   %9s   %7s   %-7s  %s",
-                             "iter", "ELBO", "delta", "sigma2", "mem", "V")
+  # iter, ELBO, delta, sigma2, mem, V (variable-width, last),
+  # plus optional class-specific extras after V.
+  verbose_row_fmt <- "%4d   %11.4f   %9s   %-9s   %-7s  %s%s%s"
+  verbose_header  <- sprintf("%-4s   %11s   %9s   %-9s   %-7s  %s%s",
+                             "iter", "ELBO", "delta", "sigma2", "mem", "V",
+                             if (nzchar(extra_str)) "  extras" else "")
 
   # Skip convergence check on first iteration
   if (iter == 1) {
@@ -156,12 +190,14 @@ check_convergence.default <- function(data, params, model, elbo, iter) {
       if (!is.na(elbo_val) && is.finite(elbo_val)) {
         message(verbose_header)
         message(sprintf(verbose_row_fmt,
-                        iter, elbo_val, "-", model$sigma2,
+                        iter, elbo_val, "-", sigma2_str,
                         sprintf("%.2f GB", mem_used_gb()),
-                        paste0(V_str, chat_str), ""))
+                        paste0(V_str, chat_str),
+                        if (nzchar(extra_str)) paste0("  ", extra_str) else "",
+                        ""))
       } else {
-        message(sprintf("iter %3d: sigma2=%.4f, V=%s%s [mem: %.2f GB]",
-                        iter, model$sigma2, V_str, chat_str, mem_used_gb()))
+        message(sprintf("iter %3d: sigma2=%s, V=%s%s [mem: %.2f GB]",
+                        iter, sigma2_str, V_str, chat_str, mem_used_gb()))
       }
     }
     return(model)
@@ -224,9 +260,10 @@ check_convergence.default <- function(data, params, model, elbo, iter) {
     message(sprintf(verbose_row_fmt,
                     iter, elbo[iter + 1],
                     sprintf("%.2e", ELBO_diff),
-                    model$sigma2,
+                    sigma2_str,
                     sprintf("%.2f GB", mem_used_gb()),
                     paste0(V_str, chat_str),
+                    if (nzchar(extra_str)) paste0("  ", extra_str) else "",
                     if (model$converged) "  converged" else ""))
 
   if (model$converged && !is.null(params$unmappable_effects) &&
@@ -284,8 +321,10 @@ get_objective.default <- function(data, params, model) {
     # proper variational expected log-likelihood.
     objective <- nig_eloglik(data, params, model)
   } else {
-    # Standard ELBO computation
-    objective <- Eloglik(data, model) - sum(model$KL)
+    # Standard ELBO computation. `na.rm = TRUE` so subclasses that
+    # leave KL[l] = NA on null-effect rows (mfsusieR, mvsusieR) do
+    # not need to override get_objective just to skip NAs.
+    objective <- Eloglik(data, model) - sum(model$KL, na.rm = TRUE)
   }
 
   # Add slot prior ELBO terms when c_hat is active.
