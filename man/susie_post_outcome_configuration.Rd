@@ -7,7 +7,7 @@
 susie_post_outcome_configuration(
   input,
   by = c("fit", "outcome"),
-  methods = c("susiex", "coloc_pairwise"),
+  method = c("susiex", "coloc_pairwise"),
   prob_thresh = 0.8,
   cs_only = TRUE,
   p1 = 1e-04,
@@ -23,8 +23,9 @@ susie_post_outcome_configuration(
 \item{by}{Either \code{"fit"} (one trait per input fit; default) or
 \code{"outcome"} (multi-output fits expand into per-outcome traits).}
 
-\item{methods}{Character vector. Subset of \code{c("susiex",
-"coloc_pairwise")}. By default both run.}
+\item{method}{Character scalar; one of \code{"susiex"} (default) or
+\code{"coloc_pairwise"}. Pick the analysis to run; for both, call
+the function twice.}
 
 \item{prob_thresh}{Per-trait marginal threshold for the convenience
 \code{$active} flags in the SuSiEx output. Default \code{0.8}.}
@@ -44,26 +45,32 @@ Defaults match \code{coloc::coloc.bf_bf}: \code{p1 = p2 = 1e-4},
 \item{...}{Currently ignored.}
 }
 \value{
-A list with one element per requested method:
+A list of class \code{"susie_post_outcome_configuration"} with
+exactly one of the following components, depending on \code{method}:
 \describe{
-  \item{\code{$susiex}}{A list of length equal to the number of CS tuples
-    considered. Each element has components \code{cs_indices} (length-N
-    integer tuple), \code{logBF_trait} (length N), \code{configs}
-    (\eqn{2^N \times N} binary matrix), \code{config_prob} (length
-    \eqn{2^N}), \code{posthoc} (length-N marginals), and \code{active}
-    (logical at \code{prob_thresh}).}
-  \item{\code{$coloc_pairwise}}{A data.frame with one row per
-    (trait1, trait2, l1, l2) combination, columns \code{trait1, trait2,
-    l1, l2, hit1, hit2, PP.H0, PP.H1, PP.H2, PP.H3, PP.H4}.}
+  \item{\code{$susiex}}{(when \code{method = "susiex"}) A list of length
+    equal to the number of CS tuples considered. Each element has
+    components \code{cs_indices} (length-N integer tuple),
+    \code{logBF_trait} (length N), \code{configs} (\eqn{2^N \times N}
+    binary matrix), \code{config_prob} (length \eqn{2^N}),
+    \code{marginal_prob} (length-N per-trait marginal posterior
+    probability of being active across the configuration ensemble),
+    and \code{active} (logical, \code{marginal_prob >= prob_thresh}).}
+  \item{\code{$coloc_pairwise}}{(when \code{method = "coloc_pairwise"})
+    A data.frame with one row per (trait1, trait2, l1, l2)
+    combination, columns \code{trait1, trait2, l1, l2, hit1, hit2,
+    PP.H0, PP.H1, PP.H2, PP.H3, PP.H4}.}
 }
+Pretty-print with \code{summary(out)}.
 }
 \description{
-Combines two complementary post-hoc analyses into a single call:
-(1) the SuSiEx \eqn{2^N} combinatorial enumeration, reporting the
-posterior probability of every binary causality pattern across the
-\eqn{N} input traits; and (2) the coloc pairwise ABF, reporting the
+Runs one of two complementary post-hoc analyses, selected by
+\code{method}: \code{"susiex"} (default) for the SuSiEx \eqn{2^N}
+combinatorial enumeration, reporting the posterior probability of
+every binary causality pattern across the \eqn{N} input traits; or
+\code{"coloc_pairwise"} for the coloc pairwise ABF, reporting the
 five colocalisation hypothesis posteriors (H0/H1/H2/H3/H4) for every
-pair of traits. Both run by default; pick a subset via \code{methods}.
+pair of traits. To get both, call the function twice and combine.
 }
 \details{
 Two grouping modes are supported through the \code{by} argument:

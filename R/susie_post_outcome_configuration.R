@@ -14,20 +14,23 @@
 #     verbatim port of `coloc:::combine.abf` so susieR has no soft
 #     dependency on coloc.
 #
-# This file deliberately does NOT introduce S3 generics. The public function
-# normalises any supported input shape (single fit, list of fits, or a single
-# multi-output fit treated outcome-wise) to a flat list of "trait views",
-# then runs the requested algorithms against that list. Class-aware branches
-# use `inherits()` and are confined to one helper.
+# The public function normalises any supported input shape (single fit, list
+# of fits, or a single multi-output fit treated outcome-wise) to a flat list
+# of "trait views", then runs the requested algorithms against that list.
+# Class-aware branches use `inherits()` and are confined to one helper.
+#
+# The return value is tagged with class `"susie_post_outcome_configuration"`
+# so `summary()` dispatches to the pretty-printer at the bottom of this file.
 
 #' Post-hoc causal-configuration probabilities for one or more SuSiE-class fits
 #'
-#' Combines two complementary post-hoc analyses into a single call:
-#' (1) the SuSiEx \eqn{2^N} combinatorial enumeration, reporting the
-#' posterior probability of every binary causality pattern across the
-#' \eqn{N} input traits; and (2) the coloc pairwise ABF, reporting the
+#' Runs one of two complementary post-hoc analyses, selected by
+#' \code{method}: \code{"susiex"} (default) for the SuSiEx \eqn{2^N}
+#' combinatorial enumeration, reporting the posterior probability of
+#' every binary causality pattern across the \eqn{N} input traits; or
+#' \code{"coloc_pairwise"} for the coloc pairwise ABF, reporting the
 #' five colocalisation hypothesis posteriors (H0/H1/H2/H3/H4) for every
-#' pair of traits. Both run by default; pick a subset via \code{methods}.
+#' pair of traits. To get both, call the function twice and combine.
 #'
 #' Two grouping modes are supported through the \code{by} argument:
 #' \describe{
@@ -93,8 +96,9 @@
 #'   \code{mfsusie}, OR a list of such fits.
 #' @param by Either \code{"fit"} (one trait per input fit; default) or
 #'   \code{"outcome"} (multi-output fits expand into per-outcome traits).
-#' @param methods Character vector. Subset of \code{c("susiex",
-#'   "coloc_pairwise")}. By default both run.
+#' @param method Character scalar; one of \code{"susiex"} (default) or
+#'   \code{"coloc_pairwise"}. Pick the analysis to run; for both, call
+#'   the function twice.
 #' @param prob_thresh Per-trait marginal threshold for the convenience
 #'   \code{$active} flags in the SuSiEx output. Default \code{0.8}.
 #' @param cs_only Logical. If \code{TRUE} (default) only enumerate over CSs
@@ -109,18 +113,23 @@
 #'   \code{methods}.
 #' @param ... Currently ignored.
 #'
-#' @return A list with one element per requested method:
+#' @return A list of class \code{"susie_post_outcome_configuration"} with
+#' exactly one of the following components, depending on \code{method}:
 #' \describe{
-#'   \item{\code{$susiex}}{A list of length equal to the number of CS tuples
-#'     considered. Each element has components \code{cs_indices} (length-N
-#'     integer tuple), \code{logBF_trait} (length N), \code{configs}
-#'     (\eqn{2^N \times N} binary matrix), \code{config_prob} (length
-#'     \eqn{2^N}), \code{posthoc} (length-N marginals), and \code{active}
-#'     (logical at \code{prob_thresh}).}
-#'   \item{\code{$coloc_pairwise}}{A data.frame with one row per
-#'     (trait1, trait2, l1, l2) combination, columns \code{trait1, trait2,
-#'     l1, l2, hit1, hit2, PP.H0, PP.H1, PP.H2, PP.H3, PP.H4}.}
+#'   \item{\code{$susiex}}{(when \code{method = "susiex"}) A list of length
+#'     equal to the number of CS tuples considered. Each element has
+#'     components \code{cs_indices} (length-N integer tuple),
+#'     \code{logBF_trait} (length N), \code{configs} (\eqn{2^N \times N}
+#'     binary matrix), \code{config_prob} (length \eqn{2^N}),
+#'     \code{marginal_prob} (length-N per-trait marginal posterior
+#'     probability of being active across the configuration ensemble),
+#'     and \code{active} (logical, \code{marginal_prob >= prob_thresh}).}
+#'   \item{\code{$coloc_pairwise}}{(when \code{method = "coloc_pairwise"})
+#'     A data.frame with one row per (trait1, trait2, l1, l2)
+#'     combination, columns \code{trait1, trait2, l1, l2, hit1, hit2,
+#'     PP.H0, PP.H1, PP.H2, PP.H3, PP.H4}.}
 #' }
+#' Pretty-print with \code{summary(out)}.
 #'
 #' @references
 #' SuSiEx, Nature Genetics 2024 (combinatorial \eqn{2^N} enumeration).
@@ -128,18 +137,17 @@
 #'
 #' @export
 susie_post_outcome_configuration <- function(input,
-                                            by          = c("fit", "outcome"),
-                                            methods     = c("susiex",
-                                                            "coloc_pairwise"),
-                                            prob_thresh = 0.8,
-                                            cs_only     = TRUE,
-                                            p1          = 1e-4,
-                                            p2          = 1e-4,
-                                            p12         = 5e-6,
-                                            ...) {
-  by      <- match.arg(by)
-  methods <- match.arg(methods, c("susiex", "coloc_pairwise"),
-                       several.ok = TRUE)
+                                             by          = c("fit", "outcome"),
+                                             method      = c("susiex",
+                                                             "coloc_pairwise"),
+                                             prob_thresh = 0.8,
+                                             cs_only     = TRUE,
+                                             p1          = 1e-4,
+                                             p2          = 1e-4,
+                                             p12         = 5e-6,
+                                             ...) {
+  by     <- match.arg(by)
+  method <- match.arg(method)
 
   if (!is.numeric(prob_thresh) || length(prob_thresh) != 1L ||
       !is.finite(prob_thresh) || prob_thresh < 0 || prob_thresh > 1) {
@@ -159,17 +167,20 @@ susie_post_outcome_configuration <- function(input,
   views <- normalise_to_views(input, by = by, cs_only = cs_only)
 
   out <- list()
-  if ("susiex" %in% methods) {
+  if (identical(method, "susiex")) {
     out$susiex <- susiex_configurations(views,
                                         by          = by,
                                         prob_thresh = prob_thresh)
-  }
-  if ("coloc_pairwise" %in% methods) {
+  } else {
+    # method == "coloc_pairwise"
     out$coloc_pairwise <- coloc_pairwise_abf(views,
                                              p1  = p1,
                                              p2  = p2,
                                              p12 = p12)
   }
+  attr(out, "prob_thresh") <- prob_thresh
+  attr(out, "method")      <- method
+  class(out) <- c("susie_post_outcome_configuration", "list")
   out
 }
 
@@ -345,19 +356,19 @@ susiex_configurations <- function(views, by, prob_thresh,
       next
     }
 
-    logBF_conf <- as.vector(configs %*% logBF_trait)
-    maxlog     <- max(logBF_conf)
-    prob_conf  <- exp(logBF_conf - maxlog)
-    prob_conf  <- prob_conf / sum(prob_conf)
-    posthoc    <- as.vector(crossprod(configs, prob_conf))
+    logBF_conf    <- as.vector(configs %*% logBF_trait)
+    maxlog        <- max(logBF_conf)
+    prob_conf     <- exp(logBF_conf - maxlog)
+    prob_conf     <- prob_conf / sum(prob_conf)
+    marginal_prob <- as.vector(crossprod(configs, prob_conf))
 
     out[[ti]] <- list(
-      cs_indices  = setNames(as.integer(tuple), trait_names),
-      logBF_trait = setNames(logBF_trait,        trait_names),
-      configs     = configs,
-      config_prob = prob_conf,
-      posthoc     = setNames(posthoc,            trait_names),
-      active      = setNames(posthoc >= prob_thresh, trait_names)
+      cs_indices    = setNames(as.integer(tuple),  trait_names),
+      logBF_trait   = setNames(logBF_trait,        trait_names),
+      configs       = configs,
+      config_prob   = prob_conf,
+      marginal_prob = setNames(marginal_prob,      trait_names),
+      active        = setNames(marginal_prob >= prob_thresh, trait_names)
     )
   }
 
@@ -457,4 +468,443 @@ coloc_pairwise_abf <- function(views, p1, p2, p12) {
 
   if (length(rows) == 0L) return(empty)
   do.call(rbind, rows)
+}
+# =============================================================================
+# Summary / print methods for `susie_post_outcome_configuration` results.
+# =============================================================================
+#
+# Goals:
+#   * Be the one-stop pretty-printer so users almost never have to inspect
+#     the raw nested list.
+#   * Color-code signal vs. no-signal so the eye reads the table at a glance
+#     (BOLD DARK GREEN = active / shared, YELLOW = ambiguous, DIM = below
+#     threshold; coloc verdicts H4 = green/bold, H3 = magenta, H1/H2 = blue,
+#     H0 = dim).
+#   * Filter no-signal rows by default (signal_only = TRUE) and footer the
+#     hidden count.
+#   * Be robust to malformed / partial input objects: missing fields,
+#     missing columns, empty lists, length-mismatched per-trait fields,
+#     trait names colliding with reserved column names, etc. None of these
+#     should error -- they should degrade gracefully.
+
+# Reserved column names that the SuSiEx tidy table adds. Trait names that
+# collide get a "trait_" prefix during materialisation.
+.SUSIEX_RESERVED <- c("tuple", "top_pattern", "top_prob")
+
+# Coloc PP columns. We tolerate the data.frame missing some, only enforce
+# that PP.H0..PP.H4 are present (the source enforces all five).
+.COLOC_PP_COLS  <- c("PP.H0", "PP.H1", "PP.H2", "PP.H3", "PP.H4")
+.COLOC_DISPLAY  <- c("trait1", "trait2", "l1", "l2", "hit1", "hit2")
+.COLOC_LABELS   <- c("H0 no signal",
+                     "H1 trait1-only",
+                     "H2 trait2-only",
+                     "H3 distinct",
+                     "H4 shared")
+
+#' Summarise a susie_post_outcome_configuration result
+#'
+#' Builds tidy tables from the nested list returned by
+#' [susie_post_outcome_configuration()] and prints them with ANSI color
+#' highlighting via [print.summary.susie_post_outcome_configuration()].
+#' The summary itself is an S3 object: index `$susiex` and
+#' `$coloc_pairwise` to grab the data.frames for downstream use.
+#'
+#' Color encoding (when ANSI colors are available):
+#' \itemize{
+#'   \item SuSiEx per-trait marginal probability: bold dark green when
+#'     `>= prob_thresh` (active), yellow when in
+#'     `[ambiguous_lower, prob_thresh)`, dim otherwise. The `active`
+#'     logical from the raw result is encoded by color and is not shown
+#'     as a separate column.
+#'   \item Coloc verdict: bold dark green for H4 (shared causal), magenta
+#'     for H3 (distinct causals), blue for H1 or H2 (single-trait causal),
+#'     dim for H0 (no signal). The dominant PP per row is bolded.
+#' }
+#'
+#' Robustness: this method is defensive against malformed input. Empty
+#' lists, NULL components, missing fields, length-mismatched per-trait
+#' vectors, trait names that collide with reserved columns
+#' (`tuple`, `top_pattern`, `top_prob`), and coloc data.frames that
+#' lack some optional columns (`hit1`, `hit2`) all degrade gracefully
+#' rather than erroring.
+#'
+#' @param object Output of [susie_post_outcome_configuration()].
+#' @param prob_thresh Threshold above which `marginal_prob` counts as a
+#'   signal (default `0.8`).
+#' @param ambiguous_lower Lower edge of the "ambiguous" band for the
+#'   SuSiEx color coding: marginals in
+#'   `[ambiguous_lower, prob_thresh)` are colored yellow. Default `0.5`.
+#'   Set to `prob_thresh` to disable the band.
+#' @param signal_only Logical. If `TRUE` (default), drop CS tuples where
+#'   no trait is active and drop coloc rows whose dominant hypothesis is
+#'   H0. Pass `FALSE` to keep everything.
+#' @param color One of `"auto"` (default; honors [crayon::has_color()]),
+#'   `TRUE` (force colors on), or `FALSE` (force them off).
+#' @param ... Ignored.
+#'
+#' @return A list of class `"summary.susie_post_outcome_configuration"`
+#' with components:
+#' \describe{
+#'   \item{`$susiex`}{`data.frame` (or `NULL` when no signals): one row per
+#'     CS tuple. Columns: `tuple` (e.g. `"(1,1,1)"`), one numeric column
+#'     per trait carrying that trait's `marginal_prob`, `top_pattern`
+#'     (binary configuration string for the most-probable configuration),
+#'     `top_prob` (its probability).}
+#'   \item{`$coloc_pairwise`}{`data.frame` (or `NULL`): the original coloc
+#'     table extended with `verdict` (named hypothesis label) and `top_pp`
+#'     (the dominant PP value).}
+#'   \item{`$susiex_n_total`, `$susiex_n_kept`, `$coloc_n_total`,
+#'     `$coloc_n_kept`}{row counts before and after `signal_only`
+#'     filtering, used by the print method to footer hidden rows.}
+#'   \item{`$prob_thresh`, `$ambiguous_lower`, `$signal_only`, `$color`}{
+#'     parameters echoed for the print method.}
+#' }
+#'
+#' @seealso [susie_post_outcome_configuration()],
+#'   [print.summary.susie_post_outcome_configuration()]
+#'
+#' @method summary susie_post_outcome_configuration
+#' @export summary.susie_post_outcome_configuration
+#' @export
+summary.susie_post_outcome_configuration <- function(
+    object,
+    prob_thresh     = 0.8,
+    ambiguous_lower = 0.5,
+    signal_only     = TRUE,
+    color           = "auto",
+    ...) {
+  if (!is.numeric(prob_thresh) || length(prob_thresh) != 1L ||
+      !is.finite(prob_thresh) || prob_thresh < 0 || prob_thresh > 1) {
+    stop("`prob_thresh` must be a single numeric in [0, 1].")
+  }
+  if (!is.numeric(ambiguous_lower) || length(ambiguous_lower) != 1L ||
+      !is.finite(ambiguous_lower) ||
+      ambiguous_lower < 0 || ambiguous_lower > prob_thresh) {
+    stop("`ambiguous_lower` must be a single numeric in [0, prob_thresh].")
+  }
+  if (!is.logical(signal_only) || length(signal_only) != 1L ||
+      is.na(signal_only)) {
+    stop("`signal_only` must be a single logical (TRUE or FALSE).")
+  }
+  if (!(isTRUE(color) || isFALSE(color) || identical(color, "auto"))) {
+    stop("`color` must be one of TRUE, FALSE, or \"auto\".")
+  }
+
+  ses <- .summarise_susiex(object$susiex, signal_only, prob_thresh)
+  cls <- .summarise_coloc(object$coloc_pairwise, signal_only)
+  out <- list(
+    susiex          = ses$df,
+    susiex_n_total  = ses$n_total,
+    susiex_n_kept   = ses$n_kept,
+    coloc_pairwise  = cls$df,
+    coloc_n_total   = cls$n_total,
+    coloc_n_kept    = cls$n_kept,
+    prob_thresh     = prob_thresh,
+    ambiguous_lower = ambiguous_lower,
+    signal_only     = signal_only,
+    color           = color
+  )
+  class(out) <- c("summary.susie_post_outcome_configuration", "list")
+  out
+}
+
+# Tidy `configs$susiex` (list of CS-tuple result lists) into a data.frame
+# wrapped in a small list with kept/total counts so the print method can
+# tell users what was hidden. Returns NULL `df` when input is empty or
+# fully filtered.
+#
+# Defensive against per-tuple field omissions: a tuple missing
+# `marginal_prob` or `config_prob` is silently skipped. Trait names that
+# collide with reserved columns are prefixed with "trait_". Trait sets
+# that vary across tuples are unioned.
+.summarise_susiex <- function(susiex, signal_only, prob_thresh) {
+  if (is.null(susiex) || !is.list(susiex) || length(susiex) == 0L) {
+    return(list(df = NULL, n_total = 0L, n_kept = 0L))
+  }
+  n_total <- length(susiex)
+
+  # Pull the union of trait names across all tuples (some tuples might be
+  # malformed and missing fields; we just skip those).
+  trait_names_all <- unique(unlist(lapply(susiex, function(tup) {
+    if (is.list(tup) && !is.null(tup$marginal_prob)) {
+      names(tup$marginal_prob)
+    } else character(0)
+  })))
+  if (length(trait_names_all) == 0L) {
+    return(list(df = NULL, n_total = n_total, n_kept = 0L))
+  }
+  # Avoid collisions with reserved column names by prefixing.
+  trait_cols <- ifelse(trait_names_all %in% .SUSIEX_RESERVED,
+                       paste0("trait_", trait_names_all),
+                       trait_names_all)
+  trait_cols <- make.unique(trait_cols)
+  names(trait_cols) <- trait_names_all   # raw -> column-name mapping
+
+  rows <- lapply(susiex, function(tup) {
+    if (!is.list(tup) || is.null(tup$marginal_prob) ||
+        is.null(tup$config_prob) || is.null(tup$configs)) {
+      return(NULL)
+    }
+    mp <- tup$marginal_prob
+    if (signal_only) {
+      # Re-derive active using current prob_thresh (don't trust the stored
+      # active flag, which was computed against the call-time threshold).
+      if (!any(is.finite(mp) & mp >= prob_thresh)) return(NULL)
+    }
+    cp <- tup$config_prob
+    if (length(cp) == 0L || !all(is.finite(cp))) return(NULL)
+    top_idx <- which.max(cp)
+    cfg     <- tup$configs
+    top_pat <- if (is.matrix(cfg) && nrow(cfg) >= top_idx) {
+      paste(cfg[top_idx, ], collapse = "")
+    } else NA_character_
+    cs_idx_str <- if (!is.null(tup$cs_indices)) {
+      paste0("(", paste(tup$cs_indices, collapse = ","), ")")
+    } else NA_character_
+
+    out <- data.frame(tuple = cs_idx_str, stringsAsFactors = FALSE)
+    for (raw in trait_names_all) {
+      out[[trait_cols[[raw]]]] <- if (raw %in% names(mp)) {
+        as.numeric(mp[[raw]])
+      } else NA_real_
+    }
+    out$top_pattern <- top_pat
+    out$top_prob    <- as.numeric(cp[top_idx])
+    out
+  })
+  rows <- rows[!vapply(rows, is.null, logical(1))]
+  if (length(rows) == 0L) {
+    return(list(df = NULL, n_total = n_total, n_kept = 0L))
+  }
+  df <- do.call(rbind, rows)
+  rownames(df) <- NULL
+  list(df = df, n_total = n_total, n_kept = nrow(df))
+}
+
+# Annotate the coloc data.frame with verdict + dominant PP, and optionally
+# drop rows whose dominant hypothesis is H0. Returns the df and kept/total
+# counts so the print method can footer the hidden count. Tolerates the
+# input data.frame already carrying a `verdict` or `top_pp` column (we
+# overwrite). Errors if any of PP.H0..PP.H4 is missing -- those columns
+# define the algorithm.
+.summarise_coloc <- function(df, signal_only) {
+  if (is.null(df) || !is.data.frame(df) || nrow(df) == 0L) {
+    return(list(df = NULL, n_total = 0L, n_kept = 0L))
+  }
+  missing_pp <- setdiff(.COLOC_PP_COLS, colnames(df))
+  if (length(missing_pp) > 0L) {
+    warning("coloc_pairwise table missing required columns: ",
+            paste(missing_pp, collapse = ", "),
+            "; skipping coloc summary.", call. = FALSE)
+    return(list(df = NULL, n_total = nrow(df), n_kept = 0L))
+  }
+
+  pp_mat <- as.matrix(df[, .COLOC_PP_COLS, drop = FALSE])
+  storage.mode(pp_mat) <- "double"
+  # Rows where every PP is NA / non-finite are unscoreable; treat as H0.
+  bad_row <- !apply(pp_mat, 1L, function(r) any(is.finite(r)))
+  pp_mat[bad_row, ] <- 0
+  pp_mat[bad_row, 1L] <- 1
+
+  top    <- max.col(pp_mat, ties.method = "first")
+  df$verdict <- .COLOC_LABELS[top]
+  df$top_pp  <- pp_mat[cbind(seq_len(nrow(df)), top)]
+  n_total    <- nrow(df)
+
+  if (signal_only) {
+    df <- df[top != 1L, , drop = FALSE]
+    rownames(df) <- NULL
+  }
+  if (nrow(df) == 0L) {
+    return(list(df = NULL, n_total = n_total, n_kept = 0L))
+  }
+  list(df = df, n_total = n_total, n_kept = nrow(df))
+}
+
+#' Print a summary.susie_post_outcome_configuration object
+#'
+#' Pretty-prints the tidy tables built by
+#' [summary.susie_post_outcome_configuration()] with optional ANSI color
+#' highlighting. See that page for the color encoding.
+#'
+#' @param x Output of [summary.susie_post_outcome_configuration()].
+#' @param ... Ignored.
+#' @return The input invisibly.
+#'
+#' @seealso [summary.susie_post_outcome_configuration()]
+#'
+#' @method print summary.susie_post_outcome_configuration
+#' @export print.summary.susie_post_outcome_configuration
+#' @export
+#' @importFrom crayon has_color bold silver green yellow blue magenta cyan
+print.summary.susie_post_outcome_configuration <- function(x, ...) {
+  use_color <- isTRUE(x$color) ||
+    (identical(x$color, "auto") && has_color())
+
+  # Force-enable crayon when the caller asked for colors explicitly. Crayon
+  # otherwise respects its own global `crayon.enabled` option and may strip
+  # ANSI in non-tty contexts (R CMD CHECK, capture.output, knitr) even when
+  # the user passed `color = TRUE`.
+  if (isTRUE(x$color)) {
+    old_opt <- options(crayon.enabled = TRUE)
+    on.exit(options(old_opt), add = TRUE)
+  }
+
+  paint <- if (use_color) {
+    function(s, style) style(s)
+  } else {
+    function(s, style) s
+  }
+
+  if (is.null(x$susiex) && is.null(x$coloc_pairwise)) {
+    cat("susie_post_outcome_configuration: no signals to report",
+        if (isTRUE(x$signal_only)) " (signal_only = TRUE)" else "",
+        "\n", sep = "")
+    return(invisible(x))
+  }
+
+  if (!is.null(x$susiex) && nrow(x$susiex) > 0L) {
+    cat("\n",
+        paint("SuSiEx: per-trait marginal P(active) per CS tuple", bold),
+        "\n", sep = "")
+    cat(paint(sprintf(
+      "  prob_thresh = %.2f, ambiguous = [%.2f, %.2f)",
+      x$prob_thresh, x$ambiguous_lower, x$prob_thresh),
+      silver), "\n\n", sep = "")
+    .print_susiex_table(x$susiex, x$prob_thresh, x$ambiguous_lower, use_color)
+    if (isTRUE(x$signal_only) && x$susiex_n_total > x$susiex_n_kept) {
+      cat(paint(sprintf(
+        "  (%d/%d CS tuples hidden -- no trait above prob_thresh; pass signal_only = FALSE to show)",
+        x$susiex_n_total - x$susiex_n_kept, x$susiex_n_total),
+        silver), "\n", sep = "")
+    }
+  }
+
+  if (!is.null(x$coloc_pairwise) && nrow(x$coloc_pairwise) > 0L) {
+    cat("\n",
+        paint("Coloc pairwise: dominant hypothesis per (trait, trait', l1, l2)",
+              bold),
+        "\n", sep = "")
+    cat(paint(
+      "  H0 no signal | H1 trait1-only | H2 trait2-only | H3 distinct | H4 shared",
+      silver), "\n\n", sep = "")
+    .print_coloc_table(x$coloc_pairwise, use_color)
+    if (isTRUE(x$signal_only) && x$coloc_n_total > x$coloc_n_kept) {
+      cat(paint(sprintf(
+        "  (%d/%d pairs hidden -- H0 dominant; pass signal_only = FALSE to show)",
+        x$coloc_n_total - x$coloc_n_kept, x$coloc_n_total),
+        silver), "\n", sep = "")
+    }
+  }
+
+  invisible(x)
+}
+
+# ---- table renderers -------------------------------------------------------
+
+.print_susiex_table <- function(df, prob_thresh, ambiguous_lower, use_color) {
+  trait_cols <- setdiff(colnames(df), .SUSIEX_RESERVED)
+
+  fmt_prob <- function(p) {
+    s <- if (is.na(p)) "  NA" else sprintf("%.3f", p)
+    if (!use_color) return(s)
+    if (is.na(p))                    silver(s)
+    else if (p >= prob_thresh)       bold(green(s))
+    else if (p >= ambiguous_lower)   yellow(s)
+    else                              silver(s)
+  }
+  fmt_pat <- function(pat) {
+    if (is.na(pat)) return("NA")
+    if (!use_color) return(pat)
+    cyan(pat)
+  }
+
+  hdr  <- c("CS tuple", trait_cols, "top pattern", "top P")
+  rows <- lapply(seq_len(nrow(df)), function(i) {
+    c(as.character(df$tuple[i]),
+      vapply(trait_cols, function(t) fmt_prob(df[[t]][i]), character(1)),
+      fmt_pat(df$top_pattern[i]),
+      sprintf("%.3f", df$top_prob[i]))
+  })
+  .print_aligned(hdr, rows)
+}
+
+.print_coloc_table <- function(df, use_color) {
+  display_present <- intersect(.COLOC_DISPLAY, colnames(df))
+  pp_present      <- intersect(.COLOC_PP_COLS, colnames(df))
+
+  pp_mat  <- as.matrix(df[, pp_present, drop = FALSE])
+  storage.mode(pp_mat) <- "double"
+  top_idx <- max.col(pp_mat, ties.method = "first")
+
+  fmt_pp <- function(p, is_top) {
+    s <- if (is.na(p)) "  NA" else sprintf("%.3f", p)
+    if (!use_color) return(s)
+    if (is.na(p))   silver(s)
+    else if (is_top) bold(s)
+    else            s
+  }
+  fmt_verdict <- function(v) {
+    if (is.na(v) || !nzchar(v)) return(if (is.na(v)) "NA" else v)
+    if (!use_color) return(v)
+    style <- switch(
+      substr(v, 1L, 2L),
+      "H0" = silver,
+      "H1" = blue,
+      "H2" = blue,
+      "H3" = magenta,
+      "H4" = function(s) bold(green(s)),
+      identity)
+    style(v)
+  }
+
+  hdr  <- c(display_present, pp_present, "verdict")
+  rows <- lapply(seq_len(nrow(df)), function(i) {
+    pp_strs <- vapply(seq_along(pp_present), function(k) {
+      fmt_pp(pp_mat[i, k], k == top_idx[i])
+    }, character(1))
+    c(vapply(display_present, function(col) {
+        as.character(df[[col]][i])
+      }, character(1)),
+      pp_strs,
+      fmt_verdict(df$verdict[i]))
+  })
+  .print_aligned(hdr, rows)
+}
+
+# Width-aware aligned printing. `vwidth` strips ANSI escape sequences so
+# colored cells line up correctly; `pad_to` right-pads to a target width.
+.print_aligned <- function(hdr, rows) {
+  vwidth <- function(s) nchar(gsub("\033\\[[0-9;]*m", "", s))
+  pad_to <- function(s, w) {
+    pad <- max(0L, w - vwidth(s))
+    paste0(s, strrep(" ", pad))
+  }
+
+  ncols <- length(hdr)
+  if (length(rows) == 0L) {
+    cat("  ", paste(hdr, collapse = "  "), "\n", sep = "")
+    return(invisible())
+  }
+  widths <- vapply(seq_len(ncols), function(k) {
+    body_w <- max(vapply(rows, function(r) vwidth(r[[k]]), integer(1)))
+    max(vwidth(hdr[k]), body_w)
+  }, integer(1))
+
+  cat("  ",
+      paste(vapply(seq_len(ncols), function(k) pad_to(hdr[k], widths[k]),
+                   character(1)),
+            collapse = "  "),
+      "\n", sep = "")
+  cat("  ",
+      paste(strrep("-", widths), collapse = "  "),
+      "\n", sep = "")
+  for (r in rows) {
+    cat("  ",
+        paste(vapply(seq_len(ncols), function(k) pad_to(r[[k]], widths[k]),
+                     character(1)),
+              collapse = "  "),
+        "\n", sep = "")
+  }
+  invisible()
 }
