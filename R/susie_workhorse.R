@@ -3,7 +3,7 @@
 #' Main orchestration for the IBSS algorithm. When `params$L_greedy`
 #' is non-NULL, runs a greedy outer loop that grows `L` in linear
 #' steps of `params$L_greedy` until the fit has at least one empty
-#' slot (`min(lbf) < params$lbf_min`, default `0.1`) or `L` reaches
+#' slot (`min(lbf) < params$greedy_lbf_cutoff`, default `0.1`) or `L` reaches
 #' `params$L`. With `params$L_greedy = NULL` (default), runs a
 #' single fixed-`L` IBSS, output bit-identical to prior susieR.
 #'
@@ -16,12 +16,12 @@
 susie_workhorse <- function(data, params) {
 
   # Greedy-L outer loop. Saturation detected when any one slot's
-  # lbf falls below lbf_min (slot-invariant, single-round verdict).
+  # lbf falls below greedy_lbf_cutoff (slot-invariant, single-round verdict).
   # Warm-start across rounds via params$model_init.
   if (!is.null(params$L_greedy)) {
     L_max   <- params$L
     L_step  <- params$L_greedy
-    lbf_min <- if (is.null(params$lbf_min)) 0.1 else params$lbf_min
+    greedy_lbf_cutoff <- if (is.null(params$greedy_lbf_cutoff)) 0.1 else params$greedy_lbf_cutoff
     verbose <- isTRUE(params$verbose)
     history <- list()
 
@@ -39,7 +39,7 @@ susie_workhorse <- function(data, params) {
 
       min_lbf <- min(fit$lbf, na.rm = TRUE)
       action  <- if (current_L >= L_max)    "L_max reached"
-                 else if (min_lbf < lbf_min) "saturated"
+                 else if (min_lbf < greedy_lbf_cutoff) "saturated"
                  else                         "grow"
       history[[round_n]] <- list(L = current_L, min_lbf = min_lbf,
                                  action = action)
@@ -47,9 +47,9 @@ susie_workhorse <- function(data, params) {
       current_L <- min(current_L + L_step, L_max)
     }
     if (verbose) {
-      message(sprintf("[L_greedy] %d round%s, lbf_min=%.3f, final L=%d",
+      message(sprintf("[L_greedy] %d round%s, greedy_lbf_cutoff=%.3f, final L=%d",
                       round_n, if (round_n == 1L) "" else "s",
-                      lbf_min, current_L))
+                      greedy_lbf_cutoff, current_L))
       message(sprintf("%-6s %-5s %-10s %s",
                       "round", "L", "min(lbf)", "action"))
       for (i in seq_along(history)) {
