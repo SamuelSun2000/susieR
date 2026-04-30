@@ -218,6 +218,79 @@ compute_colstats <- function(X, center = TRUE, scale = TRUE) {
 calc_stderr = function (X, residuals)
   sqrt(diag(sum(residuals^2)/(nrow(X) - 2) * chol2inv(chol(crossprod(X)))))
 
+#' Check alpha/PIP fixed-point or short-cycle convergence
+#'
+#' Uses one tolerance for both marginal PIPs and alpha. Lag 1 is ordinary
+#' convergence; larger lags detect a periodic orbit and average alpha over it.
+#'
+#' @keywords internal
+check_alpha_pip_cycle_convergence <- function(data, params, model) {
+  tol <- params$tol
+  cycle_window <- if (!is.null(params$pip_stall_window))
+    params$pip_stall_window
+  else
+    5
+  cycle_window <- max(1L, as.integer(cycle_window))
+  prior_tol <- if (!is.null(params$prior_tol)) params$prior_tol else 1e-9
+
+  alpha_pip <- function(alpha) {
+    tmp <- model
+    tmp$alpha <- alpha
+    if (inherits(tmp, "susie"))
+      susie_get_pip(tmp, prior_tol = prior_tol)
+    else
+      susie_get_pip(alpha, prior_tol = prior_tol)
+  }
+
+  current_alpha <- model$alpha
+  current_pip <- alpha_pip(current_alpha)
+
+  alpha_history <- model$runtime$alpha_history
+  pip_history <- model$runtime$pip_history
+  if (is.null(alpha_history) || is.null(pip_history)) {
+    alpha_history <- list(model$runtime$prev_alpha)
+    pip_history <- list(alpha_pip(model$runtime$prev_alpha))
+  }
+
+  state_diff <- function(alpha_old, pip_old)
+    max(max(abs(current_alpha - alpha_old)), max(abs(current_pip - pip_old)))
+
+  max_lag <- min(cycle_window, length(alpha_history))
+  lag_diff <- state_diff(alpha_history[[length(alpha_history)]],
+                         pip_history[[length(pip_history)]])
+  reason <- NULL
+
+  if (lag_diff < tol) {
+    reason <- "alpha_pip_fixed_point"
+  } else if (max_lag >= 2) {
+    for (lag in 2:max_lag) {
+      idx <- length(alpha_history) - lag + 1
+      lag_diff <- state_diff(alpha_history[[idx]], pip_history[[idx]])
+      if (lag_diff < tol) {
+        reason <- paste0("alpha_pip_cycle_", lag)
+        cycle_alpha <- c(tail(alpha_history, lag - 1), list(current_alpha))
+        model$alpha <- Reduce(`+`, cycle_alpha) / lag
+        current_alpha <- model$alpha
+        current_pip <- alpha_pip(current_alpha)
+        break
+      }
+    }
+  }
+
+  model$converged <- !is.null(reason)
+  model$convergence_reason <- reason
+  model$runtime$pip_diff <- lag_diff
+  model$runtime$alpha_history <- c(alpha_history, list(current_alpha))
+  model$runtime$pip_history <- c(pip_history, list(current_pip))
+  if (length(model$runtime$alpha_history) > cycle_window) {
+    keep <- seq.int(length(model$runtime$alpha_history) - cycle_window + 1,
+                    length(model$runtime$alpha_history))
+    model$runtime$alpha_history <- model$runtime$alpha_history[keep]
+    model$runtime$pip_history <- model$runtime$pip_history[keep]
+  }
+  return(model)
+}
+
 # =============================================================================
 # DATA PROCESSING & VALIDATION
 #
@@ -2421,4 +2494,3 @@ get_purity <- function(pos, X, Xcorr, squared = FALSE, n = 100,
     return(result)
   }
 }
-

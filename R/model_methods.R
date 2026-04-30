@@ -212,34 +212,18 @@ check_convergence.default <- function(data, params, model, elbo, iter) {
       warning_message(paste0("Iteration ", iter, " produced an NA/infinite ELBO",
                              " value. Using pip-based convergence this iteration."))
     }
-    # PIP convergence with stall detection.
-    # Converges when max|dPIP| < tol, or when pip_diff has not improved
-    # in stall_window consecutive iterations (oscillation of any period).
-    pip_diff <- max(abs(model$runtime$prev_alpha - model$alpha))
-    stall_window <- if (!is.null(params$pip_stall_window)) params$pip_stall_window else 5
-    if (is.null(model$runtime$best_pip_diff))
-      model$runtime$best_pip_diff <- Inf
-    if (is.null(model$runtime$stall_count))
-      model$runtime$stall_count <- 0
-    if (pip_diff < model$runtime$best_pip_diff) {
-      model$runtime$best_pip_diff <- pip_diff
-      model$runtime$stall_count <- 0
-    } else {
-      model$runtime$stall_count <- model$runtime$stall_count + 1
-    }
-    stalled <- (model$runtime$stall_count >= stall_window &&
-                pip_diff >= params$tol)
-    model$converged <- (pip_diff < params$tol) || stalled
+    # PIP/alpha convergence. pip_stall_window is reused as the maximum
+    # short-cycle lag; it is no longer a "no improvement" stop.
+    model <- check_alpha_pip_cycle_convergence(data, params, model)
+    pip_diff <- model$runtime$pip_diff
     if (verbose) {
-      conv_tag <- if (stalled) " -- converged (stalled)"
-                  else if (model$converged) " -- converged"
-                  else ""
-      message(sprintf("iter %3d: max|dPIP|=%.2e, V=%s%s%s [mem: %.2f GB]",
+      conv_tag <- if (model$converged)
+        paste0(" -- converged (", model$convergence_reason, ")")
+      else
+        ""
+      message(sprintf("iter %3d: max|d(alpha,PIP)|=%.2e, V=%s%s%s [mem: %.2f GB]",
                       iter, pip_diff, V_str, chat_str, conv_tag, mem_used_gb()))
     }
-    if (stalled)
-      warning_message("PIP convergence stalled (no improvement in ",
-                      stall_window, " iterations); returning current state.")
 
     if (model$converged && !is.null(params$unmappable_effects) &&
         params$unmappable_effects %in% c("ash", "ash_filter_archived")) {

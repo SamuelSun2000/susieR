@@ -1700,6 +1700,26 @@ test_that("check_convergence detects convergence correctly", {
   expect_true(result_na$converged)  # Alpha unchanged, so converged by PIP
 })
 
+test_that("PIP convergence detects and averages short alpha cycles", {
+  alpha_a <- matrix(c(0.9, 0.1, 0.2, 0.8), nrow = 2, byrow = TRUE)
+  alpha_b <- matrix(c(0.1, 0.9, 0.8, 0.2), nrow = 2, byrow = TRUE)
+  model <- list(
+    alpha = alpha_a,
+    runtime = list(
+      prev_alpha = alpha_b,
+      alpha_history = list(alpha_a, alpha_b),
+      pip_history = list(susie_get_pip(alpha_a), susie_get_pip(alpha_b))
+    )
+  )
+  params <- list(tol = 1e-4, pip_stall_window = 5, prior_tol = 1e-9)
+
+  result <- check_alpha_pip_cycle_convergence(NULL, params, model)
+
+  expect_true(result$converged)
+  expect_equal(result$convergence_reason, "alpha_pip_cycle_2")
+  expect_equal(result$alpha, (alpha_a + alpha_b) / 2)
+})
+
 test_that("get_objective computes ELBO correctly", {
   # Setup individual data
   setup <- setup_individual_data(n = 100, p = 50, L = 5, seed = 101)
