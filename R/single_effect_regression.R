@@ -31,13 +31,8 @@ single_effect_regression <- function(data, params, model, l) {
       return(model)
     }
 
-    # Standard scalar V path. Two prior-update hook slots, both S3
-    # generics dispatched on the data class:
-    #   pre_loglik_prior_hook  -- before loglik. Default handles
-    #     "optim" / "uniroot" / "simple" via optimize_prior_variance.
-    #   post_loglik_prior_hook -- after loglik / posterior moments /
-    #     KL. Default handles "EM" via optimize_prior_variance using
-    #     the just-updated alpha and moments.
+    # Two S3 hook slots: pre/post loglik. Defaults dispatch on
+    # `params$estimate_prior_method`; downstream classes override.
 
     V <- get_prior_variance_l(model, l)
     ser_stats <- compute_ser_statistics(data, params, model, l)
@@ -60,17 +55,12 @@ single_effect_regression <- function(data, params, model, l) {
     model
   }
 
-#' Pre-loglik prior-update hook (S3 generic)
+#' Pre-loglik prior-update hook
 #'
-#' Called by `single_effect_regression` between SER-statistics
-#' computation and the `loglik` step. Default routes to
-#' `optimize_prior_variance` for the scalar-V optimizers
-#' (`optim`, `uniroot`, `simple`).
+#' S3 generic, called between SER stats and `loglik`. Default
+#' routes to `optimize_prior_variance` for `optim` / `uniroot` /
+#' `simple`. Returns `list(V, model)`.
 #'
-#' @param data,params,model,ser_stats Standard SER pipeline objects.
-#' @param l Index of the effect being updated.
-#' @param V_init Initial scalar prior variance for effect l.
-#' @return `list(V, model)`.
 #' @export
 #' @keywords internal
 pre_loglik_prior_hook <- function(data, params, model, ser_stats,
@@ -89,17 +79,12 @@ pre_loglik_prior_hook.default <- function(data, params, model, ser_stats,
   list(V = V_init, model = model)
 }
 
-#' Post-loglik prior-update hook (S3 generic)
+#' Post-loglik prior-update hook
 #'
-#' Called by `single_effect_regression` after `loglik`, posterior
-#' moment updates, and KL accumulation. The just-updated alpha and
-#' posterior moments for effect `l` are available on `model`.
-#' Default routes to `optimize_prior_variance` for `EM`.
+#' S3 generic, called after `loglik` / posterior moments / KL.
+#' Default routes to `optimize_prior_variance` for `EM`. Returns
+#' `list(V, model)`.
 #'
-#' @param data,params,model,ser_stats Standard SER pipeline objects.
-#' @param l Index of the effect being updated.
-#' @param V_init Scalar prior variance for effect l (post pre-hook).
-#' @return `list(V, model)`.
 #' @export
 #' @keywords internal
 post_loglik_prior_hook <- function(data, params, model, ser_stats,
