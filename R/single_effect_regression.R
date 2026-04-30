@@ -31,49 +31,96 @@ single_effect_regression <- function(data, params, model, l) {
       return(model)
     }
 
-    # Standard scalar V path (unchanged)
+    # Standard scalar V path. Two prior-update hook slots, both S3
+    # generics dispatched on the data class:
+    #   pre_loglik_prior_hook  -- before loglik. Default handles
+    #     "optim" / "uniroot" / "simple" via optimize_prior_variance.
+    #   post_loglik_prior_hook -- after loglik / posterior moments /
+    #     KL. Default handles "EM" via optimize_prior_variance using
+    #     the just-updated alpha and moments.
 
-    # Store Prior Variance Value for the lth Effect
     V <- get_prior_variance_l(model, l)
-
-    # Compute SER statistics (betahat, shat2, initial value for prior variance optimization)
     ser_stats <- compute_ser_statistics(data, params, model, l)
 
-    # Optimize Prior Variance of lth effect. `optimize_prior_variance`
-    # is an S3 generic; the return is a list `(V, model)`.
-    if (params$estimate_prior_method != "EM" && params$estimate_prior_method != "none") {
-      out <- optimize_prior_variance(data, params, model, ser_stats,
-                                     l = l, V_init = V)
-      V     <- out$V
-      model <- out$model
-    }
+    out <- pre_loglik_prior_hook(data, params, model, ser_stats,
+                                 l = l, V_init = V)
+    V     <- out$V
+    model <- out$model
 
-    # Compute logged Bayes factors and posterior inclusion probabilities
     model <- loglik(data, params, model, V, ser_stats, l)
-
-    # Compute posterior moments
     model <- calculate_posterior_moments(data, params, model, V, l)
-
-    # Compute KL divergence
     model <- compute_kl(data, params, model, l)
 
-    # Expectation-maximization prior variance update using posterior moments
-    if (params$estimate_prior_method == "EM") {
-      out <- optimize_prior_variance(data, params, model, ser_stats,
-                                     l       = l,
-                                     alpha   = get_alpha_l(model, l),
-                                     moments = get_posterior_moments_l(model, l),
-                                     V_init  = V)
-      V     <- out$V
-      model <- out$model
-    }
+    out <- post_loglik_prior_hook(data, params, model, ser_stats,
+                                  l = l, V_init = V)
+    V     <- out$V
+    model <- out$model
 
-
-    # Store prior variance
     model <- set_prior_variance_l(model, l, V)
-
-    return(model)
+    model
   }
+
+#' Pre-loglik prior-update hook (S3 generic)
+#'
+#' Called by `single_effect_regression` between SER-statistics
+#' computation and the `loglik` step. Default routes to
+#' `optimize_prior_variance` for the scalar-V optimizers
+#' (`optim`, `uniroot`, `simple`).
+#'
+#' @param data,params,model,ser_stats Standard SER pipeline objects.
+#' @param l Index of the effect being updated.
+#' @param V_init Initial scalar prior variance for effect l.
+#' @return `list(V, model)`.
+#' @export
+#' @keywords internal
+pre_loglik_prior_hook <- function(data, params, model, ser_stats,
+                                  l, V_init) {
+  UseMethod("pre_loglik_prior_hook")
+}
+
+#' @export
+#' @keywords internal
+pre_loglik_prior_hook.default <- function(data, params, model, ser_stats,
+                                          l, V_init) {
+  if (params$estimate_prior_method %in% c("optim", "uniroot", "simple")) {
+    return(optimize_prior_variance(data, params, model, ser_stats,
+                                   l = l, V_init = V_init))
+  }
+  list(V = V_init, model = model)
+}
+
+#' Post-loglik prior-update hook (S3 generic)
+#'
+#' Called by `single_effect_regression` after `loglik`, posterior
+#' moment updates, and KL accumulation. The just-updated alpha and
+#' posterior moments for effect `l` are available on `model`.
+#' Default routes to `optimize_prior_variance` for `EM`.
+#'
+#' @param data,params,model,ser_stats Standard SER pipeline objects.
+#' @param l Index of the effect being updated.
+#' @param V_init Scalar prior variance for effect l (post pre-hook).
+#' @return `list(V, model)`.
+#' @export
+#' @keywords internal
+post_loglik_prior_hook <- function(data, params, model, ser_stats,
+                                   l, V_init) {
+  UseMethod("post_loglik_prior_hook")
+}
+
+#' @export
+#' @keywords internal
+post_loglik_prior_hook.default <- function(data, params, model, ser_stats,
+                                           l, V_init) {
+  if (identical(params$estimate_prior_method, "EM")) {
+    return(optimize_prior_variance(
+      data, params, model, ser_stats,
+      l       = l,
+      alpha   = get_alpha_l(model, l),
+      moments = get_posterior_moments_l(model, l),
+      V_init  = V_init))
+  }
+  list(V = V_init, model = model)
+}
 
 # =============================================================================
 # PRIOR VARIANCE OPTIMIZATION
