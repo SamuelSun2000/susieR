@@ -69,3 +69,26 @@ test_that("L_greedy = L stops after one round at L", {
 
   expect_identical(nrow(fit$alpha), 3L)
 })
+
+test_that("L_greedy is exposed through susie interfaces", {
+  fit <- susie(X, y, L = 8, L_greedy = 3, greedy_lbf_cutoff = 0.1,
+               verbose = FALSE)
+  expect_lte(nrow(fit$alpha), 8)
+  expect_gte(nrow(fit$alpha), 3)
+
+  y_vec <- drop(y)
+  ss <- compute_suff_stat(X, y_vec, standardize = TRUE)
+  fit_ss <- susie_ss(ss$XtX, ss$Xty, ss$yty, n = ss$n, L = 8,
+                     L_greedy = 3, greedy_lbf_cutoff = 0.1,
+                     verbose = FALSE)
+  expect_lte(nrow(fit_ss$alpha), 8)
+  expect_gte(nrow(fit_ss$alpha), 3)
+
+  z <- as.vector(crossprod(scale(X), drop(scale(y_vec))) / sqrt(nrow(X) - 1))
+  R <- cor(X)
+  fit_rss <- susie_rss(z = z, R = R, n = nrow(X), L = 8,
+                       L_greedy = 3, greedy_lbf_cutoff = 0.1,
+                       verbose = FALSE)
+  expect_lte(nrow(fit_rss$alpha), 8)
+  expect_gte(nrow(fit_rss$alpha), 3)
+})

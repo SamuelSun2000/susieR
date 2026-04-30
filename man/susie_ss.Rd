@@ -35,6 +35,8 @@ susie_ss(
   check_null_threshold = 0,
   prior_tol = 1e-09,
   max_iter = 100,
+  L_greedy = NULL,
+  greedy_lbf_cutoff = 0.1,
   tol = 1e-04,
   convergence_method = c("elbo", "pip"),
   coverage = 0.95,
@@ -185,6 +187,14 @@ and exclude a single effect from PIP computation if the estimated
 prior variance is smaller than this tolerance value.}
 
 \item{max_iter}{Maximum number of IBSS iterations to perform.}
+
+\item{L_greedy}{Integer or \code{NULL}. When non-\code{NULL}, run a
+greedy outer loop that grows the number of effects from \code{L_greedy}
+up to \code{L} in linear steps until the fit saturates. The default
+\code{NULL} runs the usual fixed-\code{L} fit.}
+
+\item{greedy_lbf_cutoff}{Numeric saturation threshold for the
+\code{L_greedy} outer loop. Default is 0.1.}
 
 \item{tol}{tol A small, non-negative number specifying the convergence
 tolerance for the IBSS fitting procedure.}

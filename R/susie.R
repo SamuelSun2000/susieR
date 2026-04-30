@@ -206,6 +206,15 @@
 #'
 #' @param max_iter Maximum number of IBSS iterations to perform.
 #'
+#' @param L_greedy Integer or \code{NULL}. When non-\code{NULL}, run a
+#'   greedy outer loop that grows the number of effects from
+#'   \code{L_greedy} up to \code{L} in linear steps until the fit
+#'   saturates. The default \code{NULL} runs the usual fixed-\code{L}
+#'   fit.
+#'
+#' @param greedy_lbf_cutoff Numeric saturation threshold for the
+#'   \code{L_greedy} outer loop. Default is 0.1.
+#'
 #' @param tol tol A small, non-negative number specifying the convergence
 #'   tolerance for the IBSS fitting procedure.
 #'
@@ -325,6 +334,8 @@ susie <- function(X, y, L = min(10, ncol(X)),
                   compute_univariate_zscore = FALSE,
                   na.rm = FALSE,
                   max_iter = 100,
+                  L_greedy = NULL,
+                  greedy_lbf_cutoff = 0.1,
                   tol = 1e-4,
                   convergence_method = c("elbo", "pip"),
                   verbose = FALSE,
@@ -371,7 +382,7 @@ susie <- function(X, y, L = min(10, ncol(X)),
     min_abs_corr, compute_univariate_zscore, na.rm,
     max_iter, tol, convergence_method, verbose, track_fit,
     residual_variance_lowerbound, refine, n_purity,
-    alpha0, beta0, slot_prior
+    alpha0, beta0, slot_prior, L_greedy, greedy_lbf_cutoff
   )
 
   # Return data and params without fitting if init_only is TRUE.
@@ -457,6 +468,8 @@ susie_ss <- function(XtX, Xty, yty, n,
                      check_null_threshold = 0,
                      prior_tol = 1e-9,
                      max_iter = 100,
+                     L_greedy = NULL,
+                     greedy_lbf_cutoff = 0.1,
                      tol = 1e-4,
                      convergence_method = c("elbo", "pip"),
                      coverage = 0.95,
@@ -505,7 +518,8 @@ susie_ss <- function(XtX, Xty, yty, n,
     coverage = coverage, min_abs_corr = min_abs_corr, n_purity = n_purity,
     verbose = verbose, track_fit = track_fit, check_prior = check_prior,
     refine = refine, alpha0 = alpha0, beta0 = beta0,
-    slot_prior = slot_prior
+    slot_prior = slot_prior, L_greedy = L_greedy,
+    greedy_lbf_cutoff = greedy_lbf_cutoff
   )
 
   # Run main SuSiE algorithm
@@ -667,6 +681,8 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
                       coverage = 0.95,
                       min_abs_corr = 0.5,
                       max_iter = 100,
+                      L_greedy = NULL,
+                      greedy_lbf_cutoff = 0.1,
                       tol = 1e-4,
                       convergence_method = c("elbo", "pip"),
                       verbose = FALSE,
@@ -839,7 +855,8 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
     n_purity = n_purity, r_tol = r_tol, refine = refine,
     sketch_samples = sketch_samples,
     alpha0 = alpha0, beta0 = beta0,
-    slot_prior = slot_prior
+    slot_prior = slot_prior, L_greedy = L_greedy,
+    greedy_lbf_cutoff = greedy_lbf_cutoff
   )
 
   # Return constructed data and params without running IBSS (for susieAnn

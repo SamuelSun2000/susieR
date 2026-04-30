@@ -532,6 +532,27 @@ validate_and_override_params <- function(params) {
     stop("prior_tol must be non-negative.")
   }
 
+  # Validate greedy-L parameters.
+  if (!is.null(params$L_greedy)) {
+    if (!is.numeric(params$L_greedy) || length(params$L_greedy) != 1 ||
+        is.na(params$L_greedy) || !is.finite(params$L_greedy) ||
+        params$L_greedy < 1 ||
+        params$L_greedy != as.integer(params$L_greedy)) {
+      stop("L_greedy must be NULL or a positive integer.")
+    }
+    params$L_greedy <- as.integer(params$L_greedy)
+    if (params$L_greedy > params$L) {
+      warning_message("L_greedy is greater than L; using L instead.")
+      params$L_greedy <- as.integer(params$L)
+    }
+  }
+  if (!is.numeric(params$greedy_lbf_cutoff) ||
+      length(params$greedy_lbf_cutoff) != 1 ||
+      is.na(params$greedy_lbf_cutoff) ||
+      !is.finite(params$greedy_lbf_cutoff)) {
+    stop("greedy_lbf_cutoff must be a numeric scalar.")
+  }
+
   # Validate residual_variance_upperbound
   if (!is.numeric(params$residual_variance_upperbound) || length(params$residual_variance_upperbound) != 1) {
     stop("residual_variance_upperbound must be a numeric scalar.")

@@ -31,6 +31,8 @@ susie(
   compute_univariate_zscore = FALSE,
   na.rm = FALSE,
   max_iter = 100,
+  L_greedy = NULL,
+  greedy_lbf_cutoff = 0.1,
   tol = 1e-04,
   convergence_method = c("elbo", "pip"),
   verbose = FALSE,
@@ -175,6 +177,14 @@ variable.}
 \item{na.rm}{Drop any missing values in y from both X and y.}
 
 \item{max_iter}{Maximum number of IBSS iterations to perform.}
+
+\item{L_greedy}{Integer or \code{NULL}. When non-\code{NULL}, run a
+greedy outer loop that grows the number of effects from \code{L_greedy}
+up to \code{L} in linear steps until the fit saturates. The default
+\code{NULL} runs the usual fixed-\code{L} fit.}
+
+\item{greedy_lbf_cutoff}{Numeric saturation threshold for the
+\code{L_greedy} outer loop. Default is 0.1.}
 
 \item{tol}{tol A small, non-negative number specifying the convergence
 tolerance for the IBSS fitting procedure.}
