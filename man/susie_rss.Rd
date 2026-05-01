@@ -315,20 +315,25 @@ When provided, the output includes a
 \code{finite_R_diagnostics} element with per-region and
 per-variable quality metrics.}
 
-\item{R_bias}{LD-bias correction mode. \code{"none"} (default) is off.
-\code{"map"} adds a region-level population-mismatch variance component
-on top of the finite-reference correction; recommended whenever
-\code{R} comes from a different cohort than the GWAS. \code{"map_qc"}
-is \code{"map"} plus a QC diagnostic that warns if the fitted residual
-carries energy the supplied \code{R} cannot explain (likely allele
-flips or summary-LD artifacts). Requires \code{finite_R}; auto-disables
-\code{estimate_residual_variance} with a warning.
-\code{"map_qc"} works only with \code{lambda = 0}.}
+\item{R_bias}{R-bias correction mode. \code{"none"} (default) is off.
+\code{"map"} adds a region-level population-mismatch variance
+component on top of the finite-reference correction; recommended
+whenever \code{R} comes from a different cohort than the GWAS.
+\code{"map_qc"} is \code{"map"} plus a QC diagnostic
+(\code{Q_art}) that warns when the fitted residual carries energy
+in low-eigenvalue directions of the supplied \code{R}. This catches
+rank-deficient \code{R}, summary-LD shrinkage that flattens part of
+the spectrum, and reference panels with imputed or missing entries.
+Allele-coding or strand-flip errors are similarity transforms that
+preserve the spectrum and are NOT detected by \code{Q_art}; use a
+kriging-style flip checker (e.g., DENTIST, SLALOM) for those.
+Requires \code{finite_R}; auto-disables \code{estimate_residual_variance}
+with a warning. \code{"map_qc"} works only with \code{lambda = 0}.}
 
 \item{artifact_action}{What to do when \code{R_bias = "map_qc"} flags
 the region. \code{"warn"} (default) emits an R warning and leaves
-numerics unchanged. \code{"penalize"} also floors the effective LD
-reliability at \code{1/B_artifact} as a conservative fallback.}
+numerics unchanged. \code{"penalize"} also floors the effective
+reference reliability at \code{1/B_artifact} as a conservative fallback.}
 
 \item{eig_delta_rel, eig_delta_abs}{Cutoffs for "low-eigenvalue"
 directions of \code{R} used by the QC diagnostic
@@ -341,7 +346,7 @@ directions of \code{R} used by the QC diagnostic
 (a fraction in [0, 1]). Default \code{0.1}; flag fires when
 \code{Q_art > artifact_threshold}. Heuristic, not a calibrated test.}
 
-\item{B_artifact}{Effective LD reference size used by the conservative
+\item{B_artifact}{Effective reference panel size used by the conservative
 floor in \code{artifact_action = "penalize"}. Default \code{500}.}
 
 \item{multipanel_safeguard}{Deprecated. Ignored. Single-panel fits
