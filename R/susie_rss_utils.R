@@ -276,10 +276,16 @@ precompute_rss_lambda_terms <- function(data, model) {
 }
 
 # Estimate extra R-bias variance beyond finite-reference uncertainty.
-# The likelihood is evaluated on the z-score residual scale with
-# tau_j^2 = sigma2 + (1 / B_eff + lambda_bias) * s_j.
+# Likelihood on the z-score residual scale,
+#   tau_j^2 = sigma2 + (1/finite_R_B + lambda_bias) * s_j,
+# with a half-Cauchy(prior_scale) prior on u = sqrt(lambda_bias).
+# The Fisher-information boundary SE,
+#   SE_0 = sqrt(2) * sigma2 / sqrt(sum(s^2)),
+# defines a data-driven floor: estimates below 0.1 * SE_0 are zeroed.
+# This both suppresses Brent boundary noise and replaces ad-hoc display
+# thresholds with one rule; "none" short-circuits before optimization.
 #' @keywords internal
-estimate_lambda_bias <- function(r, s, sigma2, B_eff, method) {
+estimate_lambda_bias <- function(r, s, sigma2, finite_R_B, method) {
   if (is.null(method) || method == "none")
     return(0)
   keep <- is.finite(r) & is.finite(s) & s > .Machine$double.eps
@@ -287,73 +293,76 @@ estimate_lambda_bias <- function(r, s, sigma2, B_eff, method) {
     return(0)
 
   cache <- list(r2 = r[keep]^2, s = s[keep])
-  cache$base <- sigma2 + cache$s / B_eff
+  cache$base <- sigma2 + cache$s / finite_R_B
   pos <- (cache$r2 - cache$base) / cache$s
   pos <- pos[is.finite(pos) & pos > 0]
-  prior_scale <- sqrt(max(1 / B_eff, 1 / 10000))
-  upper_lambda <- max(c(1, 100 / B_eff, 100 * prior_scale^2,
+  prior_scale <- sqrt(max(1 / finite_R_B, 1 / 10000))
+  upper_lambda <- max(c(1, 100 / finite_R_B, 100 * prior_scale^2,
                         10 * pos), na.rm = TRUE)
   upper_u <- sqrt(upper_lambda)
 
   nll <- function(u) {
     lambda_bias <- u^2
     tau <- cache$base + lambda_bias * cache$s
-    val <- 0.5 * sum(log(tau) + cache$r2 / tau)
-    if (method == "map")
-      val <- val + log1p((u / prior_scale)^2)
-    val
+    0.5 * sum(log(tau) + cache$r2 / tau) + log1p((u / prior_scale)^2)
   }
+  lambda_hat <- optimize(nll, interval = c(0, upper_u))$minimum^2
 
-  opt <- optimize(nll, interval = c(0, upper_u))
-  opt$minimum^2
+  ss2 <- sum(cache$s^2)
+  if (ss2 <= 0) return(0)
+  se_boundary <- sqrt(2) * sigma2 / sqrt(ss2)
+  if (lambda_hat < 0.1 * se_boundary) 0 else lambda_hat
 }
 
-# Store per-effect R-bias diagnostics carried as attributes on the
-# current inflation vector.
+# Unpack the inflation list from compute_shat2_inflation* into the model:
+# bare per-variant vector at model$shat2_inflation, plus per-effect
+# diagnostics model$lambda_bias[l] and model$B_corrected[l] when present.
 #' @keywords internal
-update_R_bias_state <- function(model, inflation, l) {
-  if (is.null(inflation))
+apply_inflation_state <- function(model, infl_state, l) {
+  if (is.null(infl_state)) {
+    model$shat2_inflation <- NULL
     return(model)
-  lambda_bias <- attr(inflation, "lambda_bias", exact = TRUE)
-  B_eff <- attr(inflation, "B_eff", exact = TRUE)
+  }
+  model$shat2_inflation <- infl_state$infl
   L <- nrow(model$alpha)
-  if (!is.null(lambda_bias)) {
+  if (!is.null(infl_state$lambda_bias)) {
     if (is.null(model$lambda_bias) || length(model$lambda_bias) != L)
       model$lambda_bias <- rep(0, L)
-    model$lambda_bias[l] <- lambda_bias
+    model$lambda_bias[l] <- infl_state$lambda_bias
   }
-  if (!is.null(B_eff)) {
-    if (is.null(model$B_eff) || length(model$B_eff) != L)
-      model$B_eff <- rep(NA_real_, L)
-    model$B_eff[l] <- B_eff
+  if (!is.null(infl_state$B_corrected)) {
+    if (is.null(model$B_corrected) || length(model$B_corrected) != L)
+      model$B_corrected <- rep(NA_real_, L)
+    model$B_corrected[l] <- infl_state$B_corrected
   }
   model
 }
 
-# Dynamic finite-reference R variance inflation for rss_lambda path (z-score scale).
-# Returns a per-variant inflation factor (p-vector):
-#   tau_j^2 / sigma2 = 1 + (1 / B_eff + lambda_bias)
-#                         * (eta_j^2 + v_g) / sigma2
-# where eta_j^2 = Rz_without_l[j]^2 (per-variant fitted value squared) and
-# v_g = max(b' R b, 0) is a global signal strength scalar (shared across variants).
+# rss_lambda counterpart of compute_shat2_inflation: z-score scale,
+#   eta_j^2 = Rz_without_l[j]^2 (no n-1 division on z-scale),
+#   v_g = max(b_minus_l' Rz_without_l, 0).
+# In multi-panel the model-level finite_R_B is the omega-weighted
+# (sum_k omega_k^2 / B_k)^{-1}.
 #' @keywords internal
 compute_shat2_inflation_rss <- function(data, model, Rz_without_l, b_minus_l) {
-  # Use model-level B_eff (updated by omega) if available, else data-level.
-  B_eff <- if (!is.null(model$finite_R_B)) model$finite_R_B else data$finite_R_B
-  if (is.null(B_eff) || model$sigma2 <= .Machine$double.eps) return(NULL)
+  # Use model-level finite_R_B (updated by omega) if available, else data-level.
+  finite_R_B <- if (!is.null(model$finite_R_B)) model$finite_R_B else data$finite_R_B
+  if (is.null(finite_R_B) || model$sigma2 <= .Machine$double.eps) return(NULL)
   v_g  <- max(sum(b_minus_l * Rz_without_l), 0)
   eta2 <- Rz_without_l^2   # z-score scale: no (n-1) division needed
   s <- eta2 + v_g
   r <- data$z - Rz_without_l
   R_bias <- if (!is.null(data$R_bias)) data$R_bias else "none"
-  lambda_bias <- estimate_lambda_bias(r, s, model$sigma2, B_eff,
+  lambda_bias <- estimate_lambda_bias(r, s, model$sigma2, finite_R_B,
                                       R_bias)
-  infl <- 1 + (1 / B_eff + lambda_bias) * s / model$sigma2
-  if (R_bias != "none") {
-    attr(infl, "lambda_bias") <- lambda_bias
-    attr(infl, "B_eff") <- B_eff
+  infl <- 1 + (1 / finite_R_B + lambda_bias) * s / model$sigma2
+  if (R_bias == "none") {
+    list(infl = infl, lambda_bias = NULL, B_corrected = NULL)
+  } else {
+    list(infl = infl,
+         lambda_bias = lambda_bias,
+         B_corrected    = 1 / (1 / finite_R_B + lambda_bias))
   }
-  infl
 }
 
 # =============================================================================

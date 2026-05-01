@@ -825,7 +825,7 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
     X <- standardize_X(X)
   }
 
-  R_bias <- match.arg(R_bias, c("none", "mle", "map"))
+  R_bias <- match.arg(R_bias, c("none", "map"))
   if (R_bias != "none" && is.null(finite_R))
     stop("R_bias requires finite_R because lambda_bias is estimated ",
          "as extra R bias beyond finite-reference uncertainty.")
@@ -987,7 +987,7 @@ rss_lambda_constructor <- function(z, R = NULL, X = NULL, n = NULL,
          "Please use estimate_residual_method = 'MLE' instead.")
   }
 
-  R_bias <- match.arg(R_bias, c("none", "mle", "map"))
+  R_bias <- match.arg(R_bias, c("none", "map"))
   if (R_bias != "none" && is.null(finite_R))
     stop("R_bias requires finite_R because lambda_bias is estimated ",
          "as extra R bias beyond finite-reference uncertainty.")

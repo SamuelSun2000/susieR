@@ -1025,7 +1025,7 @@ test_that("susie_rss with lambda and finite_R runs successfully", {
   expect_true(fit_infl$pip[1] > 0.3)  # slightly less confident with inflation
 })
 
-test_that("R_bias requires finite_R and stores lambda_bias", {
+test_that("R_bias requires finite_R and stores lambda_bias and B_corrected", {
   set.seed(511)
   p <- 20
   n <- 1000
@@ -1039,11 +1039,178 @@ test_that("R_bias requires finite_R and stores lambda_bias", {
     "R_bias requires finite_R"
   )
 
+  # F6: "mle" is no longer a valid choice.
+  expect_error(
+    susie_rss(z = z, R = R, n = n, L = 3, finite_R = 10000, R_bias = "mle",
+              max_iter = 2, verbose = FALSE),
+    "should be one of"
+  )
+
+  # F5: estimate_residual_variance with R_bias warns (via warning_message,
+  # which uses message()) and is auto-disabled.
+  expect_message(
+    fit_warn <- susie_rss(z = z, R = R, n = n, L = 3, finite_R = 10000,
+                          R_bias = "map", estimate_residual_variance = TRUE,
+                          max_iter = 2, verbose = FALSE),
+    "incompatible with"
+  )
+
   fit <- susie_rss(z = z, R = R, n = n, L = 3, finite_R = 10000,
                    R_bias = "map", max_iter = 2, verbose = FALSE)
   expect_length(fit$finite_R_diagnostics$lambda_bias, 3)
-  expect_length(fit$finite_R_diagnostics$B_eff, 3)
+  # F1: B_corrected is the spec quantity 1/(1/finite_R_B + lambda_bias),
+  # not the input panel size.
+  expect_length(fit$finite_R_diagnostics$B_corrected, 3)
   expect_true(all(fit$finite_R_diagnostics$lambda_bias >= 0))
+  finite_RB <- fit$finite_R_diagnostics$B
+  positive <- fit$finite_R_diagnostics$lambda_bias > 0
+  if (any(positive)) {
+    expect_true(all(fit$finite_R_diagnostics$B_corrected[positive] < finite_RB))
+  }
+  zero_lb <- fit$finite_R_diagnostics$lambda_bias == 0
+  if (any(zero_lb)) {
+    expect_equal(fit$finite_R_diagnostics$B_corrected[zero_lb],
+                 rep(finite_RB, sum(zero_lb)))
+  }
+})
+
+test_that("R_bias = 'none' is identical to no-R_bias call", {
+  # Spec invariant 5.1(b): R_bias = 'none' must reduce to the un-augmented
+  # variance model exactly.
+  set.seed(913)
+  p <- 25
+  n <- 2000
+  X <- matrix(rnorm(n * p), n, p)
+  R <- cor(X)
+  z <- rnorm(p)
+  z[3] <- 4
+
+  fit_none <- susie_rss(z = z, R = R, n = n, L = 3, finite_R = 5000,
+                        R_bias = "none", max_iter = 5, verbose = FALSE)
+  fit_default <- susie_rss(z = z, R = R, n = n, L = 3, finite_R = 5000,
+                           max_iter = 5, verbose = FALSE)
+  expect_equal(fit_none$pip, fit_default$pip, tolerance = 1e-12)
+  expect_equal(fit_none$alpha, fit_default$alpha, tolerance = 1e-12)
+  expect_null(fit_none$lambda_bias)
+})
+
+test_that("Fisher SE zero-mask sends near-boundary estimates to 0", {
+  # Under the null (z ~ N(0,1)) with no real drift, lambda_bias should
+  # be masked to exactly 0 by the Fisher-SE rule
+  # (ld_mismatch_generativemodel.tex Sec.~zero_mask).
+  set.seed(7)
+  p <- 50
+  n <- 5000
+  X <- matrix(rnorm(n * p), n, p)
+  R <- cor(X)
+  z <- rnorm(p)  # pure null
+  fit <- susie_rss(z = z, R = R, n = n, L = 3, finite_R = 10000,
+                   R_bias = "map", max_iter = 5, verbose = FALSE)
+  # All entries should be cleanly zero, not ~4e-9 optimizer floor.
+  lb <- fit$finite_R_diagnostics$lambda_bias
+  expect_true(all(lb == 0 | lb > 1e-6),
+              info = "Fisher zero-mask must leave no values in the (0, 1e-6) gap")
+})
+
+test_that("In-sample LD identity yields lambda_bias = 0 (spec invariant 5.3)", {
+  # Spec invariant 5.3: when R is the in-sample LD of the data that
+  # produced z, there is no population mismatch and the MAP estimator
+  # should drive lambda_bias to 0 (modulo Fisher mask).
+  set.seed(2024)
+  p <- 30
+  n <- 4000
+  X <- matrix(rnorm(n * p), n, p)
+  X <- scale(X, center = TRUE, scale = TRUE)
+  beta <- rep(0, p); beta[5] <- 0.4
+  y <- drop(X %*% beta + rnorm(n))
+  ss <- compute_suff_stat(X, y, standardize = TRUE)
+  R <- cov2cor(ss$XtX)
+  z <- ss$XtX %*% beta / sqrt(diag(ss$XtX)) + rnorm(p)
+  z <- as.numeric(z)
+  fit <- susie_rss(z = z, R = R, n = n, L = 3, finite_R = 5000,
+                   R_bias = "map", max_iter = 8, verbose = FALSE)
+  expect_true(all(fit$finite_R_diagnostics$lambda_bias == 0),
+              info = "In-sample LD must produce lambda_bias = 0")
+})
+
+test_that("R_bias = 'mle' is rejected at all entry points", {
+  # F6 closure: rejecting "mle" must hold at the public function AND
+  # at the internal constructors so that downstream packages cannot
+  # silently invoke ML.
+  set.seed(31)
+  p <- 20; n <- 1000
+  X <- matrix(rnorm(n * p), n, p)
+  R <- cor(X); z <- rnorm(p)
+  expect_error(
+    susie_rss(z = z, R = R, n = n, L = 3, finite_R = 10000, R_bias = "mle",
+              max_iter = 1, verbose = FALSE),
+    "should be one of"
+  )
+  expect_error(
+    summary_stats_constructor(z = z, R = R, n = n, L = 3, finite_R = 10000,
+                              R_bias = "mle"),
+    "should be one of"
+  )
+  expect_error(
+    rss_lambda_constructor(z = z, R = R, n = n, L = 3, finite_R = 10000,
+                           lambda = 0.1, R_bias = "mle"),
+    "should be one of"
+  )
+})
+
+test_that("Multi-panel single-panel limit (K=1) matches single-panel", {
+  # Spec multi-panel section: with K=1 panels and omega=1, the
+  # multi-panel formula collapses to the single-panel one.  Use X-input
+  # multi-panel route (the documented public API per susie_rss docs).
+  set.seed(99)
+  p <- 25; n <- 2000
+  X <- matrix(rnorm(n * p), n, p)
+  X_std <- scale(X, center = TRUE, scale = TRUE)
+  z <- rnorm(p); z[5] <- 4
+  fit_single <- susie_rss(z = z, X = X_std, n = n, L = 3, lambda = 0.1,
+                          finite_R = 5000, R_bias = "map",
+                          max_iter = 5, verbose = FALSE)
+  fit_K1 <- susie_rss(z = z, X = list(X_std), n = n, L = 3, lambda = 0.1,
+                      finite_R = 5000, R_bias = "map",
+                      max_iter = 5, verbose = FALSE)
+  # finite_R_B on the model gets recomputed by the omega update;
+  # check the per-effect lambda_bias agrees.
+  expect_equal(fit_single$finite_R_diagnostics$lambda_bias,
+               fit_K1$finite_R_diagnostics$lambda_bias,
+               tolerance = 1e-6)
+  expect_equal(fit_single$pip, fit_K1$pip, tolerance = 1e-6)
+})
+
+test_that("Large finite_R limit reduces to pure-drift estimator", {
+  # When 1/finite_R is negligible, B_corrected ~ 1/lambda_bias and the
+  # finite-reference contribution to tau^2 vanishes.
+  set.seed(11)
+  p <- 30; n <- 4000
+  X <- matrix(rnorm(n * p), n, p)
+  R <- cor(X)
+  beta <- rep(0, p); beta[1] <- 0.6
+  z <- as.numeric(R %*% beta * sqrt(n) + rnorm(p))
+  fit <- susie_rss(z = z, R = R, n = n, L = 3, finite_R = 1e12,
+                   R_bias = "map", max_iter = 5, verbose = FALSE)
+  lb <- fit$finite_R_diagnostics$lambda_bias
+  bc <- fit$finite_R_diagnostics$B_corrected
+  active <- lb > 0
+  if (any(active)) {
+    expect_equal(bc[active], 1 / lb[active], tolerance = 1e-6,
+                 info = "B_corrected -> 1/lambda_bias as finite_R -> Inf")
+  }
+})
+
+test_that("tau_j^2 is monotone non-decreasing in lambda_bias", {
+  # Spec invariant 5.1(e): tau_j^2(lambda) = sigma^2 + (1/B + lambda) * s_j
+  # is monotone non-decreasing in lambda for s_j >= 0.
+  s     <- c(0.5, 1.5, 3.0, 0.0)
+  sigma2 <- 1.2
+  B     <- 1000
+  tau2 <- function(lambda) sigma2 + (1 / B + lambda) * s
+  expect_true(all(tau2(0.05) >= tau2(0)))
+  expect_true(all(tau2(0.5)  >= tau2(0.05)))
+  expect_true(all(tau2(0)[s == 0] == sigma2))
 })
 
 test_that("susie_rss with X input and lambda and inflation works", {

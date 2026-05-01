@@ -55,7 +55,7 @@ susie_rss(
   r_tol = 1e-08,
   refine = FALSE,
   finite_R = NULL,
-  R_bias = c("none", "mle", "map"),
+  R_bias = c("none", "map"),
   multipanel_safeguard = TRUE,
   alpha0 = if (is.null(n)) NULL else 1/sqrt(n),
   beta0 = if (is.null(n)) NULL else 1/sqrt(n),
@@ -241,9 +241,10 @@ skipped).}
 \item{max_iter}{Maximum number of IBSS iterations to perform.}
 
 \item{L_greedy}{Integer or \code{NULL}. When non-\code{NULL}, run a
-greedy outer loop that grows the number of effects from \code{L_greedy}
-up to \code{L} in linear steps until the fit saturates. The default
-\code{NULL} runs the usual fixed-\code{L} fit.}
+greedy outer loop that grows the number of effects from
+\code{L_greedy} up to \code{L} in linear steps until the fit
+saturates. The default \code{NULL} runs the usual fixed-\code{L}
+fit.}
 
 \item{greedy_lbf_cutoff}{Numeric saturation threshold for the
 \code{L_greedy} outer loop. Default is 0.1.}
@@ -290,34 +291,40 @@ iterative refinement procedure is used, after the IBSS algorithm,
 to check and escape from local optima (see details).}
 
 \item{finite_R}{Controls variance inflation to account
-  for estimating the R matrix from a finite reference panel. Accepts three
-  types of input:
-  \describe{
-    \item{\code{NULL} (default)}{The R matrix is treated as trusted, and no
-      finite-reference variance inflation is applied.}
-    \item{\code{TRUE}}{Infer the reference sample size B from the input
-      \code{X}. Sets \code{B = nrow(X)} for single-panel input,
-      or \code{B = min(nrow(X_k))} across panels for multi-panel
-      input. Requires \code{X} to be provided (errors if only
-      \code{R} is given, since B cannot be inferred).}
-    \item{Number}{Explicit reference sample size B.}
-  }
-  When active, this dynamically inflates the null variance of each
-  variable's score statistic at every IBSS iteration to account for
-  finite-reference uncertainty in the Single Effect Regression (SER).
-  When provided, the output includes a
-  \code{finite_R_diagnostics} element with per-region and
-  per-variable quality metrics.}
+for estimating the R matrix from a finite reference panel. Accepts three
+types of input:
+\describe{
+  \item{\code{NULL} (default)}{The R matrix is treated as trusted, and no
+    finite-reference variance inflation is applied.}
+  \item{\code{TRUE}}{Infer the reference sample size B from the input
+    \code{X}. Sets \code{B = nrow(X)} for single-panel input,
+    or \code{B = min(nrow(X_k))} across panels for multi-panel
+    input. Requires \code{X} to be provided (errors if only
+    \code{R} is given, since B cannot be inferred).}
+  \item{Number}{Explicit reference sample size B.}
+}
+When active, this dynamically inflates the null variance of each
+variable's score statistic at every IBSS iteration to account for
+finite-reference uncertainty in the Single Effect Regression (SER).
+When provided, the output includes a
+\code{finite_R_diagnostics} element with per-region and
+per-variable quality metrics.}
 
-\item{R_bias}{Whether to estimate an additional R-bias variance
-  component \code{lambda_bias} on top of the finite-reference uncertainty
-  implied by \code{finite_R}. The default \code{"none"} does not estimate
-  this extra component. \code{"mle"} uses maximum likelihood and is a
-  less regularized diagnostic. \code{"map"} uses weak regularization toward
-  zero with a half-Cauchy prior on \eqn{\sqrt{\lambda_bias}} with scale
-  \eqn{\sqrt{\max(1/B, 1/10000)}}; this is recommended for routine bias
+\item{R_bias}{Whether to estimate an additional population-mismatch
+  variance component \code{lambda_bias} on top of the finite-reference
+  uncertainty implied by \code{finite_R}.  The default \code{"none"} does
+  not estimate this extra component.  \code{"map"} performs MAP estimation
+  with a half-Cauchy prior on \eqn{\sqrt{\lambda_{\mathrm{bias}}}} (scale
+  \eqn{\sqrt{\max(1/B,\,10^{-4})}}); this is recommended for routine bias
   correction when the supplied \code{R} matrix may not be fully trusted.
-  \code{R_bias} requires \code{finite_R}.}
+  \code{R_bias} requires \code{finite_R}, and is incompatible with
+  \code{estimate_residual_variance = TRUE} (see Notes).
+
+  When \code{R_bias = "map"} is enabled, \code{estimate_residual_variance}
+  is automatically disabled with a warning, since \eqn{\sigma^2} and
+  \eqn{\lambda_{\mathrm{bias}}} both inflate the residual variance and are
+  only weakly jointly identified through the spread of
+  \eqn{\eta_j^2 + v_g} across variants.}
 
 \item{multipanel_safeguard}{Deprecated. Ignored. Single-panel fits
 are always stored in the returned object as \code{$single_panel_fits}
@@ -352,7 +359,7 @@ In addition to the standard \code{"susie"} output (see
   \code{\link{susie}}), the returned object may contain:
 
 \item{finite_R_diagnostics}{A list of diagnostics for the
-  finite-reference R correction (only present when
+  finite-reference correction (only present when
   \code{finite_R} is provided), containing:
   \code{B} (the reference sample size);
   \code{p} (number of variables);
@@ -363,8 +370,11 @@ In addition to the standard \code{"susie"} output (see
     per variable);
   \code{lambda_bias} (one number per effect when
     \code{R_bias != "none"});
-  \code{B_eff} (effective reference sample size, one number per effect
-    for multi-panel fits when available);
+  \code{B_corrected} (effective reference sample size after the
+    R-bias correction, \eqn{1/(1/B + \lambda_{\mathrm{bias}})}, one
+    number per effect when \code{R_bias != "none"}; substantially
+    smaller than the input \code{B} flags a dominant population
+    mismatch component);
   \code{per_variable_penalty} (final-iteration
     \eqn{v_j / \sigma^2 = \tau_j^2 / \sigma^2 - 1}, one number per
     variable; values \eqn{\le 0.2} indicate minimal power loss,

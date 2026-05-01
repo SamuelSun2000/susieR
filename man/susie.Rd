@@ -179,9 +179,10 @@ variable.}
 \item{max_iter}{Maximum number of IBSS iterations to perform.}
 
 \item{L_greedy}{Integer or \code{NULL}. When non-\code{NULL}, run a
-greedy outer loop that grows the number of effects from \code{L_greedy}
-up to \code{L} in linear steps until the fit saturates. The default
-\code{NULL} runs the usual fixed-\code{L} fit.}
+greedy outer loop that grows the number of effects from
+\code{L_greedy} up to \code{L} in linear steps until the fit
+saturates. The default \code{NULL} runs the usual fixed-\code{L}
+fit.}
 
 \item{greedy_lbf_cutoff}{Numeric saturation threshold for the
 \code{L_greedy} outer loop. Default is 0.1.}
@@ -227,6 +228,11 @@ validation errors.}
 \code{susie_rss} with NIG, \code{n} must be supplied; otherwise
 validation errors.}
 
+\item{init_only}{Logical. If \code{TRUE}, return a list with
+\code{data} and \code{params} objects without running the IBSS
+algorithm. Used by packages like susieAnn that implement their own
+outer loop around SuSiE's building blocks. Default is \code{FALSE}.}
+
 \item{slot_prior}{Optional slot activity prior created by
 \code{\link{slot_prior_betabinom}} or \code{\link{slot_prior_poisson}}.
 Use \code{slot_prior_betabinom(a_beta, b_beta)} for the usual
@@ -238,11 +244,6 @@ active effects. When supplied, each single-effect slot has an
 estimated activity probability \code{c_hat}; fitted values and
 PIPs are weighted by these activity probabilities, and convergence
 is checked using \code{convergence_method = "pip"}.}
-
-\item{init_only}{Logical. If \code{TRUE}, return a list with
-\code{data} and \code{params} objects without running the IBSS
-algorithm. Used by packages like susieAnn that implement their own
-outer loop around SuSiE's building blocks. Default is \code{FALSE}.}
 }
 \value{
 A \code{"susie"} object with some or all of the following elements:

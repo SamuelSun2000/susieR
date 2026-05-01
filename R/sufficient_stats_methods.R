@@ -150,8 +150,9 @@ compute_residuals.ss <- function(data, params, model, l, ...) {
     # R inflation uses standard (non-Omega) quantities
     XtXr_without_l <- compute_Rv(data, b_minus_l)
     r <- data$Xty - XtXr_without_l
-    model$shat2_inflation <- compute_shat2_inflation(data, model, XtXr_without_l, b_minus_l, r)
-    model <- update_R_bias_state(model, model$shat2_inflation, l)
+    infl_state <- compute_shat2_inflation(data, model, XtXr_without_l,
+                                          b_minus_l, r)
+    model <- apply_inflation_state(model, infl_state, l)
     return(model)
   }
 
@@ -160,8 +161,9 @@ compute_residuals.ss <- function(data, params, model, l, ...) {
   # Remove lth effect from fitted values (scaled by slot weight)
   XtXr_without_l <- model$XtXr - sw_l * compute_Rv(data, model$alpha[l, ] * model$mu[l, ])
 
-  # Compute residuals (ash subtracts unmappable effect X'X*theta)
-  if (params$unmappable_effects %in% c("ash", "ash_filter_archived")) {
+  # Compute residuals (ash subtracts unmappable effect X'X*theta).
+  is_ash <- params$unmappable_effects %in% c("ash", "ash_filter_archived")
+  if (is_ash) {
     model$residuals <- data$Xty - model$XtX_theta - XtXr_without_l
   } else {
     model$residuals <- data$Xty - XtXr_without_l
@@ -177,23 +179,37 @@ compute_residuals.ss <- function(data, params, model, l, ...) {
     model$yy_residual <- max(model$yy_residual, .Machine$double.eps)
   }
 
-  # Dynamic finite-reference R variance inflation
-  model$shat2_inflation <- compute_shat2_inflation(data, model, XtXr_without_l,
-                                                   b_minus_l, model$residuals)
-  model <- update_R_bias_state(model, model$shat2_inflation, l)
+  # ASH path: residual subtracts theta (line 167), so the variance scale
+  # s = eta^2 + v_g must also be built from b_minus_l + theta or the
+  # data and variance model disagree on what has been removed.
+  if (is_ash && !is.null(model$theta)) {
+    XtX_theta <- if (!is.null(model$XtX_theta))
+                   model$XtX_theta
+                 else compute_Rv(data, model$theta)
+    b_for_infl    <- b_minus_l + model$theta
+    XtXr_for_infl <- XtXr_without_l + XtX_theta
+  } else {
+    b_for_infl    <- b_minus_l
+    XtXr_for_infl <- XtXr_without_l
+  }
+  infl_state <- compute_shat2_inflation(data, model, XtXr_for_infl,
+                                        b_for_infl, model$residuals)
+  model <- apply_inflation_state(model, infl_state, l)
 
   return(model)
 }
 
-# Compute finite-reference R variance inflation factor for each variable.
-# tau2_j = sigma2 + (1 / B_eff + lambda_bias) * (eta2_j + v_g),
-# returned as tau2_j / sigma2.
-#   eta2_j = XtXr_without_l^2 / (n-1)  [z-score scale predicted effect squared]
-#   v_g    = sum(b * XtXr)              [z-score scale genetic variance]
+# Per-variable inflation factor tau_j^2 / sigma2 with
+#   tau_j^2 = sigma2 + (1/finite_R_B + lambda_bias) * (eta_j^2 + v_g),
+#   eta_j^2 = XtXr_without_l[j]^2 / (n-1)   (z-score scale)
+#   v_g     = sum(b_minus_l * XtXr_without_l).
+# Returns NULL when no inflation applies, otherwise a list with the
+# inflation vector and the diagnostic scalars lambda_bias and
+# B_corrected = 1 / (1/finite_R_B + lambda_bias).
 #' @keywords internal
 compute_shat2_inflation <- function(data, model, XtXr_without_l, b_minus_l, r) {
-  B_eff <- data$finite_R_B
-  if (is.null(B_eff) ||
+  finite_R_B <- data$finite_R_B
+  if (is.null(finite_R_B) ||
       model$sigma2 <= .Machine$double.eps) {
     return(NULL)
   }
@@ -202,14 +218,16 @@ compute_shat2_inflation <- function(data, model, XtXr_without_l, b_minus_l, r) {
   s <- eta2 + v_g
   r_z <- r / sqrt(data$n - 1)
   R_bias <- if (!is.null(data$R_bias)) data$R_bias else "none"
-  lambda_bias <- estimate_lambda_bias(r_z, s, model$sigma2, B_eff,
+  lambda_bias <- estimate_lambda_bias(r_z, s, model$sigma2, finite_R_B,
                                       R_bias)
-  infl <- 1 + (1 / B_eff + lambda_bias) * s / model$sigma2
-  if (R_bias != "none") {
-    attr(infl, "lambda_bias") <- lambda_bias
-    attr(infl, "B_eff") <- B_eff
+  infl <- 1 + (1 / finite_R_B + lambda_bias) * s / model$sigma2
+  if (R_bias == "none") {
+    list(infl = infl, lambda_bias = NULL, B_corrected = NULL)
+  } else {
+    list(infl = infl,
+         lambda_bias = lambda_bias,
+         B_corrected    = 1 / (1 / finite_R_B + lambda_bias))
   }
-  infl
 }
 
 # Compute SER statistics
@@ -334,12 +352,16 @@ get_ER2.ss <- function(data, model) {
            sum(sw^2 * per_slot_XB2) + sum(sw * per_slot_Eb2))
 }
 
-# Expected log-likelihood
+# Expected log-likelihood for the sufficient-stats path.  Matches
+# Eloglik.individual exactly: standard regression log-likelihood under
+# residual variance sigma2.  The per-variant variance inflation that
+# accompanies finite_R/R_bias enters the SER step's Bayes factor via
+# ser_stats$shat2 (not via Eloglik), so cross-R_bias ELBO values are
+# not directly comparable; PIP convergence is auto-switched in that case.
 #' @keywords internal
 Eloglik.ss <- function(data, model) {
-  # Standard log-likelihood computation
-  return(-data$n / 2 * log(2 * pi * model$sigma2) -
-           1 / (2 * model$sigma2) * get_ER2(data, model))
+  -data$n / 2 * log(2 * pi * model$sigma2) -
+    1 / (2 * model$sigma2) * get_ER2(data, model)
 }
 
 #' @importFrom Matrix colSums

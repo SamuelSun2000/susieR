@@ -173,6 +173,11 @@ ibss_fit <- function(data, params, model) {
   L <- nrow(model$alpha)
   use_c_hat <- !is.null(model$c_hat_state)
 
+  # Per-sweep reset so slots skipped by c_hat do not carry stale
+  # diagnostics from earlier sweeps.
+  if (!is.null(model$lambda_bias)) model$lambda_bias <- rep(0, L)
+  if (!is.null(model$B_corrected)) model$B_corrected <- rep(NA_real_, L)
+
   if (L > 0) {
     for (l in seq_len(L)) {
       if (use_c_hat &&
@@ -354,11 +359,10 @@ ibss_finalize <- function(data, params, model, elbo = NULL, iter = NA_integer_,
     model$finite_R_diagnostics <- finite_R_diagnostics
     if (!is.null(model$lambda_bias))
       model$finite_R_diagnostics$lambda_bias <- model$lambda_bias
-    if (!is.null(model$B_eff))
-      model$finite_R_diagnostics$B_eff <- model$B_eff
+    if (!is.null(model$B_corrected))
+      model$finite_R_diagnostics$B_corrected <- model$B_corrected
     if (!is.null(data$R_bias))
       model$finite_R_diagnostics$R_bias <- data$R_bias
-    # Store final-iteration per-variable penalty: v_j/sigma^2 = inflation - 1
     if (!is.null(model$shat2_inflation))
       model$finite_R_diagnostics$per_variable_penalty <- as.vector(model$shat2_inflation - 1)
   }

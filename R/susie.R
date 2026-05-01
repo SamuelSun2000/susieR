@@ -632,15 +632,21 @@ susie_ss <- function(XtX, Xty, yty, n,
 #'   \code{finite_R_diagnostics} element with per-region and
 #'   per-variable quality metrics.
 #'
-#' @param R_bias Whether to estimate an additional R-bias variance
-#'   component \code{lambda_bias} on top of the finite-reference uncertainty
-#'   implied by \code{finite_R}. The default \code{"none"} does not estimate
-#'   this extra component. \code{"mle"} uses maximum likelihood and is a
-#'   less regularized diagnostic. \code{"map"} uses weak regularization toward
-#'   zero with a half-Cauchy prior on \eqn{\sqrt{\lambda_bias}} with scale
-#'   \eqn{\sqrt{\max(1/B, 1/10000)}}; this is recommended for routine bias
+#' @param R_bias Whether to estimate an additional population-mismatch
+#'   variance component \code{lambda_bias} on top of the finite-reference
+#'   uncertainty implied by \code{finite_R}.  The default \code{"none"} does
+#'   not estimate this extra component.  \code{"map"} performs MAP estimation
+#'   with a half-Cauchy prior on \eqn{\sqrt{\lambda_{\mathrm{bias}}}} (scale
+#'   \eqn{\sqrt{\max(1/B,\,10^{-4})}}); this is recommended for routine bias
 #'   correction when the supplied \code{R} matrix may not be fully trusted.
-#'   \code{R_bias} requires \code{finite_R}.
+#'   \code{R_bias} requires \code{finite_R}, and is incompatible with
+#'   \code{estimate_residual_variance = TRUE} (see Notes).
+#'
+#'   When \code{R_bias = "map"} is enabled, \code{estimate_residual_variance}
+#'   is automatically disabled with a warning, since \eqn{\sigma^2} and
+#'   \eqn{\lambda_{\mathrm{bias}}} both inflate the residual variance and are
+#'   only weakly jointly identified through the spread of
+#'   \eqn{\eta_j^2 + v_g} across variants.
 #'
 #' @param multipanel_safeguard Deprecated. Ignored. Single-panel fits
 #'   are always stored in the returned object as \code{$single_panel_fits}
@@ -661,8 +667,11 @@ susie_ss <- function(XtX, Xty, yty, n,
 #'     per variable);
 #'   \code{lambda_bias} (one number per effect when
 #'     \code{R_bias != "none"});
-#'   \code{B_eff} (effective reference sample size, one number per effect
-#'     for multi-panel fits when available);
+#'   \code{B_corrected} (effective reference sample size after the
+#'     R-bias correction, \eqn{1/(1/B + \lambda_{\mathrm{bias}})}, one
+#'     number per effect when \code{R_bias != "none"}; substantially
+#'     smaller than the input \code{B} flags a dominant population
+#'     mismatch component);
 #'   \code{per_variable_penalty} (final-iteration
 #'     \eqn{v_j / \sigma^2 = \tau_j^2 / \sigma^2 - 1}, one number per
 #'     variable; values \eqn{\le 0.2} indicate minimal power loss,
@@ -718,7 +727,7 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
                       r_tol = 1e-8,
                       refine = FALSE,
                       finite_R = NULL,
-                      R_bias = c("none", "mle", "map"),
+                      R_bias = c("none", "map"),
                       multipanel_safeguard = TRUE,
                       alpha0 = if (is.null(n)) NULL else 1/sqrt(n),
                       beta0 = if (is.null(n)) NULL else 1/sqrt(n),
@@ -745,6 +754,17 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
   if (R_bias != "none" && is.null(finite_R))
     stop("R_bias requires finite_R because lambda_bias is estimated ",
          "as extra R bias beyond finite-reference uncertainty.")
+
+  # sigma^2 and lambda_bias both inflate the residual variance and are
+  # only weakly jointly identified; we follow Zou et al. (2022) and fix
+  # sigma^2 when R_bias is active.
+  if (R_bias != "none" && isTRUE(estimate_residual_variance)) {
+    warning_message(
+      "R_bias = '", R_bias, "' is incompatible with ",
+      "estimate_residual_variance = TRUE; disabling sigma^2 estimation."
+    )
+    estimate_residual_variance <- FALSE
+  }
 
   # Handle X input
   if (!is.null(X)) {

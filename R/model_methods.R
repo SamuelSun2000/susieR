@@ -166,18 +166,20 @@ format_extra_diag.default <- function(model) {
   if (is.null(model$lambda_bias))
     return("")
   lambda_bias <- model$lambda_bias
-  lambda_bias[!is.finite(lambda_bias) | lambda_bias < 1e-8] <- 0
+  # Zero-masking of small finite values happens at source in
+  # estimate_lambda_bias; we just sanitize non-finite for display.
+  lambda_bias[!is.finite(lambda_bias)] <- 0
   if (all(lambda_bias == 0)) {
     lb <- paste0("lambda_bias=0 x ", length(lambda_bias))
   } else {
     lb <- paste0("lambda_bias=", paste(format(lambda_bias, digits = 2,
                                              scientific = TRUE), collapse = ","))
   }
-  if (!is.null(model$B_eff)) {
-    B_eff <- model$B_eff
-    if (length(unique(B_eff[is.finite(B_eff)])) == 1) {
-      lb <- paste0(lb, " B_eff=", format(B_eff[which(is.finite(B_eff))[1]],
-                                         digits = 4, scientific = FALSE))
+  if (!is.null(model$B_corrected)) {
+    B_corrected <- model$B_corrected
+    if (length(unique(B_corrected[is.finite(B_corrected)])) == 1) {
+      lb <- paste0(lb, " B_corrected=", format(B_corrected[which(is.finite(B_corrected))[1]],
+                                            digits = 4, scientific = FALSE))
     }
   }
   lb

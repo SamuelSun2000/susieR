@@ -114,9 +114,9 @@ compute_residuals.rss_lambda <- function(data, params, model, l, ...) {
     # Weighted sum of effects excluding l
     sw <- if (!is.null(model$slot_weights)) model$slot_weights else rep(1, nrow(model$alpha))
     b_minus_l <- colSums(sw * model$alpha * model$mu) - sw_l * model$alpha[l, ] * model$mu[l, ]
-    model$shat2_inflation <- compute_shat2_inflation_rss(
-      data, model, Rz_without_l, b_minus_l)
-    model <- update_R_bias_state(model, model$shat2_inflation, l)
+    infl_state <- compute_shat2_inflation_rss(data, model, Rz_without_l,
+                                              b_minus_l)
+    model <- apply_inflation_state(model, infl_state, l)
   }
 
   return(model)
