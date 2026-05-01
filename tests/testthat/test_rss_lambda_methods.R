@@ -1112,25 +1112,6 @@ test_that("Fisher SE zero-mask sends near-boundary estimates to 0", {
               info = "Fisher zero-mask must leave no values in the (0, 1e-6) gap")
 })
 
-test_that("lambda_bias MAP is robust to sparse residual signal", {
-  # The population-bias variance is a regional diffuse variance component.
-  # A few large residuals from an omitted sparse effect should not be
-  # interpreted as population-wide LD mismatch.
-  set.seed(1)
-  s <- runif(200, 50, 150)
-  r_sparse <- rnorm(200)
-  r_sparse[1:5] <- 25
-  lb_sparse <- estimate_lambda_bias(r_sparse, s, sigma2 = 1,
-                                    finite_R_B = 1000, method = "map")
-  expect_equal(lb_sparse, 0)
-
-  set.seed(2)
-  r_diffuse <- rnorm(200, sd = sqrt(1 + s / 1000 + 0.05 * s))
-  lb_diffuse <- estimate_lambda_bias(r_diffuse, s, sigma2 = 1,
-                                     finite_R_B = 1000, method = "map")
-  expect_gt(lb_diffuse, 0)
-})
-
 test_that("In-sample LD identity yields lambda_bias = 0 (spec invariant 5.3)", {
   # Spec invariant 5.3: when R is the in-sample LD of the data that
   # produced z, there is no population mismatch and the MAP estimator
@@ -1150,6 +1131,33 @@ test_that("In-sample LD identity yields lambda_bias = 0 (spec invariant 5.3)", {
                    R_bias = "map", max_iter = 8, verbose = FALSE)
   expect_true(all(fit$finite_R_diagnostics$lambda_bias == 0),
               info = "In-sample LD must produce lambda_bias = 0")
+})
+
+test_that("In-sample LD with multiple sparse signals does not inflate lambda_bias", {
+  # Regression for the confounding failure mode: estimating lambda_bias from
+  # the leave-one-effect residual can mistake the lth sparse signal for
+  # population LD mismatch and suppress power. The generative target is the
+  # full residual after all current sparse effects are removed.
+  set.seed(44)
+  n <- 1000
+  p <- 120
+  rho <- 0.95
+  Sigma <- rho^abs(outer(seq_len(p), seq_len(p), "-"))
+  X <- matrix(rnorm(n * p), n, p) %*% chol(Sigma)
+  X <- scale(X, center = TRUE, scale = TRUE)
+  beta <- rep(0, p)
+  causal <- c(20, 60, 100)
+  beta[causal] <- c(0.18, -0.20, 0.22)
+  y <- drop(X %*% beta + rnorm(n))
+  z <- calc_z(X, y, center = TRUE, scale = FALSE)
+
+  fit <- susie_rss(z = z, X = X, n = n, L = 6, finite_R = TRUE,
+                   R_bias = "map", max_iter = 50, check_R = FALSE,
+                   verbose = FALSE)
+
+  expect_true(max(fit$finite_R_diagnostics$lambda_bias) < 0.01,
+              info = "In-sample LD should not estimate large population mismatch")
+  expect_gt(max(fit$pip[causal]), 0.5)
 })
 
 test_that("R_bias = 'mle' is rejected at all entry points", {

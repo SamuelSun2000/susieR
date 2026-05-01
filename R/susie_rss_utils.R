@@ -294,27 +294,6 @@ estimate_lambda_bias <- function(r, s, sigma2, finite_R_B, method) {
 
   cache <- list(r2 = r[keep]^2, s = s[keep])
   cache$base <- sigma2 + cache$s / finite_R_B
-
-  # Robustify the MAP estimate against active sparse signals. During the
-  # lth SER update, r contains the lth effect. If variants carrying this
-  # omitted sparse effect are used to estimate a population-wide R-bias
-  # variance, lambda_bias can absorb true signal and then suppress power.
-  # Estimate lambda_bias from residuals compatible with the null/base
-  # variance, keeping enough variants for a stable regional estimate.
-  std2 <- cache$r2 / cache$base
-  ok_null <- is.finite(std2) & std2 <= qchisq(0.99, df = 1)
-  min_keep <- min(length(std2), max(20L, ceiling(0.5 * length(std2))))
-  if (sum(ok_null) < min_keep) {
-    cutoff <- as.numeric(quantile(std2[is.finite(std2)], 0.90,
-                                  na.rm = TRUE, names = FALSE))
-    ok_null <- is.finite(std2) & std2 <= cutoff
-  }
-  if (sum(ok_null) >= 5L) {
-    cache$r2 <- cache$r2[ok_null]
-    cache$s <- cache$s[ok_null]
-    cache$base <- cache$base[ok_null]
-  }
-
   pos <- (cache$r2 - cache$base) / cache$s
   pos <- pos[is.finite(pos) & pos > 0]
   prior_scale <- sqrt(max(1 / finite_R_B, 1 / 10000))
@@ -372,10 +351,28 @@ compute_shat2_inflation_rss <- function(data, model, Rz_without_l, b_minus_l) {
   v_g  <- max(sum(b_minus_l * Rz_without_l), 0)
   eta2 <- Rz_without_l^2   # z-score scale: no (n-1) division needed
   s <- eta2 + v_g
-  r <- data$z - Rz_without_l
   R_bias <- if (!is.null(data$R_bias)) data$R_bias else "none"
-  lambda_bias <- estimate_lambda_bias(r, s, model$sigma2, finite_R_B,
-                                      R_bias)
+  if (R_bias == "none") {
+    lambda_bias <- 0
+  } else {
+    # Generative-model target: lambda_bias is local LD-mismatch variance
+    # estimated from the residual after all currently active effects have been
+    # explained. Do not estimate it from the leave-one-effect residual, which
+    # intentionally contains the lth sparse signal during the SER update.
+    b_full <- if (!is.null(model$zbar)) model$zbar else {
+      sw <- if (!is.null(model$slot_weights)) model$slot_weights else
+              rep(1, nrow(model$alpha))
+      colSums(sw * model$alpha * model$mu)
+    }
+    Rz_full <- if (!is.null(model$Rz))
+                 model$Rz
+               else as.vector(compute_Rv(data, b_full, model$X_meta))
+    r_full <- data$z - Rz_full
+    v_g_full <- max(sum(b_full * Rz_full), 0)
+    s_full <- Rz_full^2 + v_g_full
+    lambda_bias <- estimate_lambda_bias(r_full, s_full, model$sigma2,
+                                        finite_R_B, R_bias)
+  }
   infl <- 1 + (1 / finite_R_B + lambda_bias) * s / model$sigma2
   if (R_bias == "none") {
     list(infl = infl, lambda_bias = NULL, B_corrected = NULL)

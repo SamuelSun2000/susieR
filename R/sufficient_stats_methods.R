@@ -216,10 +216,27 @@ compute_shat2_inflation <- function(data, model, XtXr_without_l, b_minus_l, r) {
   v_g     <- max(sum(b_minus_l * XtXr_without_l), 0)
   eta2    <- XtXr_without_l^2 / (data$n - 1)
   s <- eta2 + v_g
-  r_z <- r / sqrt(data$n - 1)
   R_bias <- if (!is.null(data$R_bias)) data$R_bias else "none"
-  lambda_bias <- estimate_lambda_bias(r_z, s, model$sigma2, finite_R_B,
-                                      R_bias)
+  if (R_bias == "none") {
+    lambda_bias <- 0
+  } else {
+    # Generative-model target: lambda_bias is local LD-mismatch variance
+    # estimated from the residual after all currently active effects have been
+    # explained. Do not estimate it from the leave-one-effect residual r,
+    # because r intentionally contains the lth sparse signal during the SER
+    # update and can confound true signal with LD mismatch.
+    sw <- if (!is.null(model$slot_weights)) model$slot_weights else
+            rep(1, nrow(model$alpha))
+    b_full <- colSums(sw * model$alpha * model$mu)
+    XtXr_full <- if (!is.null(model$XtXr))
+                   model$XtXr
+                 else compute_Rv(data, b_full)
+    r_full_z <- (data$Xty - XtXr_full) / sqrt(data$n - 1)
+    v_g_full <- max(sum(b_full * XtXr_full), 0)
+    s_full <- XtXr_full^2 / (data$n - 1) + v_g_full
+    lambda_bias <- estimate_lambda_bias(r_full_z, s_full, model$sigma2,
+                                        finite_R_B, R_bias)
+  }
   infl <- 1 + (1 / finite_R_B + lambda_bias) * s / model$sigma2
   if (R_bias == "none") {
     list(infl = infl, lambda_bias = NULL, B_corrected = NULL)
