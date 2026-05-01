@@ -847,6 +847,20 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
       x_is_standardized = TRUE)
   }
 
+  # Cache eigen(R) for the Q_art QC diagnostic. Only computed when the
+  # user opts into map_qc; the standard "map" path does not pay the
+  # O(p^3) eigen cost. Works for both R-input and X-input: after
+  # standardize_X, crossprod(X) == R. Reuses the attr(R, "eigen")
+  # convention when the caller pre-computed it.
+  eigen_R_cache <- NULL
+  if (R_bias == "map_qc") {
+    eigen_R_cache <- if (!is.null(R)) attr(R, "eigen") else NULL
+    if (is.null(eigen_R_cache)) {
+      R_for_eigen <- if (!is.null(R)) R else crossprod(X)
+      eigen_R_cache <- eigen(R_for_eigen, symmetric = TRUE)
+    }
+  }
+
   # Convert to sufficient statistics format
   XtX <- NULL
   if (is.null(n)) {
@@ -917,6 +931,10 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
     result$data$finite_R_diagnostics <- finite_R_diagnostics
     result$data$R_bias <- R_bias
   }
+
+  # eigen(R) cache for Q_art diagnostic (map_qc only).
+  if (!is.null(eigen_R_cache))
+    result$data$eigen_R <- eigen_R_cache
 
   # Attach R-bias / mismatch params consumed by R/rss_mismatch.R.
   result$params$R_bias <- R_bias

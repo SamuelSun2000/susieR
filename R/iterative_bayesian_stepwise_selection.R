@@ -394,6 +394,13 @@ ibss_finalize <- function(data, params, model, elbo = NULL, iter = NA_integer_,
       model$finite_R_diagnostics$R_bias <- data$R_bias
     if (!is.null(model$shat2_inflation))
       model$finite_R_diagnostics$per_variable_penalty <- as.vector(model$shat2_inflation - 1)
+    # Q_art / artifact fields are present only for R_bias = "map_qc"
+    # (set by fit_R_bias). Copy whichever exist.
+    for (fld in c("Q_art", "artifact_flag", "artifact_evaluable",
+                  "low_eigen_count", "low_eigen_fraction", "eig_delta",
+                  "mode_label"))
+      if (!is.null(model[[fld]]))
+        model$finite_R_diagnostics[[fld]] <- model[[fld]]
   }
 
   # Multi-panel omega weights

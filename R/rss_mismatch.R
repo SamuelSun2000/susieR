@@ -205,6 +205,11 @@ apply_inflation_state <- function(model, infl_state, l) {
 #' compute_shat2_inflation, which estimated lambda_bias from the
 #' intra-sweep r_full_z that drifts as the slot loop progresses.
 #'
+#' For mode = "map_qc" the same lambda_bias fit is followed by the
+#' Q_art residual artifact diagnostic; see compute_Q_art. The
+#' artifact_action ("warn" default, "penalize" opt-in) decides whether
+#' a flag emits a warning or also floors B_corrected at B_artifact.
+#'
 #' @keywords internal
 #' @noRd
 fit_R_bias <- function(data, params, model) {
@@ -232,5 +237,89 @@ fit_R_bias <- function(data, params, model) {
   model$lambda_bias <- estimate_lambda_bias(r_fit_z, s_full, model$sigma2,
                                             finite_R_B, R_bias)
   model$B_corrected <- 1 / (1 / finite_R_B + model$lambda_bias)
+
+  if (R_bias == "map_qc") {
+    eigen_R <- get_eigen_R(data, model)
+    if (is.null(eigen_R))
+      stop("R_bias = 'map_qc' requires data$eigen_R; ",
+           "summary_stats_constructor should have cached it.")
+    eig_delta_rel <- if (!is.null(params$eig_delta_rel))
+                       params$eig_delta_rel else 1e-3
+    eig_delta_abs <- if (!is.null(params$eig_delta_abs))
+                       params$eig_delta_abs else 0
+    art <- compute_Q_art(eigen_R, r_fit_z, eig_delta_rel, eig_delta_abs)
+    threshold <- if (!is.null(params$artifact_threshold))
+                   params$artifact_threshold else 0.1
+    flagged <- isTRUE(art$evaluable) && isTRUE(art$Q_art > threshold)
+
+    model$Q_art              <- art$Q_art
+    model$artifact_evaluable <- art$evaluable
+    model$artifact_flag      <- flagged
+    model$low_eigen_count    <- art$low_eigen_count
+    model$low_eigen_fraction <- art$low_eigen_count /
+                                length(eigen_R$values)
+    model$eig_delta          <- art$eig_delta
+
+    if (flagged) {
+      action <- if (!is.null(params$artifact_action))
+                  params$artifact_action else "warn"
+      msg <- paste0("Residual R-bias artifact detected (Q_art = ",
+                    sprintf("%.3g", art$Q_art),
+                    " > threshold ", sprintf("%.3g", threshold),
+                    "). Fine-mapping results may be unreliable with ",
+                    "this R reference. Consider allele/QC review, ",
+                    "multi-reference analysis, or conservative fallback.")
+      model$mode_label <- if (action == "penalize")
+                            "conservative" else "warning"
+      if (action == "penalize") {
+        B_art <- if (!is.null(params$B_artifact)) params$B_artifact else 500
+        floor_lambda_total <- 1 / B_art
+        cur_lambda_total   <- 1 / finite_R_B + model$lambda_bias
+        if (floor_lambda_total > cur_lambda_total)
+          model$B_corrected <- 1 / floor_lambda_total
+      }
+      warning(msg, call. = FALSE)
+    } else {
+      model$mode_label <- "normal"
+    }
+  }
+
   model
+}
+
+# =============================================================================
+# Q_art residual R-bias artifact diagnostic
+# =============================================================================
+
+# Fraction of fitted-residual energy in low-eigenvalue directions of R.
+#   delta = max(eig_delta_abs, eig_delta_rel * max(d))
+#   A_delta = {k : d_k <= delta}
+#   Q_art = sum_{k in A_delta} (v_k' r_fit)^2 / sum(r_fit^2)
+# When the fitted residual is well-explained by R, energy in
+# low-eigenvalue directions is near the noise floor; a large Q_art
+# indicates allele/orientation errors or other reference-summary
+# artifacts that the continuous variance model cannot absorb.
+#
+# Returns a list with Q_art (in [0, 1]), evaluable (FALSE when no
+# low-eigenvalues exist or r_fit has negligible energy),
+# low_eigen_count, eig_delta. Q_art is a heuristic proportion, not a
+# calibrated test statistic; see archive/ld_mismatch_generativemodel.tex
+# Sec. "Detecting residual R-bias artifacts".
+#' @keywords internal
+compute_Q_art <- function(eigen_R, r_fit, eig_delta_rel = 1e-3,
+                          eig_delta_abs = 0,
+                          residual_energy_floor = 1e-12) {
+  d <- eigen_R$values
+  V <- eigen_R$vectors
+  delta  <- max(eig_delta_abs, eig_delta_rel * max(d))
+  A_delta <- which(d <= delta)
+  rss    <- sum(r_fit^2)
+  if (length(A_delta) == 0L || rss <= residual_energy_floor) {
+    return(list(Q_art = 0, evaluable = FALSE,
+                low_eigen_count = length(A_delta), eig_delta = delta))
+  }
+  proj <- as.numeric(crossprod(V[, A_delta, drop = FALSE], r_fit))
+  Q <- sum(proj^2) / rss
+  list(Q_art = Q, evaluable = TRUE,
+       low_eigen_count = length(A_delta), eig_delta = delta)
 }

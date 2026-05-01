@@ -761,8 +761,6 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
 
   R_bias <- match.arg(R_bias)
   artifact_action <- match.arg(artifact_action)
-  if (R_bias == "map_qc")
-    stop("R_bias = 'map_qc' is not yet implemented in this commit.")
   if (!is.numeric(eig_delta_rel) || length(eig_delta_rel) != 1L ||
       eig_delta_rel < 0)
     stop("eig_delta_rel must be a single nonnegative numeric.")
