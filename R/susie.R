@@ -644,11 +644,6 @@ susie_ss <- function(XtX, Xty, yty, n,
 #'   Requires \code{finite_R}; auto-disables \code{estimate_residual_variance}
 #'   with a warning. \code{"map_qc"} works only with \code{lambda = 0}.
 #'
-#' @param artifact_action What to do when \code{R_bias = "map_qc"} flags
-#'   the region. \code{"warn"} (default) emits an R warning and leaves
-#'   numerics unchanged. \code{"penalize"} also floors the effective
-#'   reference reliability at \code{1/B_artifact} as a conservative fallback.
-#'
 #' @param eig_delta_rel,eig_delta_abs Cutoffs for "low-eigenvalue"
 #'   directions of \code{R} used by the QC diagnostic
 #'   (\code{R_bias = "map_qc"}). Default \code{eig_delta_rel = 1e-3},
@@ -659,13 +654,6 @@ susie_ss <- function(XtX, Xty, yty, n,
 #' @param artifact_threshold Flag threshold on the QC score \code{Q_art}
 #'   (a fraction in [0, 1]). Default \code{0.1}; flag fires when
 #'   \code{Q_art > artifact_threshold}. Heuristic, not a calibrated test.
-#'
-#' @param B_artifact Effective reference panel size used by the conservative
-#'   floor in \code{artifact_action = "penalize"}. Default \code{500}.
-#'
-#' @param multipanel_safeguard Deprecated. Ignored. Single-panel fits
-#'   are always stored in the returned object as \code{$single_panel_fits}
-#'   so users can compare mixture vs single-panel results themselves.
 #'
 #' @return In addition to the standard \code{"susie"} output (see
 #'   \code{\link{susie}}), the returned object may contain:
@@ -680,11 +668,12 @@ susie_ss <- function(XtX, Xty, yty, n,
 #'     \eqn{\le 0.2} indicate the reference panel is adequate);
 #'   \code{Rhat_diag_deviation} (\eqn{|\hat{R}_{jj} - 1|}, one number
 #'     per variable);
-#'   \code{lambda_bias} (one number per effect when
+#'   \code{lambda_bias} (region-level scalar on the default
+#'     \code{lambda = 0} sufficient-statistics path when
 #'     \code{R_bias != "none"});
 #'   \code{B_corrected} (effective reference sample size after the
-#'     R-bias correction, \eqn{1/(1/B + \lambda_{\mathrm{bias}})}, one
-#'     number per effect when \code{R_bias != "none"}; substantially
+#'     R-bias correction, \eqn{1/(1/B + \lambda_{\mathrm{bias}})};
+#'     substantially
 #'     smaller than the input \code{B} flags a dominant population
 #'     mismatch component);
 #'   \code{per_variable_penalty} (final-iteration
@@ -743,12 +732,9 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
                       refine = FALSE,
                       finite_R = NULL,
                       R_bias = c("none", "map", "map_qc"),
-                      artifact_action = c("warn", "penalize"),
                       eig_delta_rel = 1e-3,
                       eig_delta_abs = 0,
                       artifact_threshold = 0.1,
-                      B_artifact = 500,
-                      multipanel_safeguard = TRUE,
                       alpha0 = if (is.null(n)) NULL else 1/sqrt(n),
                       beta0 = if (is.null(n)) NULL else 1/sqrt(n),
                       init_only = FALSE,
@@ -762,7 +748,6 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
   is_multi_panel <- is.list(X) && !is.matrix(X)
 
   R_bias <- match.arg(R_bias)
-  artifact_action <- match.arg(artifact_action)
   if (!is.numeric(eig_delta_rel) || length(eig_delta_rel) != 1L ||
       eig_delta_rel < 0)
     stop("eig_delta_rel must be a single nonnegative numeric.")
@@ -772,8 +757,6 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
   if (!is.numeric(artifact_threshold) || length(artifact_threshold) != 1L ||
       artifact_threshold < 0 || artifact_threshold > 1)
     stop("artifact_threshold must be a single numeric in [0, 1].")
-  if (!is.numeric(B_artifact) || length(B_artifact) != 1L || B_artifact <= 0)
-    stop("B_artifact must be a single positive numeric.")
 
   # Resolve finite_R BEFORE any X -> R conversion.
   finite_R <- resolve_finite_R(finite_R, X, is_multi_panel)
@@ -918,9 +901,8 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
     check_prior = check_prior, check_R = check_R, check_z = check_z,
     n_purity = n_purity, r_tol = r_tol, refine = refine,
     finite_R = finite_R, R_bias = R_bias,
-    artifact_action = artifact_action,
     eig_delta_rel = eig_delta_rel, eig_delta_abs = eig_delta_abs,
-    artifact_threshold = artifact_threshold, B_artifact = B_artifact,
+    artifact_threshold = artifact_threshold,
     alpha0 = alpha0, beta0 = beta0,
     slot_prior = slot_prior, L_greedy = L_greedy,
     greedy_lbf_cutoff = greedy_lbf_cutoff

@@ -235,13 +235,27 @@ check_convergence.default <- function(data, params, model, elbo, iter) {
     # short-cycle lag; it is no longer a "no improvement" stop.
     model <- check_alpha_pip_cycle_convergence(data, params, model)
     pip_diff <- model$runtime$pip_diff
+    lambda_diff <- if (!is.null(model$runtime$lambda_bias_diff))
+                     model$runtime$lambda_bias_diff else 0
+    # Coordinate EB guard: fit_R_bias runs after the SER sweep, so a material
+    # lambda update must be consumed by one more sweep before convergence.
+    if (isTRUE(model$converged) && lambda_diff > params$tol) {
+      model$converged <- FALSE
+      model$convergence_reason <- paste0("lambda_bias_changed(",
+                                         format(lambda_diff, digits = 3,
+                                                scientific = TRUE), ")")
+    }
     if (verbose) {
       conv_tag <- if (model$converged)
         paste0(" -- converged (", model$convergence_reason, ")")
       else
         ""
-      message(sprintf("iter %3d: max|d(alpha,PIP)|=%.2e, V=%s%s%s%s [mem: %.2f GB]",
-                      iter, pip_diff, V_str, chat_str,
+      lambda_str <- if (lambda_diff > 0)
+        paste0(", max|d(lambda_bias)|=", format(lambda_diff, digits = 3,
+                                                scientific = TRUE))
+      else ""
+      message(sprintf("iter %3d: max|d(alpha,PIP)|=%.2e%s, V=%s%s%s%s [mem: %.2f GB]",
+                      iter, pip_diff, lambda_str, V_str, chat_str,
                       if (nzchar(extra_str)) paste0(", ", extra_str) else "",
                       conv_tag, mem_used_gb()))
     }
@@ -260,6 +274,12 @@ check_convergence.default <- function(data, params, model, elbo, iter) {
                             -ELBO_diff, iter))
   }
   model$converged <- (ELBO_diff >= 0 && ELBO_diff < params$tol)
+  lambda_diff <- if (!is.null(model$runtime$lambda_bias_diff))
+                   model$runtime$lambda_bias_diff else 0
+  # Coordinate EB guard: fit_R_bias runs after the SER sweep, so a material
+  # lambda update must be consumed by one more sweep before declaring convergence.
+  if (isTRUE(model$converged) && lambda_diff > params$tol)
+    model$converged <- FALSE
 
   if (verbose)
     message(sprintf(verbose_row_fmt,

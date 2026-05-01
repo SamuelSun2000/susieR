@@ -63,12 +63,6 @@ test_that("Optional artifact args validate ranges", {
               max_iter = 2, verbose = FALSE),
     "eig_delta_rel"
   )
-  expect_error(
-    susie_rss(z = z, R = R, n = n, L = 3, finite_R = 5000,
-              R_bias = "map", B_artifact = 0,
-              max_iter = 2, verbose = FALSE),
-    "B_artifact"
-  )
 })
 
 # ---- Region-level scalar lambda_bias on the SS path ----
@@ -165,23 +159,19 @@ test_that("map_qc on well-behaved data yields Q_art near 0 and no flag", {
 })
 
 test_that("map_qc emits a true R warning when artifact_flag triggers", {
-  # Construct an R with an exactly-zero eigenvalue and an r_fit that lies
-  # in that null direction. Bypass susie_rss to control the trigger.
-  set.seed(1)
-  p <- 4
-  V <- qr.Q(qr(matrix(rnorm(p * p), p, p)))
-  d <- c(2, 1, 0.5, 1e-8)        # one eigenvalue below 1e-3 * 2 = 2e-3
-  R <- V %*% diag(d) %*% t(V)
-  R <- 0.5 * (R + t(R))           # symmetrize
-
-  # r_fit aligned with the low-eigen direction (last column of V).
-  r_fit <- V[, p]
-
-  # Direct call to compute_Q_art verifies the math; warning emission is
-  # exercised via fit_R_bias by constructing the minimal model/data.
-  out <- susieR:::compute_Q_art(list(values = d, vectors = V), r_fit)
-  expect_equal(out$Q_art, 1, tolerance = 1e-10)
-  expect_true(out$evaluable)
+  rho <- 0.9999
+  z <- c(-8, -8)
+  R <- matrix(c(1, -rho, -rho, 1), 2, 2)
+  expect_warning(
+    fit <- susie_rss(z = z, R = R, n = 5000, L = 1, finite_R = 1e6,
+                     R_bias = "map_qc", max_iter = 5,
+                     prior_variance = 50, estimate_prior_variance = FALSE,
+                     estimate_residual_variance = FALSE, verbose = FALSE,
+                     check_R = FALSE),
+    "Residual R-bias artifact detected"
+  )
+  expect_true(fit$finite_R_diagnostics$artifact_flag)
+  expect_equal(fit$finite_R_diagnostics$Q_art, 1, tolerance = 1e-6)
 })
 
 test_that("map_qc surfaces Q_art and mode_label diagnostics", {
@@ -213,6 +203,23 @@ test_that("map_qc with X-input runs and surfaces Q_art", {
   d <- fit$finite_R_diagnostics
   expect_true(!is.null(d$Q_art))
   expect_true(d$Q_art >= 0 && d$Q_art <= 1)
+})
+
+test_that("map_qc works on lambda=0 multi-panel SS path", {
+  set.seed(19)
+  n <- 80
+  p <- 12
+  X1 <- matrix(rnorm(n * p), n, p)
+  X2 <- matrix(rnorm(n * p), n, p)
+  z <- rnorm(p)
+
+  fit <- susie_rss(z = z, X = list(X1, X2), n = 1000, L = 3,
+                   finite_R = TRUE, R_bias = "map_qc", max_iter = 3,
+                   verbose = FALSE)
+  d <- fit$finite_R_diagnostics
+  expect_true(!is.null(d$Q_art))
+  expect_true(d$Q_art >= 0 && d$Q_art <= 1)
+  expect_length(d$lambda_bias, 1)
 })
 
 test_that("rss_lambda path keeps per-slot lambda_bias (out of scope)", {

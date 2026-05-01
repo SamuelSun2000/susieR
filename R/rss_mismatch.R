@@ -10,7 +10,7 @@
 #   * model-state storage helper for per-slot inflation diagnostics
 #     (apply_inflation_state)
 #   * per-sweep region-level fit (fit_R_bias) -- the new piece
-#   * residual R-mismatch QC diagnostic Q_art (later commit)
+#   * residual R-mismatch QC diagnostic Q_art
 #
 # Storage convention on the model:
 #   model$lambda_bias    SS / ss_mixture: scalar (set once per sweep
@@ -89,7 +89,7 @@ estimate_lambda_bias <- function(r, s, sigma2, finite_R_B, method) {
 # path (those are scalars on the model, set by fit_R_bias).
 #' @keywords internal
 compute_shat2_inflation <- function(data, model, XtXr_without_l, b_minus_l, r) {
-  finite_R_B <- data$finite_R_B
+  finite_R_B <- if (!is.null(model$finite_R_B)) model$finite_R_B else data$finite_R_B
   if (is.null(finite_R_B) ||
       model$sigma2 <= .Machine$double.eps) {
     return(NULL)
@@ -207,15 +207,15 @@ apply_inflation_state <- function(model, infl_state, l) {
 #'
 #' For mode = "map_qc" the same lambda_bias fit is followed by the
 #' Q_art residual artifact diagnostic; see compute_Q_art. The
-#' artifact_action ("warn" default, "penalize" opt-in) decides whether
-#' a flag emits a warning or also floors B_corrected at B_artifact.
+#' The artifact diagnostic emits an R warning when flagged; it does
+#' not change lambda_bias or the SER likelihood.
 #'
 #' @keywords internal
 #' @noRd
 fit_R_bias <- function(data, params, model) {
   R_bias <- if (!is.null(params$R_bias)) params$R_bias else "none"
   if (R_bias == "none") return(model)
-  finite_R_B <- data$finite_R_B
+  finite_R_B <- if (!is.null(model$finite_R_B)) model$finite_R_B else data$finite_R_B
   if (is.null(finite_R_B) || !is.finite(model$sigma2) ||
       model$sigma2 <= .Machine$double.eps)
     return(model)
@@ -239,7 +239,7 @@ fit_R_bias <- function(data, params, model) {
   model$B_corrected <- 1 / (1 / finite_R_B + model$lambda_bias)
 
   if (R_bias == "map_qc") {
-    eigen_R <- get_eigen_R(data, model)
+    eigen_R <- get_R_bias_eigen(data, model)
     if (is.null(eigen_R))
       stop("R_bias = 'map_qc' requires data$eigen_R; ",
            "summary_stats_constructor should have cached it.")
@@ -261,23 +261,14 @@ fit_R_bias <- function(data, params, model) {
     model$eig_delta          <- art$eig_delta
 
     if (flagged) {
-      action <- if (!is.null(params$artifact_action))
-                  params$artifact_action else "warn"
       msg <- paste0("Residual R-bias artifact detected (Q_art = ",
                     sprintf("%.3g", art$Q_art),
                     " > threshold ", sprintf("%.3g", threshold),
                     "). Fine-mapping results may be unreliable with ",
                     "this R reference. Consider allele/QC review, ",
                     "multi-reference analysis, or conservative fallback.")
-      model$mode_label <- if (action == "penalize")
-                            "conservative" else "warning"
-      if (action == "penalize") {
-        B_art <- if (!is.null(params$B_artifact)) params$B_artifact else 500
-        floor_lambda_total <- 1 / B_art
-        cur_lambda_total   <- 1 / finite_R_B + model$lambda_bias
-        if (floor_lambda_total > cur_lambda_total)
-          model$B_corrected <- 1 / floor_lambda_total
-      }
+      model$mode_label <- "warning"
+      warning_message(msg)
       warning(msg, call. = FALSE)
     } else {
       model$mode_label <- "normal"
@@ -285,6 +276,41 @@ fit_R_bias <- function(data, params, model) {
   }
 
   model
+}
+
+# Eigen accessor for map_qc. The ordinary SS path stores data$eigen_R.
+# The ss_mixture path can change R through omega, so recover the current
+# mixture spectrum from panel_R when omega is available; otherwise fall
+# back to the initialized X_meta crossproduct.
+#' @keywords internal
+get_R_bias_eigen <- function(data, model) {
+  if (!is.null(model$eigen_R))
+    return(model$eigen_R)
+  if (!is.null(data$eigen_R) && !inherits(data, "ss_mixture"))
+    return(data$eigen_R)
+  if (inherits(data, "ss_mixture")) {
+    if (!is.null(model$omega) && !is.null(data$omega_cache)) {
+      eig <- eigen_from_reduced(data$omega_cache, model$omega,
+                                data$K, data$p)
+      eig$values <- pmax(eig$values, 0)
+      return(eig)
+    }
+    if (!is.null(model$omega) && !is.null(data$panel_R)) {
+      R_mix <- Reduce("+", Map(function(w, R) w * R, model$omega, data$panel_R))
+      R_mix <- 0.5 * (R_mix + t(R_mix))
+      eig <- eigen(R_mix, symmetric = TRUE)
+      eig$values <- pmax(eig$values, 0)
+      return(eig)
+    }
+    if (!is.null(data$X)) {
+      R_init <- crossprod(data$X) / data$nm1
+      R_init <- 0.5 * (R_init + t(R_init))
+      eig <- eigen(R_init, symmetric = TRUE)
+      eig$values <- pmax(eig$values, 0)
+      return(eig)
+    }
+  }
+  data$eigen_R
 }
 
 # =============================================================================
@@ -296,9 +322,10 @@ fit_R_bias <- function(data, params, model) {
 #   A_delta = {k : d_k <= delta}
 #   Q_art = sum_{k in A_delta} (v_k' r_fit)^2 / sum(r_fit^2)
 # When the fitted residual is well-explained by R, energy in
-# low-eigenvalue directions is near the noise floor; a large Q_art
-# indicates allele/orientation errors or other reference-summary
-# artifacts that the continuous variance model cannot absorb.
+# low-eigenvalue directions is near the noise floor. A large Q_art
+# flags residual structure that the supplied reference says should be
+# weak or absent; allele/strand flips should still be checked by
+# kriging-style diagnostics.
 #
 # Returns a list with Q_art (in [0, 1]), evaluable (FALSE when no
 # low-eigenvalues exist or r_fit has negligible energy),

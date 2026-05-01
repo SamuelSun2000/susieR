@@ -615,11 +615,9 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
                                       refine = FALSE,
                                       finite_R = NULL,
                                       R_bias = "none",
-                                      artifact_action = "warn",
                                       eig_delta_rel = 1e-3,
                                       eig_delta_abs = 0,
                                       artifact_threshold = 0.1,
-                                      B_artifact = 500,
                                       alpha0 = 0.1,
                                       beta0 = 0.1,
                                       slot_prior = NULL,
@@ -704,9 +702,8 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
       check_prior = check_prior, check_R = check_R, check_z = check_z,
       n_purity = n_purity, r_tol = r_tol, refine = refine,
       finite_R = finite_R, R_bias = R_bias,
-      artifact_action = artifact_action,
       eig_delta_rel = eig_delta_rel, eig_delta_abs = eig_delta_abs,
-      artifact_threshold = artifact_threshold, B_artifact = B_artifact,
+      artifact_threshold = artifact_threshold,
       slot_prior = slot_prior, L_greedy = L_greedy,
       greedy_lbf_cutoff = greedy_lbf_cutoff
     ))
@@ -938,11 +935,9 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
 
   # Attach R-bias / mismatch params consumed by R/rss_mismatch.R.
   result$params$R_bias <- R_bias
-  result$params$artifact_action <- artifact_action
   result$params$eig_delta_rel <- eig_delta_rel
   result$params$eig_delta_abs <- eig_delta_abs
   result$params$artifact_threshold <- artifact_threshold
-  result$params$B_artifact <- B_artifact
 
   return(result)
 }
@@ -1004,11 +999,9 @@ rss_lambda_constructor <- function(z, R = NULL, X = NULL, n = NULL,
                                    refine = FALSE,
                                    finite_R = NULL,
                                    R_bias = "none",
-                                   artifact_action = "warn",
                                    eig_delta_rel = 1e-3,
                                    eig_delta_abs = 0,
                                    artifact_threshold = 0.1,
-                                   B_artifact = 500,
                                    slot_prior = NULL,
                                    L_greedy = NULL,
                                    greedy_lbf_cutoff = 0.1) {
@@ -1287,11 +1280,9 @@ rss_lambda_constructor <- function(z, R = NULL, X = NULL, n = NULL,
     L_greedy = L_greedy,
     greedy_lbf_cutoff = greedy_lbf_cutoff,
     R_bias = R_bias,
-    artifact_action = artifact_action,
     eig_delta_rel = eig_delta_rel,
     eig_delta_abs = eig_delta_abs,
-    artifact_threshold = artifact_threshold,
-    B_artifact = B_artifact
+    artifact_threshold = artifact_threshold
   )
 
   # Validate params

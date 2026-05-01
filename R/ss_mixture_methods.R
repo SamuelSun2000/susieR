@@ -49,7 +49,8 @@ compute_residuals.ss_mixture <- function(data, params, model, l, ...) {
     v_g  <- max(sum(b_minus_l * XtXr_without_l), 0)
     xi_l <- XtXr_without_l^2 / nm1 + v_g
     lambda_bias <- if (!is.null(model$lambda_bias)) model$lambda_bias[1] else 0
-    model$shat2_inflation <- 1 + (1 / data$finite_R_B + lambda_bias) *
+    finite_R_B <- if (!is.null(model$finite_R_B)) model$finite_R_B else data$finite_R_B
+    model$shat2_inflation <- 1 + (1 / finite_R_B + lambda_bias) *
                                   xi_l / model$sigma2
   }
   return(model)
@@ -113,6 +114,8 @@ update_model_variance.ss_mixture <- function(data, params, model) {
     if (!is.null(eval_omega)) {
       opt <- optimize_omega(eval_omega, omega_cur, data$K)
       model$omega <- opt$omega
+      if (!is.null(data$finite_R_B) && !is.null(data$B_list))
+        model$finite_R_B <- 1 / sum(model$omega^2 / data$B_list)
       # Recompute XtXr with updated R(omega)
       b_bar <- colSums(model$alpha * model$mu)
       model$XtXr <- compute_XtXv_mixture(data, model, b_bar)

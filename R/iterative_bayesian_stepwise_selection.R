@@ -159,6 +159,7 @@ ibss_initialize.default <- function(data, params) {
       inherits(data, c("ss", "ss_mixture"))) {
     model$lambda_bias <- 0
     model$B_corrected <- data$finite_R_B
+    model$finite_R_B <- data$finite_R_B
   }
 
   return(model)
@@ -241,7 +242,14 @@ ibss_fit <- function(data, params, model) {
   # storage shape change (was per-slot inside the SER step; now
   # scalar at sweep boundary).
   if (inherits(data, c("ss", "ss_mixture"))) {
+    old_lambda_bias <- model$lambda_bias
     model <- fit_R_bias(data, params, model)
+    new_lambda_bias <- model$lambda_bias
+    if (!is.null(old_lambda_bias) || !is.null(new_lambda_bias)) {
+      old <- if (is.null(old_lambda_bias)) 0 else old_lambda_bias
+      new <- if (is.null(new_lambda_bias)) 0 else new_lambda_bias
+      model$runtime$lambda_bias_diff <- max(abs(new - old))
+    }
   }
 
   # Validate prior variance is reasonable

@@ -56,12 +56,9 @@ susie_rss(
   refine = FALSE,
   finite_R = NULL,
   R_bias = c("none", "map", "map_qc"),
-  artifact_action = c("warn", "penalize"),
   eig_delta_rel = 0.001,
   eig_delta_abs = 0,
   artifact_threshold = 0.1,
-  B_artifact = 500,
-  multipanel_safeguard = TRUE,
   alpha0 = if (is.null(n)) NULL else 1/sqrt(n),
   beta0 = if (is.null(n)) NULL else 1/sqrt(n),
   init_only = FALSE,
@@ -327,11 +324,6 @@ allele-coding / strand-flip checks, see the kriging diagnostic in
 Requires \code{finite_R}; auto-disables \code{estimate_residual_variance}
 with a warning. \code{"map_qc"} works only with \code{lambda = 0}.}
 
-\item{artifact_action}{What to do when \code{R_bias = "map_qc"} flags
-the region. \code{"warn"} (default) emits an R warning and leaves
-numerics unchanged. \code{"penalize"} also floors the effective
-reference reliability at \code{1/B_artifact} as a conservative fallback.}
-
 \item{eig_delta_rel, eig_delta_abs}{Cutoffs for "low-eigenvalue"
 directions of \code{R} used by the QC diagnostic
 (\code{R_bias = "map_qc"}). Default \code{eig_delta_rel = 1e-3},
@@ -342,13 +334,6 @@ directions of \code{R} used by the QC diagnostic
 \item{artifact_threshold}{Flag threshold on the QC score \code{Q_art}
 (a fraction in [0, 1]). Default \code{0.1}; flag fires when
 \code{Q_art > artifact_threshold}. Heuristic, not a calibrated test.}
-
-\item{B_artifact}{Effective reference panel size used by the conservative
-floor in \code{artifact_action = "penalize"}. Default \code{500}.}
-
-\item{multipanel_safeguard}{Deprecated. Ignored. Single-panel fits
-are always stored in the returned object as \code{$single_panel_fits}
-so users can compare mixture vs single-panel results themselves.}
 
 \item{alpha0}{Numerical parameter for the NIG prior when using
 \code{estimate_residual_method = "NIG"}. Defaults to
@@ -388,11 +373,12 @@ In addition to the standard \code{"susie"} output (see
     \eqn{\le 0.2} indicate the reference panel is adequate);
   \code{Rhat_diag_deviation} (\eqn{|\hat{R}_{jj} - 1|}, one number
     per variable);
-  \code{lambda_bias} (one number per effect when
+  \code{lambda_bias} (region-level scalar on the default
+    \code{lambda = 0} sufficient-statistics path when
     \code{R_bias != "none"});
   \code{B_corrected} (effective reference sample size after the
-    R-bias correction, \eqn{1/(1/B + \lambda_{\mathrm{bias}})}, one
-    number per effect when \code{R_bias != "none"}; substantially
+    R-bias correction, \eqn{1/(1/B + \lambda_{\mathrm{bias}})};
+    substantially
     smaller than the input \code{B} flags a dominant population
     mismatch component);
   \code{per_variable_penalty} (final-iteration
