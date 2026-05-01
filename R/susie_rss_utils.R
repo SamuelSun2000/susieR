@@ -437,8 +437,12 @@ eval_omega_eloglik_reduced <- function(cache, omega, iter_cache,
   term5 <- sum(diag(Sinv_AMA))
 
   ER2 <- zSinvz + term2 + term3 + term4 + term5
-  logdet_use <- if (lambda > 0) logdet_term else 0
-  -p_eff / 2 * log(2 * pi) + logdet_use - 0.5 * ER2
+  # Always include the column-space log|S(omega)|: it is omega-dependent and
+  # is the primary driver of mixture weight selection. At lambda=0 the
+  # null-space pieces (logdet_null, z_null_norm2/lambda) are constants in
+  # omega given the joint reduced basis, so dropping them is fine --- but
+  # dropping logdet_term itself erases the omega signal.
+  -p_eff / 2 * log(2 * pi) + logdet_term - 0.5 * ER2
 }
 
 # Recover full eigendecomposition from reduced basis after omega is chosen.
@@ -503,8 +507,8 @@ eval_omega_eloglik_R <- function(panel_R, omega, z, zbar, diag_postb2, Z,
 
   ER2 <- zSinvz + term2 + term3 + term4 + term5
   p_eff <- length(S_pos)
-  logdet_use <- if (lambda > 0) logdet_term else 0
-  -p_eff / 2 * log(2 * pi) + logdet_use - 0.5 * ER2
+  # See eval_omega_eloglik_reduced: always keep column-space logdet_term.
+  -p_eff / 2 * log(2 * pi) + logdet_term - 0.5 * ER2
 }
 
 # Optimize omega on the K-simplex by maximizing eval_fn.

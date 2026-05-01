@@ -79,6 +79,15 @@ update_model_variance.ss_mixture <- function(data, params, model) {
   if (!is.null(data$K) && data$K > 1 && !isTRUE(model$omega_converged)) {
     omega_cur <- if (!is.null(model$omega)) model$omega else rep(1 / data$K, data$K)
 
+    # Omega-objective ridge: small floor used ONLY inside the Eloglik
+    # evaluator to stabilize log|sigma2*A(omega)| near rank-deficient
+    # vertices. Without it, small eigenvalues of A(omega) produce a huge
+    # -0.5 * log|.| penalty at vertex omegas, pulling the optimizer toward
+    # the interior (collapse to ~uniform weights). Matches the behavior
+    # of the prev rss_lambda path with auto lambda = 1/(n-1). Does NOT
+    # affect the ss-SER update, which still uses lambda = 0 (no FDR
+    # inflation in the credible-set inference).
+    omega_ridge <- 1 / data$nm1
     eval_omega <- NULL
     if (!is.null(data$omega_cache)) {
       cache <- data$omega_cache
@@ -86,13 +95,13 @@ update_model_variance.ss_mixture <- function(data, params, model) {
                                                 model$diag_postb2, model$Z)
       eval_omega <- function(w) {
         eval_omega_eloglik_reduced(cache, w, iter_cache,
-                                    model$sigma2, 0, data$K, data$p)
+                                    model$sigma2, omega_ridge, data$K, data$p)
       }
     } else if (!is.null(data$panel_R)) {
       eval_omega <- function(w) {
         eval_omega_eloglik_R(data$panel_R, w, data$z, model$zbar,
                               model$diag_postb2, model$Z, model$sigma2,
-                              0, data$K, data$p)
+                              omega_ridge, data$K, data$p)
       }
     }
 
