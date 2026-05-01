@@ -165,20 +165,18 @@ format_extra_diag <- function(model) {
 format_extra_diag.default <- function(model) {
   if (is.null(model$lambda_bias))
     return("")
-  lambda_bias <- model$lambda_bias
+  lambda_infl <- model$lambda_bias
   # Zero-masking of small finite values happens at source in
   # estimate_lambda_bias; we just sanitize non-finite for display.
-  lambda_bias[!is.finite(lambda_bias)] <- 0
-  if (all(lambda_bias == 0)) {
-    lb <- paste0("lambda_bias=0 x ", length(lambda_bias))
-  } else {
-    lb <- paste0("lambda_bias=", paste(format(lambda_bias, digits = 2,
-                                             scientific = TRUE), collapse = ","))
-  }
+  lambda_infl[!is.finite(lambda_infl)] <- 0
+  if (length(lambda_infl) != 1)
+    stop("lambda_bias must be a scalar on the SS path.")
+  lb <- paste0("lambda_infl=", format(lambda_infl, digits = 2,
+                                      scientific = TRUE))
   if (!is.null(model$B_corrected)) {
     B_corrected <- model$B_corrected
     if (length(unique(B_corrected[is.finite(B_corrected)])) == 1) {
-      lb <- paste0(lb, " B_corrected=", format(B_corrected[which(is.finite(B_corrected))[1]],
+      lb <- paste0(lb, " B_eff=", format(B_corrected[which(is.finite(B_corrected))[1]],
                                             digits = 4, scientific = FALSE))
     }
   }
@@ -241,7 +239,7 @@ check_convergence.default <- function(data, params, model, elbo, iter) {
     # lambda update must be consumed by one more sweep before convergence.
     if (isTRUE(model$converged) && lambda_diff > params$tol) {
       model$converged <- FALSE
-      model$convergence_reason <- paste0("lambda_bias_changed(",
+      model$convergence_reason <- paste0("lambda_infl_changed(",
                                          format(lambda_diff, digits = 3,
                                                 scientific = TRUE), ")")
     }
@@ -251,7 +249,7 @@ check_convergence.default <- function(data, params, model, elbo, iter) {
       else
         ""
       lambda_str <- if (lambda_diff > 0)
-        paste0(", max|d(lambda_bias)|=", format(lambda_diff, digits = 3,
+        paste0(", max|d(lambda_infl)|=", format(lambda_diff, digits = 3,
                                                 scientific = TRUE))
       else ""
       message(sprintf("iter %3d: max|d(alpha,PIP)|=%.2e%s, V=%s%s%s%s [mem: %.2f GB]",

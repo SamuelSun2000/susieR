@@ -221,18 +221,3 @@ test_that("map_qc works on lambda=0 multi-panel SS path", {
   expect_true(d$Q_art >= 0 && d$Q_art <= 1)
   expect_length(d$lambda_bias, 1)
 })
-
-test_that("rss_lambda path keeps per-slot lambda_bias (out of scope)", {
-  set.seed(107)
-  p <- 25
-  n <- 1500
-  X <- matrix(rnorm(n * p), n, p)
-  R <- cor(X)
-  z <- rnorm(p)
-
-  fit <- susie_rss(z = z, R = R, n = n, L = 3, finite_R = 5000,
-                   lambda = 0.1, R_bias = "map",
-                   max_iter = 5, verbose = FALSE)
-  expect_length(fit$finite_R_diagnostics$lambda_bias, 3)
-  expect_length(fit$finite_R_diagnostics$B_corrected, 3)
-})

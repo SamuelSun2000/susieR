@@ -28,8 +28,17 @@ default_config <- list(
   adsp_delta = 0.02,
   ukb_delta = 0.35,
   lambda_zero_tol = 0.01,
+  include_map_qc = TRUE,
+  verbose_fit = FALSE,
+  verbose_reps = 1L,
   smoke = FALSE
 )
+
+vlog <- function(...) {
+  msg <- paste0("[", format(Sys.time(), "%H:%M:%S"), "] ", ...)
+  message(msg)
+  flush.console()
+}
 
 parse_args <- function(defaults) {
   args <- commandArgs(trailingOnly = TRUE)
@@ -142,7 +151,12 @@ make_z_scores <- function(X, y) {
   as.numeric(z)
 }
 
-fit_susie_rss <- function(z, X_ref, n_target, cfg, method) {
+fit_susie_rss <- function(z, X_ref, n_target, cfg, method, verbose_fit = FALSE) {
+  R_bias <- switch(method,
+                   no_bias = "none",
+                   bias_map = "map",
+                   bias_map_qc = "map_qc",
+                   stop("Unknown method: ", method))
   args <- list(
     z = z,
     X = X_ref,
@@ -152,18 +166,19 @@ fit_susie_rss <- function(z, X_ref, n_target, cfg, method) {
     min_abs_corr = cfg$min_abs_corr,
     max_iter = cfg$max_iter,
     finite_R = TRUE,
-    R_bias = if (method == "bias_map") "map" else "none",
+    R_bias = R_bias,
     lambda = 0,
     estimate_residual_variance = FALSE,
     check_R = FALSE,
     check_z = FALSE,
-    verbose = FALSE
+    verbose = isTRUE(verbose_fit)
   )
-  withCallingHandlers(
-    do.call(susie_rss, args),
-    message = function(m) invokeRestart("muffleMessage"),
-    warning = function(w) invokeRestart("muffleWarning")
-  )
+  if (isTRUE(verbose_fit)) {
+    return(do.call(susie_rss, args))
+  }
+  withCallingHandlers(do.call(susie_rss, args),
+                      message = function(m) invokeRestart("muffleMessage"),
+                      warning = function(w) invokeRestart("muffleWarning"))
 }
 
 extract_lambda_table <- function(fit, rep_id, panel, method) {
@@ -181,6 +196,7 @@ extract_lambda_table <- function(fit, rep_id, panel, method) {
     panel = panel,
     method = method,
     effect = seq_along(lb),
+    finite_R_B = if (is.null(diag$B)) NA_real_ else as.numeric(diag$B),
     lambda_pop = as.numeric(lb),
     B_corrected = as.numeric(bc),
     stringsAsFactors = FALSE
@@ -262,8 +278,10 @@ summarize_fit <- function(fit, X_target, causal, rep_id, panel, method,
       causal_recall_proxy = NA_real_, top1_is_causal = NA,
       top1_ld_proxy = NA, max_pip_causal = NA_real_,
       mean_lambda_pop = NA_real_, max_lambda_pop = NA_real_,
-      nonzero_lambda_pop = NA_integer_, mean_B_corrected = NA_real_,
-      max_per_variable_penalty = NA_real_, converged = NA,
+      nonzero_lambda_pop = NA_integer_, finite_R_B = NA_real_,
+      mean_B_corrected = NA_real_,
+      max_per_variable_penalty = NA_real_, Q_art = NA_real_,
+      artifact_flag = NA, mode_label = NA_character_, converged = NA,
       stringsAsFactors = FALSE
     ))
   }
@@ -298,11 +316,15 @@ summarize_fit <- function(fit, X_target, causal, rep_id, panel, method,
     top1_is_causal = top1 %in% causal,
     top1_ld_proxy = max_abs_ld_to_causal(X_target, top1, causal) >= ld_threshold,
     max_pip_causal = max(fit$pip[causal]),
+    finite_R_B = if (is.null(diag$B)) NA_real_ else as.numeric(diag$B),
     mean_lambda_pop = if (is.null(lb)) NA_real_ else mean(lb),
     max_lambda_pop = if (is.null(lb)) NA_real_ else max(lb),
     nonzero_lambda_pop = if (is.null(lb)) NA_integer_ else sum(lb > 0),
     mean_B_corrected = if (is.null(diag$B_corrected)) NA_real_ else mean(diag$B_corrected),
     max_per_variable_penalty = if (is.null(penalty)) NA_real_ else max(penalty),
+    Q_art = if (is.null(diag$Q_art)) NA_real_ else diag$Q_art,
+    artifact_flag = if (is.null(diag$artifact_flag)) NA else isTRUE(diag$artifact_flag),
+    mode_label = if (is.null(diag$mode_label)) NA_character_ else as.character(diag$mode_label),
     converged = isTRUE(fit$converged),
     stringsAsFactors = FALSE
   )
@@ -314,8 +336,8 @@ write_ai_readme <- function(cfg, out_dir) {
     "",
     "Primary files for AI parsing:",
     "",
-    "- `per_fit_metrics.csv`: one row per replicate, panel, and method. Key columns are `max_lambda_pop`, `mean_lambda_pop`, `causal_recall_proxy`, `cs_fdr_proxy`, `top1_is_causal`, and `max_pip_causal`.",
-    "- `per_effect_lambda.csv`: per-effect `lambda_pop` and `B_corrected` estimates.",
+    "- `per_fit_metrics.csv`: one row per replicate, panel, and method. Key columns are `finite_R_B`, `max_lambda_pop`, `mean_lambda_pop`, `mean_B_corrected`, `causal_recall_proxy`, `cs_fdr_proxy`, `top1_is_causal`, and `max_pip_causal`.",
+    "- `per_effect_lambda.csv`: per-effect `finite_R_B`, `lambda_pop`, and `B_corrected` estimates.",
     "- `cs_metrics.csv`: one row per credible set, with exact and LD-proxy truth labels.",
     "- `replicate_metadata.csv`: source file, dimensions, causal indices, and realized h2.",
     "- `aggregate_summary.csv`: mean/median summaries grouped by panel and method.",
@@ -351,11 +373,14 @@ aggregate_metrics <- function(metrics) {
       mean_max_lambda_pop = mean(x$max_lambda_pop, na.rm = TRUE),
       median_max_lambda_pop = median(x$max_lambda_pop, na.rm = TRUE),
       mean_lambda_pop = mean(x$mean_lambda_pop, na.rm = TRUE),
+      finite_R_B = mean(x$finite_R_B, na.rm = TRUE),
       mean_B_corrected = mean(x$mean_B_corrected, na.rm = TRUE),
       mean_causal_recall_proxy = mean(x$causal_recall_proxy, na.rm = TRUE),
       mean_cs_fdr_proxy = mean(x$cs_fdr_proxy, na.rm = TRUE),
       mean_n_cs = mean(x$n_cs, na.rm = TRUE),
       mean_max_pip_causal = mean(x$max_pip_causal, na.rm = TRUE),
+      artifact_flag_rate = mean(x$artifact_flag, na.rm = TRUE),
+      mean_Q_art = mean(x$Q_art, na.rm = TRUE),
       top1_causal_rate = mean(x$top1_is_causal, na.rm = TRUE),
       top1_proxy_rate = mean(x$top1_ld_proxy, na.rm = TRUE),
       stringsAsFactors = FALSE
@@ -445,12 +470,16 @@ print_progress_line <- function(metrics, rep_i, cfg) {
 }
 
 run_one_fit <- function(z, X_ref, n_target, cfg, method, rep_id, panel,
-                        X_target, causal) {
+                        X_target, causal, verbose_fit = FALSE) {
+  vlog("  fit start  rep=", rep_id, " panel=", panel, " method=", method,
+       " (n_ref=", nrow(X_ref), ", p=", ncol(X_ref), ")")
   t0 <- proc.time()[["elapsed"]]
-  fit <- tryCatch(fit_susie_rss(z, X_ref, n_target, cfg, method),
+  fit <- tryCatch(fit_susie_rss(z, X_ref, n_target, cfg, method, verbose_fit),
                   error = function(e) e)
   elapsed <- proc.time()[["elapsed"]] - t0
   if (inherits(fit, "error")) {
+    vlog("  fit ERROR  rep=", rep_id, " panel=", panel, " method=", method,
+         " in ", fmt_metric(elapsed), "s: ", conditionMessage(fit))
     return(list(
       metric = summarize_fit(NULL, X_target, causal, rep_id, panel, method,
                              elapsed, fit, cfg$ld_proxy_threshold),
@@ -459,9 +488,15 @@ run_one_fit <- function(z, X_ref, n_target, cfg, method, rep_id, panel,
       fit = NULL
     ))
   }
+  metric <- summarize_fit(fit, X_target, causal, rep_id, panel, method,
+                          elapsed, NULL, cfg$ld_proxy_threshold)
+  vlog("  fit done   rep=", rep_id, " panel=", panel, " method=", method,
+       " in ", fmt_metric(elapsed), "s | lambda=", fmt_metric(metric$max_lambda_pop),
+       " Bcorr=", fmt_metric(metric$mean_B_corrected),
+       " n_cs=", metric$n_cs, " recall=", fmt_metric(metric$causal_recall_proxy),
+       " Q_art=", fmt_metric(metric$Q_art))
   list(
-    metric = summarize_fit(fit, X_target, causal, rep_id, panel, method,
-                           elapsed, NULL, cfg$ld_proxy_threshold),
+    metric = metric,
     lambda = extract_lambda_table(fit, rep_id, panel, method),
     cs = extract_cs_metrics(fit, X_target, causal, rep_id, panel, method,
                             cfg$ld_proxy_threshold),
@@ -472,11 +507,22 @@ run_one_fit <- function(z, X_ref, n_target, cfg, method, rep_id, panel,
 main <- function() {
   cfg <- parse_args(default_config)
   set.seed(cfg$seed)
+  vlog("=== lambda_pop LD-bias simulation ===")
+  vlog("smoke=", cfg$smoke, "  n_reps=", cfg$n_reps, "  L=", cfg$L,
+       "  max_iter=", cfg$max_iter, "  p_max=", cfg$p_max,
+       "  n_ref=", cfg$n_ref)
+  vlog("h2g=", cfg$h2g, "  n_sparse=", cfg$n_sparse,
+       "  ADSP_delta=", cfg$adsp_delta, "  UKB_delta=", cfg$ukb_delta,
+       "  include_map_qc=", cfg$include_map_qc,
+       "  verbose_fit=", cfg$verbose_fit, "  verbose_reps=", cfg$verbose_reps)
+  vlog("output_dir=", cfg$output_dir)
+  vlog("Loading susieR and simxQTL via pkgload::load_all...")
   load_local_packages(cfg)
   dir.create(cfg$output_dir, recursive = TRUE, showWarnings = FALSE)
   write_json(cfg, file.path(cfg$output_dir, "run_config.json"))
   write_ai_readme(cfg, cfg$output_dir)
 
+  vlog("Indexing genotype RDS files in ", cfg$input_dir, " ...")
   geno_index <- read_genotype_files(cfg$input_dir)
   if (!nrow(geno_index)) {
     stop("No RDS files with G or X matrices found in ", cfg$input_dir)
@@ -484,6 +530,8 @@ main <- function() {
   geno_index <- geno_index[order(-geno_index$n, -geno_index$p, geno_index$file), ]
   write.csv(geno_index, file.path(cfg$output_dir, "genotype_file_index.csv"),
             row.names = FALSE)
+  vlog("Found ", nrow(geno_index), " usable genotype files; using top ",
+       min(cfg$n_reps, nrow(geno_index)))
 
   chosen <- geno_index$file[seq_len(min(cfg$n_reps, nrow(geno_index)))]
   all_metrics <- list()
@@ -497,10 +545,12 @@ main <- function() {
     if (rep_seed <= 0L) {
       rep_seed <- rep_i
     }
-    message("Replicate ", rep_i, "/", length(chosen), ": ", chosen[rep_i])
+    vlog("Replicate ", rep_i, "/", length(chosen), ": ", chosen[rep_i])
     obj <- readRDS(chosen[rep_i])
     G0 <- if (!is.null(obj$G)) obj$G else obj$X
     G <- select_variant_window(G0, cfg$p_max, rep_seed)
+    vlog("  rep_seed=", rep_seed, "  genotype dim after window=",
+         nrow(G), "x", ncol(G))
 
     sim <- generate_cis_qtl_data(
       G = G,
@@ -523,6 +573,8 @@ main <- function() {
     if (!length(causal)) {
       causal <- sort(unique(which(sim$beta != 0)))
     }
+    vlog("  simulated y: h2g_real=", fmt_metric(sim$h2g),
+         "  causal=[", paste(causal, collapse = ","), "]")
 
     panels <- list(
       in_sample = X_target,
@@ -532,6 +584,9 @@ main <- function() {
                                       rep_seed + 23L)
     )
     methods <- c("no_bias", "bias_map")
+    if (isTRUE(cfg$include_map_qc)) {
+      methods <- c(methods, "bias_map_qc")
+    }
 
     all_meta[[rep_i]] <- data.frame(
       rep = rep_i,
@@ -549,8 +604,20 @@ main <- function() {
 
     for (panel_name in names(panels)) {
       for (method in methods) {
+        verbose_fit <- isTRUE(cfg$verbose_fit) &&
+          rep_i <= cfg$verbose_reps &&
+          method != "no_bias"
+        if (verbose_fit) {
+          message("VERBOSE_FIT_BEGIN rep=", rep_i, " panel=", panel_name,
+                  " method=", method)
+        }
         res <- run_one_fit(z, panels[[panel_name]], nrow(X_target), cfg,
-                           method, rep_i, panel_name, X_target, causal)
+                           method, rep_i, panel_name, X_target, causal,
+                           verbose_fit = verbose_fit)
+        if (verbose_fit) {
+          message("VERBOSE_FIT_END rep=", rep_i, " panel=", panel_name,
+                  " method=", method)
+        }
         key <- paste(rep_i, panel_name, method, sep = "__")
         all_metrics[[key]] <- res$metric
         all_lambda[[key]] <- res$lambda
@@ -606,7 +673,7 @@ main <- function() {
               "per_effect_lambda.csv", "cs_metrics.csv",
               "aggregate_summary.csv", "all_results.rds")
   ), file.path(cfg$output_dir, "manifest.json"))
-  message("Done. Results written to: ", cfg$output_dir)
+  vlog("Done. Results written to: ", cfg$output_dir)
 }
 
 main()
