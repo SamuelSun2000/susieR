@@ -352,16 +352,47 @@ get_ER2.ss <- function(data, model) {
            sum(sw^2 * per_slot_XB2) + sum(sw * per_slot_Eb2))
 }
 
-# Expected log-likelihood for the sufficient-stats path.  Matches
-# Eloglik.individual exactly: standard regression log-likelihood under
-# residual variance sigma2.  The per-variant variance inflation that
-# accompanies finite_R/R_bias enters the SER step's Bayes factor via
-# ser_stats$shat2 (not via Eloglik), so cross-R_bias ELBO values are
-# not directly comparable; PIP convergence is auto-switched in that case.
+# Expected log-likelihood for the sufficient-stats path.  Without inflation,
+# the standard regression log-likelihood under sigma2 (matches Eloglik.individual).
+# With finite-R inflation, the SER posterior fits a betahat-scale augmented
+# model; switch to the matching data-fit term.  Affects ELBO only; PIP/CS/
+# sigma2 (which goes through est_residual_variance, not Eloglik) are unchanged.
 #' @keywords internal
 Eloglik.ss <- function(data, model) {
+  if (!is.null(model$shat2_inflation))
+    return(compute_augmented_eloglik_ss(data, model))
   -data$n / 2 * log(2 * pi * model$sigma2) -
     1 / (2 * model$sigma2) * get_ER2(data, model)
+}
+
+# Variational expectation of the augmented betahat-scale Gaussian log-
+# likelihood under finite-R inflation.  Form derived in
+# ld_mismatch_generativemodel.tex Sec. "Variational ELBO under the
+# augmented variance".  The Var_q[(X'X beta)_j] correction requires
+# (X'X)^2 element-wise; formed on each call.
+#' @keywords internal
+compute_augmented_eloglik_ss <- function(data, model) {
+  pw     <- data$predictor_weights
+  infl   <- model$shat2_inflation
+  sigma2 <- model$sigma2
+  p      <- length(pw)
+
+  sw  <- if (!is.null(model$slot_weights)) model$slot_weights else rep(1, nrow(model$alpha))
+  am  <- model$alpha * model$mu
+  am2 <- model$alpha * model$mu2
+  betabar  <- colSums(sw * am)
+
+  res_mean <- data$Xty - compute_Rv(data, betabar)
+
+  XtX <- if (!is.null(data$XtX)) data$XtX else crossprod(data$X)
+  XtX_sq <- XtX * XtX
+  F_mat <- am  %*% XtX
+  G_mat <- am2 %*% XtX_sq
+  var_corr <- as.vector(crossprod(G_mat - F_mat^2, sw^2))
+
+  -p / 2 * log(2 * pi) -
+    0.5 * sum(log(sigma2 * infl / pw)) -
+    0.5 * sum((res_mean^2 + var_corr) / (pw * sigma2 * infl))
 }
 
 #' @importFrom Matrix colSums
