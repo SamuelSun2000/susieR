@@ -48,7 +48,7 @@ compute_residuals.ss_mixture <- function(data, params, model, l, ...) {
     nm1  <- data$nm1
     v_g  <- max(sum(b_minus_l * XtXr_without_l), 0)
     xi_l <- XtXr_without_l^2 / nm1 + v_g
-    lambda_bias <- if (!is.null(model$lambda_bias)) model$lambda_bias[1] else 0
+    lambda_bias <- if (is.null(model$lambda_bias)) 0 else model$lambda_bias
     finite_R_B <- if (!is.null(model$finite_R_B)) model$finite_R_B else data$finite_R_B
     model$shat2_inflation <- 1 + (1 / finite_R_B + lambda_bias) *
                                   xi_l / model$sigma2

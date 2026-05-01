@@ -169,7 +169,7 @@ compute_shat2_inflation <- function(data, model, XtXr_without_l, b_minus_l, r) {
   v_g     <- max(sum(b_minus_l * XtXr_without_l), 0)
   eta2    <- XtXr_without_l^2 / (data$n - 1)
   s <- eta2 + v_g
-  lambda_bias <- if (!is.null(model$lambda_bias)) model$lambda_bias[1] else 0
+  lambda_bias <- if (is.null(model$lambda_bias)) 0 else model$lambda_bias
   infl <- 1 + (1 / finite_R_B + lambda_bias) * s / model$sigma2
   list(infl = infl, lambda_bias = NULL, B_corrected = NULL)
 }

@@ -153,10 +153,17 @@ make_z_scores <- function(X, y) {
 
 fit_susie_rss <- function(z, X_ref, n_target, cfg, method, verbose_fit = FALSE) {
   R_bias <- switch(method,
-                   no_bias = "none",
+                   no_finite_no_bias = "none",
+                   finite_only = "none",
                    bias_map = "map",
                    bias_map_qc = "map_qc",
                    stop("Unknown method: ", method))
+  finite_R <- switch(method,
+                     no_finite_no_bias = NULL,
+                     finite_only = TRUE,
+                     bias_map = TRUE,
+                     bias_map_qc = TRUE,
+                     stop("Unknown method: ", method))
   args <- list(
     z = z,
     X = X_ref,
@@ -165,7 +172,7 @@ fit_susie_rss <- function(z, X_ref, n_target, cfg, method, verbose_fit = FALSE) 
     coverage = cfg$coverage,
     min_abs_corr = cfg$min_abs_corr,
     max_iter = cfg$max_iter,
-    finite_R = TRUE,
+    finite_R = finite_R,
     R_bias = R_bias,
     lambda = 0,
     estimate_residual_variance = FALSE,
@@ -336,7 +343,7 @@ write_ai_readme <- function(cfg, out_dir) {
     "",
     "Primary files for AI parsing:",
     "",
-    "- `per_fit_metrics.csv`: one row per replicate, panel, and method. Key columns are `finite_R_B`, `max_lambda_pop`, `mean_lambda_pop`, `mean_B_corrected`, `causal_recall_proxy`, `cs_fdr_proxy`, `top1_is_causal`, and `max_pip_causal`.",
+    "- `per_fit_metrics.csv`: one row per replicate, panel, and method. Key methods are `no_finite_no_bias`, `finite_only`, `bias_map`, and `bias_map_qc`; key columns are `finite_R_B`, `max_lambda_pop`, `mean_lambda_pop`, `mean_B_corrected`, `causal_recall_proxy`, `cs_fdr_proxy`, `top1_is_causal`, and `max_pip_causal`.",
     "- `per_effect_lambda.csv`: per-effect `finite_R_B`, `lambda_pop`, and `B_corrected` estimates.",
     "- `cs_metrics.csv`: one row per credible set, with exact and LD-proxy truth labels.",
     "- `replicate_metadata.csv`: source file, dimensions, causal indices, and realized h2.",
@@ -583,7 +590,7 @@ main <- function() {
       UKB_like = make_reference_panel(X_target, cfg$n_ref, cfg$ukb_delta,
                                       rep_seed + 23L)
     )
-    methods <- c("no_bias", "bias_map")
+    methods <- c("no_finite_no_bias", "finite_only", "bias_map")
     if (isTRUE(cfg$include_map_qc)) {
       methods <- c(methods, "bias_map_qc")
     }
@@ -606,7 +613,7 @@ main <- function() {
       for (method in methods) {
         verbose_fit <- isTRUE(cfg$verbose_fit) &&
           rep_i <= cfg$verbose_reps &&
-          method != "no_bias"
+          method %in% c("bias_map", "bias_map_qc")
         if (verbose_fit) {
           message("VERBOSE_FIT_BEGIN rep=", rep_i, " panel=", panel_name,
                   " method=", method)
