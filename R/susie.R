@@ -549,7 +549,7 @@ susie_ss <- function(XtX, Xty, yty, n,
 #' @inheritParams susie_ss
 #' 
 #' @description Performs SuSiE regression using z-scores and correlation matrix.
-#' Supports both standard RSS (lambda = 0) and RSS with regularized LD matrix (lambda > 0).
+#' Supports both standard RSS (lambda = 0) and RSS with regularized R matrix (lambda > 0).
 #'
 #' @param z A p-vector of z-scores.
 #'
@@ -559,7 +559,7 @@ susie_ss <- function(XtX, Xty, yty, n,
 #' @param n The sample size, not required but recommended.
 #'
 #' @param X A factor matrix (B x p) such that \code{R = crossprod(X) /
-#'   nrow(X)} approximates the LD (correlation) matrix. When
+#'   nrow(X)} approximates the R (correlation) matrix. When
 #'   \code{nrow(X) >= ncol(X)}, the correlation matrix \code{R} is
 #'   formed explicitly and the standard path is used. When
 #'   \code{nrow(X) < ncol(X)}, a low-rank path is used that avoids
@@ -582,7 +582,7 @@ susie_ss <- function(XtX, Xty, yty, n,
 #'   (returned from \code{coef}) are computed on the
 #'   \dQuote{standardized} X, y scale.
 #' 
-#' @param lambda Regularization parameter for LD matrix (default 0).
+#' @param lambda Regularization parameter for R matrix (default 0).
 #'   When \code{lambda} > 0, eigenvalues of R are regularized as
 #'   \code{sigma2 * D + lambda}, which can shrink credible sets.
 #'   For multi-panel mixture (\code{R} is a list), lambda = 0 is
@@ -597,12 +597,12 @@ susie_ss <- function(XtX, Xty, yty, n,
 #'   z_ld_weight}.
 #'
 #' @param prior_variance This specifies the prior variance parameter
-#'   for the SuSiE-RSS variant with the \dQuote{regularized} LD matrix R.
+#'   for the SuSiE-RSS variant with the \dQuote{regularized} R matrix.
 #'   This is ignored when \code{lambda = 0}.
 #' 
 #' @param estimate_residual_variance The default is FALSE, the
 #'   residual variance is fixed to 1 or variance of y. If the in-sample
-#'   LD matrix is provided, we recommend setting
+#'   R matrix is provided, we recommend setting
 #'   \code{estimate_residual_variance = TRUE}.
 #'
 #' @param intercept_value Real number specifying the intercept. This
@@ -612,28 +612,35 @@ susie_ss <- function(XtX, Xty, yty, n,
 #'
 #' @param check_z If TRUE, check that z lies in column space of R.
 #'
-#' @param sketch_samples Controls variance inflation to account
-#'   for LD estimation noise from stochastic sketches. Accepts three
+#' @param finite_R Controls variance inflation to account
+#'   for estimating the R matrix from a finite reference panel. Accepts three
 #'   types of input:
 #'   \describe{
-#'     \item{\code{NULL} (default)}{Input X is correct genotype not 
-#'	stochastic samples, and no variance inflation applied.}
-#'     \item{\code{TRUE}}{Infer the sketch size B from the input
+#'     \item{\code{NULL} (default)}{The R matrix is treated as trusted, and no
+#'       finite-reference variance inflation is applied.}
+#'     \item{\code{TRUE}}{Infer the reference sample size B from the input
 #'       \code{X}. Sets \code{B = nrow(X)} for single-panel input,
 #'       or \code{B = min(nrow(X_k))} across panels for multi-panel
 #'       input. Requires \code{X} to be provided (errors if only
 #'       \code{R} is given, since B cannot be inferred).}
-#'     \item{Integer}{Explicit sketch size B. Only valid when
-#'       the input is a precomputed correlation matrix \code{R}
-#'       (errors if \code{X} is provided, since B should be
-#'       inferred via \code{TRUE}).}
+#'     \item{Number}{Explicit reference sample size B.}
 #'   }
 #'   When active, this dynamically inflates the null variance of each
 #'   variable's score statistic at every IBSS iteration to account for
-#'   LD estimation uncertainty in the Single Effect Regression (SER).
+#'   finite-reference uncertainty in the Single Effect Regression (SER).
 #'   When provided, the output includes a
-#'   \code{sketch_diagnostics} element with per-region and
+#'   \code{finite_R_diagnostics} element with per-region and
 #'   per-variable quality metrics.
+#'
+#' @param R_bias Whether to estimate an additional R-bias variance
+#'   component \code{lambda_bias} on top of the finite-reference uncertainty
+#'   implied by \code{finite_R}. The default \code{"none"} does not estimate
+#'   this extra component. \code{"mle"} uses maximum likelihood and is a
+#'   less regularized diagnostic. \code{"map"} uses weak regularization toward
+#'   zero with a half-Cauchy prior on \eqn{\sqrt{\lambda_bias}} with scale
+#'   \eqn{\sqrt{\max(1/B, 1/10000)}}; this is recommended for routine bias
+#'   correction when the supplied \code{R} matrix may not be fully trusted.
+#'   \code{R_bias} requires \code{finite_R}.
 #'
 #' @param multipanel_safeguard Deprecated. Ignored. Single-panel fits
 #'   are always stored in the returned object as \code{$single_panel_fits}
@@ -642,16 +649,20 @@ susie_ss <- function(XtX, Xty, yty, n,
 #' @return In addition to the standard \code{"susie"} output (see
 #'   \code{\link{susie}}), the returned object may contain:
 #'
-#' \item{sketch_diagnostics}{A list of diagnostics for the
-#'   sketch LD correction (only present when
-#'   \code{sketch_samples} is provided), containing:
-#'   \code{B} (the sketch dimension);
+#' \item{finite_R_diagnostics}{A list of diagnostics for the
+#'   finite-reference correction (only present when
+#'   \code{finite_R} is provided), containing:
+#'   \code{B} (the reference sample size);
 #'   \code{p} (number of variables);
 #'   \code{effective_rank} (debiased \eqn{\tilde{r} = p^2 / \|R\|_F^2});
 #'   \code{r_over_B} (\eqn{\tilde{r}/B}, one number per region; values
-#'     \eqn{\le 0.2} indicate the sketch is adequate);
+#'     \eqn{\le 0.2} indicate the reference panel is adequate);
 #'   \code{Rhat_diag_deviation} (\eqn{|\hat{R}_{jj} - 1|}, one number
-#'     per variable; flags variables with poor random projections);
+#'     per variable);
+#'   \code{lambda_bias} (one number per effect when
+#'     \code{R_bias != "none"});
+#'   \code{B_eff} (effective reference sample size, one number per effect
+#'     for multi-panel fits when available);
 #'   \code{per_variable_penalty} (final-iteration
 #'     \eqn{v_j / \sigma^2 = \tau_j^2 / \sigma^2 - 1}, one number per
 #'     variable; values \eqn{\le 0.2} indicate minimal power loss,
@@ -706,7 +717,8 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
                       n_purity = 100,
                       r_tol = 1e-8,
                       refine = FALSE,
-                      sketch_samples = NULL,
+                      finite_R = NULL,
+                      R_bias = c("none", "mle", "map"),
                       multipanel_safeguard = TRUE,
                       alpha0 = if (is.null(n)) NULL else 1/sqrt(n),
                       beta0 = if (is.null(n)) NULL else 1/sqrt(n),
@@ -720,31 +732,19 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
     stop("Please provide either R or X, but not both.")
   is_multi_panel <- is.list(X) && !is.matrix(X)
 
-  # Resolve sketch_samples BEFORE any X -> R conversion.
-  # NULL = no inflation; TRUE = infer B from nrow(X); integer = explicit B (R only)
-  if (!is.null(sketch_samples)) {
-    if (isTRUE(sketch_samples)) {
-      if (is.null(X))
-        stop("sketch_samples = TRUE requires X input. ",
-             "When using a precomputed R matrix, provide an integer ",
-             "specifying the sketch size B instead.")
-      if (is_multi_panel) {
-        sketch_samples <- min(vapply(X, nrow, integer(1)))
-      } else {
-        sketch_samples <- nrow(X)
-      }
-    } else if (is.numeric(sketch_samples) && length(sketch_samples) == 1) {
-      if (!is.null(X))
-        stop("sketch_samples must be TRUE (not an integer) when X is ",
-             "provided, because the sketch size is inferred from nrow(X).")
-    } else {
-      stop("sketch_samples must be NULL, TRUE, or a single integer.")
-    }
-    if (sketch_samples < 1000)
-      warning_message("sketch_samples = ", sketch_samples,
+  R_bias <- match.arg(R_bias)
+
+  # Resolve finite_R BEFORE any X -> R conversion.
+  finite_R <- resolve_finite_R(finite_R, X, is_multi_panel)
+  if (!is.null(finite_R)) {
+    if (finite_R < 1000)
+      warning_message("finite_R = ", finite_R,
               " is below 1000. Variance inflation may be imprecise at small ",
-              "sketch sizes.")
+              "reference sample sizes.")
   }
+  if (R_bias != "none" && is.null(finite_R))
+    stop("R_bias requires finite_R because lambda_bias is estimated ",
+         "as extra R bias beyond finite-reference uncertainty.")
 
   # Handle X input
   if (!is.null(X)) {
@@ -831,11 +831,11 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
   prior_variance_grid     <- mp$prior_variance_grid
   mixture_weights         <- mp$mixture_weights
 
-  # Auto-switch to PIP convergence for sketch LD inflation.
-  # (sketch_samples was already resolved to an integer above)
-  if (!is.null(sketch_samples) && convergence_method[1] == "elbo") {
+  # Auto-switch to PIP convergence for finite-reference R inflation.
+  # (finite_R was already resolved to an integer above)
+  if (!is.null(finite_R) && convergence_method[1] == "elbo") {
     convergence_method <- "pip"
-    warning_message("Switching to PIP-based convergence because sketch LD inflation ",
+    warning_message("Switching to PIP-based convergence because finite-reference R inflation ",
             "modifies per-variant SER likelihoods which prevents a consistent model-level ELBO.")
   }
 
@@ -865,7 +865,7 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
     verbose = verbose, track_fit = track_fit, check_input = check_input,
     check_prior = check_prior, check_R = check_R, check_z = check_z,
     n_purity = n_purity, r_tol = r_tol, refine = refine,
-    sketch_samples = sketch_samples,
+    finite_R = finite_R, R_bias = R_bias,
     alpha0 = alpha0, beta0 = beta0,
     slot_prior = slot_prior, L_greedy = L_greedy,
     greedy_lbf_cutoff = greedy_lbf_cutoff

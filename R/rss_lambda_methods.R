@@ -109,13 +109,14 @@ compute_residuals.rss_lambda <- function(data, params, model, l, ...) {
   model$fitted_without_l  <- Rz_without_l
   model$residual_variance <- 1  # RSS lambda uses normalized residual variance
 
-  # Dynamic sketch LD variance inflation (z-score scale)
-  if (!is.null(data$sketch_B)) {
+  # Dynamic finite-reference R variance inflation (z-score scale)
+  if (!is.null(data$finite_R_B)) {
     # Weighted sum of effects excluding l
     sw <- if (!is.null(model$slot_weights)) model$slot_weights else rep(1, nrow(model$alpha))
     b_minus_l <- colSums(sw * model$alpha * model$mu) - sw_l * model$alpha[l, ] * model$mu[l, ]
     model$shat2_inflation <- compute_shat2_inflation_rss(
       data, model, Rz_without_l, b_minus_l)
+    model <- update_R_bias_state(model, model$shat2_inflation, l)
   }
 
   return(model)
@@ -128,7 +129,7 @@ compute_ser_statistics.rss_lambda <- function(data, params, model, l, ...) {
   shat2   <- 1 / model$RjSinvRj
   betahat <- signal * shat2
 
-  # Apply sketch LD inflation to shat2
+  # Apply finite-reference R inflation to shat2
   if (!is.null(model$shat2_inflation))
     shat2 <- shat2 * model$shat2_inflation
 
@@ -340,7 +341,7 @@ update_variance_components.rss_lambda <- function(data, params, model, ...) {
 
   # Multi-panel omega update via profile Eloglik (M-step of variational EM).
   # Uses reduced-basis evaluator when omega_cache is available: each eval is
-  # O(r^3) where r = rank of joint sketch space. Falls back to O(p^3) when
+  # O(r^3) where r = rank of the joint reference space. Falls back to O(p^3) when
   # omega_cache is NULL (e.g., when sum(B_k) >= p).
   #   K=2: 5-point grid + Brent refinement (5-8 evals total)
   #   K>2: Frank-Wolfe with early stopping
@@ -413,9 +414,10 @@ update_derived_quantities.rss_lambda <- function(data, params, model) {
     model$Rz <- as.vector(compute_Rv(data, model$zbar, model$X_meta))
     # Update effective B only when variance inflation is active (opt-in).
     # B_eff = 1/sum(omega_k^2/B_k): effective sample size for a weighted
-    # average of independent LD estimators, each from B_k samples.
-    if (!is.null(data$sketch_B))
-      model$sketch_B <- 1 / sum(model$omega^2 / data$B_list)
+    # average of independent R estimators, each from B_k samples.
+    if (!is.null(data$finite_R_B)) {
+      model$finite_R_B <- 1 / sum(model$omega^2 / data$B_list)
+    }
   }
 
   # Recalculate Dinv with updated sigma2 (and potentially updated eigen_R)
@@ -506,7 +508,7 @@ cleanup_model.rss_lambda <- function(data, params, model, ...) {
 
   # Remove RSS-lambda-specific temporary fields
   rss_fields <- c("SinvRj", "RjSinvRj", "Rz", "Z", "zbar", "diag_postb2",
-                   "X_meta", "eigen_R", "Vtz", "omega", "sketch_B",
+                   "X_meta", "eigen_R", "Vtz", "omega", "finite_R_B",
                    "z_null_norm2", "omega_converged", "shat2_inflation",
                    "residuals", "fitted_without_l", "residual_variance")
 

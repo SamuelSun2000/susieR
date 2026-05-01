@@ -94,7 +94,7 @@ validate_prior.ss <- function(data, params, model, ...) {
     if (any(model$V > 100 * (data$zm^2))) {
       stop(
         "Estimated prior variance is unreasonably large.\n",
-        "This usually caused by mismatch between the summary statistics and the LD Matrix.\n",
+        "This usually caused by mismatch between the summary statistics and the R matrix.\n",
         "Please check the input."
       )
     }
@@ -147,9 +147,11 @@ compute_residuals.ss <- function(data, params, model, l, ...) {
     model$predictor_weights <- omega_res$diagXtOmegaX
     model$residual_variance <- 1   # Already incorporated in Omega
 
-    # Sketch inflation uses standard (non-Omega) quantities
+    # R inflation uses standard (non-Omega) quantities
     XtXr_without_l <- compute_Rv(data, b_minus_l)
-    model$shat2_inflation <- compute_shat2_inflation(data, model, XtXr_without_l, b_minus_l)
+    r <- data$Xty - XtXr_without_l
+    model$shat2_inflation <- compute_shat2_inflation(data, model, XtXr_without_l, b_minus_l, r)
+    model <- update_R_bias_state(model, model$shat2_inflation, l)
     return(model)
   }
 
@@ -175,26 +177,39 @@ compute_residuals.ss <- function(data, params, model, l, ...) {
     model$yy_residual <- max(model$yy_residual, .Machine$double.eps)
   }
 
-  # Dynamic sketch LD variance inflation
-  model$shat2_inflation <- compute_shat2_inflation(data, model, XtXr_without_l, b_minus_l)
+  # Dynamic finite-reference R variance inflation
+  model$shat2_inflation <- compute_shat2_inflation(data, model, XtXr_without_l,
+                                                   b_minus_l, model$residuals)
+  model <- update_R_bias_state(model, model$shat2_inflation, l)
 
   return(model)
 }
 
-# Compute sketch LD variance inflation factor for each variable.
-# tau2_j = sigma2 + (eta2_j + v_g) / B, returned as tau2_j / sigma2.
+# Compute finite-reference R variance inflation factor for each variable.
+# tau2_j = sigma2 + (1 / B_eff + lambda_bias) * (eta2_j + v_g),
+# returned as tau2_j / sigma2.
 #   eta2_j = XtXr_without_l^2 / (n-1)  [z-score scale predicted effect squared]
 #   v_g    = sum(b * XtXr)              [z-score scale genetic variance]
 #' @keywords internal
-compute_shat2_inflation <- function(data, model, XtXr_without_l, b_minus_l) {
-  if (is.null(data$sketch_B) ||
+compute_shat2_inflation <- function(data, model, XtXr_without_l, b_minus_l, r) {
+  B_eff <- data$finite_R_B
+  if (is.null(B_eff) ||
       model$sigma2 <= .Machine$double.eps) {
     return(NULL)
   }
-  B_stoch <- data$sketch_B
   v_g     <- max(sum(b_minus_l * XtXr_without_l), 0)
   eta2    <- XtXr_without_l^2 / (data$n - 1)
-  1 + (eta2 + v_g) / (B_stoch * model$sigma2)
+  s <- eta2 + v_g
+  r_z <- r / sqrt(data$n - 1)
+  R_bias <- if (!is.null(data$R_bias)) data$R_bias else "none"
+  lambda_bias <- estimate_lambda_bias(r_z, s, model$sigma2, B_eff,
+                                      R_bias)
+  infl <- 1 + (1 / B_eff + lambda_bias) * s / model$sigma2
+  if (R_bias != "none") {
+    attr(infl, "lambda_bias") <- lambda_bias
+    attr(infl, "B_eff") <- B_eff
+  }
+  infl
 }
 
 # Compute SER statistics
@@ -203,7 +218,7 @@ compute_ser_statistics.ss <- function(data, params, model, l, ...) {
   betahat <- (1 / model$predictor_weights) * model$residuals
   shat2   <- model$residual_variance / model$predictor_weights
 
-  # Inflate shat2 for sketch LD variance tracking (tau_j^2 / sigma^2)
+  # Inflate shat2 for finite-reference R variance tracking (tau_j^2 / sigma^2)
   if (!is.null(model$shat2_inflation))
     shat2 <- shat2 * model$shat2_inflation
 
@@ -374,7 +389,7 @@ neg_loglik.ss <- function(data, params, model, V_param, ser_stats, ...) {
 
   if (params$unmappable_effects == "inf") {
     # SuSiE-inf: Omega-weighted objective with logSumExp trick
-    # Apply sketch LD inflation: effective pw = pw / inflation
+    # Apply finite-reference R inflation: effective pw = pw / inflation
     pw   <- model$predictor_weights
     infl <- if (!is.null(model$shat2_inflation)) model$shat2_inflation else 1
     return(-matrixStats::logSumExp(

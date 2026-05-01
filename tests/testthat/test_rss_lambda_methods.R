@@ -772,7 +772,7 @@ test_that("cleanup_model.rss_lambda removes temporary fields", {
 })
 
 # =============================================================================
-# STOCHASTIC LD SKETCH INFLATION TESTS
+# FINITE-REFERENCE R INFLATION TESTS
 # =============================================================================
 
 test_that("compute_ser_statistics.rss_lambda returns betahat", {
@@ -791,19 +791,19 @@ test_that("compute_ser_statistics.rss_lambda returns betahat", {
   expect_true(all(is.finite(ser_stats$betahat)))
 })
 
-test_that("inflation is computed when sketch_B is set", {
+test_that("inflation is computed when finite_R_B is set", {
   dat <- setup_rss_lambda_data(seed = 41)
 
-  # Construct data with sketch_samples
+  # Construct data with finite_R
   B <- nrow(dat$X)
   result <- rss_lambda_constructor(
     z = dat$z, R = dat$R, lambda = dat$lambda, n = dat$n,
-    sketch_samples = B
+    finite_R = B
   )
   data <- result$data
   params <- result$params
 
-  expect_equal(data$sketch_B, B)
+  expect_equal(data$finite_R_B, B)
 
   var_y <- get_var_y.rss_lambda(data)
   model <- initialize_susie_model.rss_lambda(data, params, var_y)
@@ -816,7 +816,7 @@ test_that("inflation is computed when sketch_B is set", {
   expect_true(all(model$shat2_inflation >= 1))
 })
 
-test_that("no inflation without sketch_B", {
+test_that("no inflation without finite_R_B", {
   dat <- setup_rss_lambda_data(seed = 42)
 
   data <- dat$data
@@ -824,8 +824,8 @@ test_that("no inflation without sketch_B", {
   model <- dat$model
   model$Rz <- as.vector(data$R %*% colSums(model$alpha * model$mu))
 
-  # Without sketch_B, no inflation
-  expect_null(data$sketch_B)
+  # Without finite_R_B, no inflation
+  expect_null(data$finite_R_B)
   model <- compute_residuals.rss_lambda(data, params, model, l = 1)
   expect_null(model$shat2_inflation)
 })
@@ -845,7 +845,7 @@ test_that("inflation widens shat2 in ser_stats", {
   B <- nrow(dat$X)
   result <- rss_lambda_constructor(
     z = dat$z, R = dat$R, lambda = dat$lambda, n = dat$n,
-    sketch_samples = B
+    finite_R = B
   )
   data_infl <- result$data
   var_y <- get_var_y.rss_lambda(data_infl)
@@ -876,7 +876,7 @@ test_that("inflation approximately 1 under global null", {
 
   result <- rss_lambda_constructor(
     z = z, R = R, lambda = 0.1, n = n,
-    sketch_samples = n
+    finite_R = n
   )
   data <- result$data
   params <- result$params
@@ -896,7 +896,7 @@ test_that("posterior moments use inflated shat2 consistently", {
   B <- nrow(dat$X)
   result <- rss_lambda_constructor(
     z = dat$z, R = dat$R, lambda = dat$lambda, n = dat$n,
-    sketch_samples = B
+    finite_R = B
   )
   data <- result$data
   params <- result$params
@@ -944,13 +944,13 @@ test_that("R and X input paths produce numerically identical results", {
   ss <- univariate_regression(X_full, y)
   z <- ss$betahat / ss$sebetahat
 
-  # Use X as a "sketch" -- here use X_full itself (B=n)
-  X_sketch <- X_full
+  # Use X as a finite-reference factor; here use X_full itself (B=n)
+  X_ref <- X_full
 
   # Construct from R
   res_R <- rss_lambda_constructor(z = z, R = R, lambda = 0.1, n = n)
   # Construct from X
-  res_X <- rss_lambda_constructor(z = z, X = X_sketch, lambda = 0.1, n = n)
+  res_X <- rss_lambda_constructor(z = z, X = X_ref, lambda = 0.1, n = n)
 
   # Eigendecomposition should be very close
   # (sorted eigenvalues should match; eigenvectors may differ in sign)
@@ -984,7 +984,7 @@ test_that("R and X input paths produce numerically identical results", {
 # END-TO-END susie_rss WITH INFLATION
 # =============================================================================
 
-test_that("susie_rss with lambda and sketch_samples runs successfully", {
+test_that("susie_rss with lambda and finite_R runs successfully", {
   set.seed(51)
   p <- 50
   n <- 2000
@@ -1006,7 +1006,7 @@ test_that("susie_rss with lambda and sketch_samples runs successfully", {
 
   # With inflation
   fit_infl <- susie_rss(z = z, R = R, lambda = 0.1, n = n, L = 5,
-                        sketch_samples = n, max_iter = 50, verbose = FALSE)
+                        finite_R = n, max_iter = 50, verbose = FALSE)
 
   # Both should converge
   expect_true(fit_no$converged)
@@ -1017,12 +1017,33 @@ test_that("susie_rss with lambda and sketch_samples runs successfully", {
   expect_true(is.finite(fit_infl$elbo[length(fit_infl$elbo)]))
   expect_true(is.finite(fit_no$elbo[length(fit_no$elbo)]))
 
-  # sketch_diagnostics should be stored
-  expect_true(!is.null(fit_infl$sketch_diagnostics))
+  # finite_R_diagnostics should be stored
+  expect_true(!is.null(fit_infl$finite_R_diagnostics))
 
   # Causal variables should still have high PIP
   expect_true(fit_no$pip[1] > 0.5)
   expect_true(fit_infl$pip[1] > 0.3)  # slightly less confident with inflation
+})
+
+test_that("R_bias requires finite_R and stores lambda_bias", {
+  set.seed(511)
+  p <- 20
+  n <- 1000
+  X <- matrix(rnorm(n * p), n, p)
+  R <- cor(X)
+  z <- rnorm(p)
+
+  expect_error(
+    susie_rss(z = z, R = R, n = n, L = 3, R_bias = "map",
+              max_iter = 2, verbose = FALSE),
+    "R_bias requires finite_R"
+  )
+
+  fit <- susie_rss(z = z, R = R, n = n, L = 3, finite_R = 10000,
+                   R_bias = "map", max_iter = 2, verbose = FALSE)
+  expect_length(fit$finite_R_diagnostics$lambda_bias, 3)
+  expect_length(fit$finite_R_diagnostics$B_eff, 3)
+  expect_true(all(fit$finite_R_diagnostics$lambda_bias >= 0))
 })
 
 test_that("susie_rss with X input and lambda and inflation works", {
@@ -1042,7 +1063,7 @@ test_that("susie_rss with X input and lambda and inflation works", {
 
   # susie_rss with X input (lambda > 0 triggers rss_lambda path)
   fit_X <- susie_rss(z = z, R = R, lambda = 0.1, n = n, L = 5,
-                     sketch_samples = n, max_iter = 50, verbose = FALSE)
+                     finite_R = n, max_iter = 50, verbose = FALSE)
 
   expect_true(fit_X$converged)
   expect_true(is.finite(fit_X$elbo[length(fit_X$elbo)]))
@@ -1125,14 +1146,14 @@ test_that("SS and RSS-lambda paths agree with inflation", {
   ss <- univariate_regression(X, y)
   z <- ss$betahat / ss$sebetahat
 
-  B_sketch <- 2000
+  B_R <- 2000
   # SS path with inflation
   fit_ss <- susie_rss(z = z, R = R, n = n, L = 5, lambda = 0,
-                      sketch_samples = B_sketch,
+                      finite_R = B_R,
                       max_iter = 100, verbose = FALSE)
   # RSS-lambda path with inflation
   fit_rss <- susie_rss(z = z, R = R, n = n, L = 5, lambda = 1e-6,
-                       sketch_samples = B_sketch,
+                       finite_R = B_R,
                        max_iter = 100, verbose = FALSE)
 
   expect_true(fit_ss$converged)
@@ -1143,7 +1164,7 @@ test_that("SS and RSS-lambda paths agree with inflation", {
 })
 
 # =============================================================================
-# MULTI-PANEL LD MIXTURE TESTS
+# MULTI-PANEL R MIXTURE TESTS
 # =============================================================================
 
 test_that("form_X_meta combines panels correctly", {
@@ -1264,8 +1285,8 @@ test_that("rss_lambda_constructor accepts list X", {
   expect_equal(data$B_list, c(B1, B2))
   expect_true(!is.null(data$eigen_R))
   expect_true(!is.null(data$Vtz))
-  # Inflation is opt-in: without sketch_samples, B is not set
-  expect_null(data$sketch_B)
+  # Inflation is opt-in: without finite_R, B is not set
+  expect_null(data$finite_R_B)
 })
 
 test_that("K=1 list X gives same results as single matrix X", {
@@ -1402,7 +1423,7 @@ test_that("multi-panel auto-switches to PIP convergence with message", {
   )
 })
 
-test_that("sketch_samples auto-switches to PIP convergence with message", {
+test_that("finite_R auto-switches to PIP convergence with message", {
   set.seed(53)
   p <- 20; B <- 1000
   X <- matrix(rnorm(B * p), B, p)
@@ -1410,9 +1431,9 @@ test_that("sketch_samples auto-switches to PIP convergence with message", {
 
   expect_message(
     susie_rss(z = z, X = X, lambda = 0.1,
-              sketch_samples = TRUE,
+              finite_R = TRUE,
               convergence_method = "elbo", max_iter = 10, verbose = FALSE),
-    "Switching to PIP-based convergence because sketch LD inflation"
+    "Switching to PIP-based convergence because finite-reference R inflation"
   )
 })
 
@@ -1438,7 +1459,7 @@ test_that(".omega_tol has expected fields", {
 # INFLATION OPT-IN
 # =============================================================================
 
-test_that("multi-panel without sketch_samples has no inflation", {
+test_that("multi-panel without finite_R has no inflation", {
   set.seed(54)
   p <- 20; B <- 100
   X1 <- matrix(rnorm(B * p), B, p)
@@ -1448,8 +1469,8 @@ test_that("multi-panel without sketch_samples has no inflation", {
   fit <- susie_rss(z = z, X = list(X1, X2), lambda = 0.1,
                    max_iter = 10, verbose = FALSE)
 
-  # No inflation: sketch_B should not be set in the fit
-  expect_null(fit$sketch_B)
+  # No inflation: finite_R_B should not be set in the fit
+  expect_null(fit$finite_R_B)
 })
 
 # =============================================================================
@@ -1513,7 +1534,7 @@ test_that("optimize_omega handles vertex optimum (one panel irrelevant)", {
   set.seed(57)
   p <- 25; B <- 100
 
-  # Panel 1: true LD, Panel 2: pure noise (identity-like)
+  # Panel 1: true R, Panel 2: pure noise (identity-like)
   X1 <- matrix(rnorm(B * p), B, p)
   X_list <- lapply(list(X1, matrix(rnorm(B * p), B, p)), susieR:::standardize_X)
   z <- rnorm(p)

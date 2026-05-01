@@ -275,19 +275,85 @@ precompute_rss_lambda_terms <- function(data, model) {
   return(model)
 }
 
-# Dynamic sketch LD variance inflation for rss_lambda path (z-score scale).
+# Estimate extra R-bias variance beyond finite-reference uncertainty.
+# The likelihood is evaluated on the z-score residual scale with
+# tau_j^2 = sigma2 + (1 / B_eff + lambda_bias) * s_j.
+#' @keywords internal
+estimate_lambda_bias <- function(r, s, sigma2, B_eff, method) {
+  if (is.null(method) || method == "none")
+    return(0)
+  keep <- is.finite(r) & is.finite(s) & s > .Machine$double.eps
+  if (!any(keep) || !is.finite(sigma2) || sigma2 <= .Machine$double.eps)
+    return(0)
+
+  cache <- list(r2 = r[keep]^2, s = s[keep])
+  cache$base <- sigma2 + cache$s / B_eff
+  pos <- (cache$r2 - cache$base) / cache$s
+  pos <- pos[is.finite(pos) & pos > 0]
+  prior_scale <- sqrt(max(1 / B_eff, 1 / 10000))
+  upper_lambda <- max(c(1, 100 / B_eff, 100 * prior_scale^2,
+                        10 * pos), na.rm = TRUE)
+  upper_u <- sqrt(upper_lambda)
+
+  nll <- function(u) {
+    lambda_bias <- u^2
+    tau <- cache$base + lambda_bias * cache$s
+    val <- 0.5 * sum(log(tau) + cache$r2 / tau)
+    if (method == "map")
+      val <- val + log1p((u / prior_scale)^2)
+    val
+  }
+
+  opt <- optimize(nll, interval = c(0, upper_u))
+  opt$minimum^2
+}
+
+# Store per-effect R-bias diagnostics carried as attributes on the
+# current inflation vector.
+#' @keywords internal
+update_R_bias_state <- function(model, inflation, l) {
+  if (is.null(inflation))
+    return(model)
+  lambda_bias <- attr(inflation, "lambda_bias", exact = TRUE)
+  B_eff <- attr(inflation, "B_eff", exact = TRUE)
+  L <- nrow(model$alpha)
+  if (!is.null(lambda_bias)) {
+    if (is.null(model$lambda_bias) || length(model$lambda_bias) != L)
+      model$lambda_bias <- rep(0, L)
+    model$lambda_bias[l] <- lambda_bias
+  }
+  if (!is.null(B_eff)) {
+    if (is.null(model$B_eff) || length(model$B_eff) != L)
+      model$B_eff <- rep(NA_real_, L)
+    model$B_eff[l] <- B_eff
+  }
+  model
+}
+
+# Dynamic finite-reference R variance inflation for rss_lambda path (z-score scale).
 # Returns a per-variant inflation factor (p-vector):
-#   tau_j^2 = 1 + (eta_j^2 + v_g) / (B_eff * sigma^2)
+#   tau_j^2 / sigma2 = 1 + (1 / B_eff + lambda_bias)
+#                         * (eta_j^2 + v_g) / sigma2
 # where eta_j^2 = Rz_without_l[j]^2 (per-variant fitted value squared) and
 # v_g = max(b' R b, 0) is a global signal strength scalar (shared across variants).
 #' @keywords internal
 compute_shat2_inflation_rss <- function(data, model, Rz_without_l, b_minus_l) {
-  # Use model-level B_eff (updated by omega) if available, else data-level
-  B_eff <- if (!is.null(model$sketch_B)) model$sketch_B else data$sketch_B
+  # Use model-level B_eff (updated by omega) if available, else data-level.
+  B_eff <- if (!is.null(model$finite_R_B)) model$finite_R_B else data$finite_R_B
   if (is.null(B_eff) || model$sigma2 <= .Machine$double.eps) return(NULL)
   v_g  <- max(sum(b_minus_l * Rz_without_l), 0)
   eta2 <- Rz_without_l^2   # z-score scale: no (n-1) division needed
-  1 + (eta2 + v_g) / (B_eff * model$sigma2)
+  s <- eta2 + v_g
+  r <- data$z - Rz_without_l
+  R_bias <- if (!is.null(data$R_bias)) data$R_bias else "none"
+  lambda_bias <- estimate_lambda_bias(r, s, model$sigma2, B_eff,
+                                      R_bias)
+  infl <- 1 + (1 / B_eff + lambda_bias) * s / model$sigma2
+  if (R_bias != "none") {
+    attr(infl, "lambda_bias") <- lambda_bias
+    attr(infl, "B_eff") <- B_eff
+  }
+  infl
 }
 
 # =============================================================================
@@ -342,7 +408,7 @@ eigen_from_X <- function(X, p) {
 
 # Precompute reduced-basis quantities for fast omega optimization.
 #
-# For K panels with sketch matrices X_k (B_k x p), projects all panel
+# For K panels with reference factor matrices X_k (B_k x p), projects all panel
 # correlations into a joint reduced basis V_s (p x r) where r = rank of
 # [X_1; ...; X_K]. Each Brent evaluation then works on r x r matrices
 # (Cholesky + backsolves) instead of p x p eigendecompositions.

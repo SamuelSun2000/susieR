@@ -613,7 +613,8 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
                                       n_purity = 100,
                                       r_tol = 1e-8,
                                       refine = FALSE,
-                                      sketch_samples = NULL,
+                                      finite_R = NULL,
+                                      R_bias = "none",
                                       alpha0 = 0.1,
                                       beta0 = 0.1,
                                       slot_prior = NULL,
@@ -654,6 +655,7 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
   # Check if this should use RSS-lambda (eigendecomposition) path.
   # Route here when lambda > 0 OR multi-panel (list of X/R matrices).
   is_multipanel <- is.list(X) && !is.matrix(X)
+  finite_R <- resolve_finite_R(finite_R, X, is_multipanel)
   if (lambda != 0 || is_multipanel) {
     # Parameter validation for RSS-lambda / multi-panel path
     if (!is.null(bhat) || !is.null(shat)) {
@@ -696,7 +698,7 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
       verbose = verbose, track_fit = track_fit, check_input = check_input,
       check_prior = check_prior, check_R = check_R, check_z = check_z,
       n_purity = n_purity, r_tol = r_tol, refine = refine,
-      sketch_samples = sketch_samples,
+      finite_R = finite_R, R_bias = R_bias,
       slot_prior = slot_prior, L_greedy = L_greedy,
       greedy_lbf_cutoff = greedy_lbf_cutoff
     ))
@@ -711,7 +713,7 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
   # Issue warning for estimate_residual_variance if TRUE
   if (estimate_residual_variance && lambda == 0) {
     warning_message("For estimate_residual_variance = TRUE, please check ",
-            "that R is the \"in-sample\" LD matrix; that is, the ",
+            "that R is the \"in-sample\" R matrix; that is, the ",
             "correlation matrix obtained using the exact same data ",
             "matrix X that was used for the other summary ",
             "statistics. Also note, when covariates are included in ",
@@ -823,12 +825,17 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
     X <- standardize_X(X)
   }
 
-  # Sketch sketch diagnostics (static, computed once at initialization).
+  R_bias <- match.arg(R_bias, c("none", "mle", "map"))
+  if (R_bias != "none" && is.null(finite_R))
+    stop("R_bias requires finite_R because lambda_bias is estimated ",
+         "as extra R bias beyond finite-reference uncertainty.")
+
+  # R diagnostics (static, computed once at initialization).
   # X is standardized (X'X = R) at this point.
-  sketch_diagnostics <- NULL
-  if (!is.null(sketch_samples)) {
-    sketch_diagnostics <- compute_sketch_diagnostics(
-      X = X, R = R, B = sketch_samples, p = length(z),
+  finite_R_diagnostics <- NULL
+  if (!is.null(finite_R)) {
+    finite_R_diagnostics <- compute_finite_R_diagnostics(
+      X = X, R = R, B = finite_R, p = length(z),
       x_is_standardized = TRUE)
   }
 
@@ -896,10 +903,11 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
     greedy_lbf_cutoff = greedy_lbf_cutoff
   )
 
-  # Attach sketch LD sketch metadata to data object
-  if (!is.null(sketch_samples)) {
-    result$data$sketch_B <- sketch_samples
-    result$data$sketch_diagnostics <- sketch_diagnostics
+  # Attach finite-reference R metadata to data object.
+  if (!is.null(finite_R)) {
+    result$data$finite_R_B <- finite_R
+    result$data$finite_R_diagnostics <- finite_R_diagnostics
+    result$data$R_bias <- R_bias
   }
 
   return(result)
@@ -960,7 +968,8 @@ rss_lambda_constructor <- function(z, R = NULL, X = NULL, n = NULL,
                                    n_purity = 100,
                                    r_tol = 1e-8,
                                    refine = FALSE,
-                                   sketch_samples = NULL,
+                                   finite_R = NULL,
+                                   R_bias = "none",
                                    slot_prior = NULL,
                                    L_greedy = NULL,
                                    greedy_lbf_cutoff = 0.1) {
@@ -978,8 +987,14 @@ rss_lambda_constructor <- function(z, R = NULL, X = NULL, n = NULL,
          "Please use estimate_residual_method = 'MLE' instead.")
   }
 
+  R_bias <- match.arg(R_bias, c("none", "mle", "map"))
+  if (R_bias != "none" && is.null(finite_R))
+    stop("R_bias requires finite_R because lambda_bias is estimated ",
+         "as extra R bias beyond finite-reference uncertainty.")
+
   # Detect multi-panel input (list of X matrices)
   is_multi_panel <- is.list(X) && !is.matrix(X)
+  finite_R <- resolve_finite_R(finite_R, X, is_multi_panel)
   init_panel <- if (is_multi_panel) attr(X, ".init_panel") else NULL
   X_list <- NULL
   B_list <- NULL
@@ -1234,17 +1249,17 @@ rss_lambda_constructor <- function(z, R = NULL, X = NULL, n = NULL,
   # Validate params
   params_object <- validate_and_override_params(params_object)
 
-  # Sketch sketch diagnostics.
-  # Inflation is opt-in: only applied when sketch_samples is explicitly
-  # provided. For multi-panel with no sketch_samples, we assume panels
-  # provide sufficiently accurate LD and no variance inflation is needed.
+  # R diagnostics.
+  # Inflation is opt-in: only applied when finite_R is explicitly provided.
+  # For multi-panel with no finite_R, we assume panels provide sufficiently
+  # accurate R and no variance inflation is needed.
   # X IS standardized here (standardize_X already called), so x_is_standardized = TRUE.
-  sketch_diagnostics <- NULL
-  sketch_B <- NULL
-  if (!is.null(sketch_samples)) {
-    sketch_B <- sketch_samples
-    sketch_diagnostics <- compute_sketch_diagnostics(
-      X = X, R = R, B = sketch_samples, p = length(z),
+  finite_R_diagnostics <- NULL
+  finite_R_B <- NULL
+  if (!is.null(finite_R)) {
+    finite_R_B <- finite_R
+    finite_R_diagnostics <- compute_finite_R_diagnostics(
+      X = X, R = R, B = finite_R, p = length(z),
       x_is_standardized = TRUE)
   }
 
@@ -1263,8 +1278,9 @@ rss_lambda_constructor <- function(z, R = NULL, X = NULL, n = NULL,
         n = n, p = length(z),
         X_colmeans = rep(0, length(z)), y_mean = 0,
         nm1 = nm1, z = z, lambda = 0,
-        sketch_B = sketch_B,
-        sketch_diagnostics = sketch_diagnostics,
+        finite_R_B = finite_R_B,
+        finite_R_diagnostics = finite_R_diagnostics,
+        R_bias = R_bias,
         X_list_std = X_list, B_list = B_list,
         K = K_panels, panel_R = panel_R, omega_cache = omega_cache
       ),
@@ -1292,8 +1308,9 @@ rss_lambda_constructor <- function(z, R = NULL, X = NULL, n = NULL,
       eigen_R = eigen_R,
       Vtz = Vtz,
       z_null_norm2 = z_null_norm2,
-      sketch_B = sketch_B,
-      sketch_diagnostics = sketch_diagnostics,
+      finite_R_B = finite_R_B,
+      finite_R_diagnostics = finite_R_diagnostics,
+      R_bias = R_bias,
       X_list = X_list,
       B_list = B_list,
       K = K_panels,

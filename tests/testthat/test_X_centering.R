@@ -39,7 +39,7 @@ test_that("Low-rank X: raw and centered give identical results", {
   set.seed(2)
   n <- 200
   p <- 500
-  B <- 100  # sketch size < p, triggers low-rank path
+  B <- 100  # reference factor rows < p, triggers low-rank path
 
   # Generate full X and z-scores
   X_full <- matrix(rnorm(n * p), n, p)
@@ -48,18 +48,18 @@ test_that("Low-rank X: raw and centered give identical results", {
   y <- X_full %*% beta_true + rnorm(n)
   z <- as.vector(sqrt(n) * cor(X_full, y))
 
-  # Create a sketch matrix (B x p, B < p)
+  # Create a reference factor matrix (B x p, B < p)
   S <- matrix(rnorm(B * n) / sqrt(B), B, n)
-  X_sketch <- S %*% X_full  # B x p sketch
+  X_ref <- S %*% X_full  # B x p reference factor
 
   # Add offset to create "raw" version with non-zero column means
-  X_sketch_raw <- X_sketch + 10
+  X_ref_raw <- X_ref + 10
   # Manually center (avoid scale() attributes)
-  X_sketch_centered <- X_sketch_raw - rep(colMeans(X_sketch_raw), each = B)
+  X_ref_centered <- X_ref_raw - rep(colMeans(X_ref_raw), each = B)
 
   # Fit with both forms (low-rank path: nrow < ncol)
-  fit_raw  <- susie_rss(z = z, X = X_sketch_raw, n = n, L = 5, max_iter = 50)
-  fit_cent <- susie_rss(z = z, X = X_sketch_centered, n = n, L = 5, max_iter = 50)
+  fit_raw  <- susie_rss(z = z, X = X_ref_raw, n = n, L = 5, max_iter = 50)
+  fit_cent <- susie_rss(z = z, X = X_ref_centered, n = n, L = 5, max_iter = 50)
 
   # Raw and centered should give identical results
   expect_equal(fit_raw$elbo, fit_cent$elbo, tolerance = 1e-10)
@@ -71,7 +71,7 @@ test_that("Low-rank X: raw vs centered give same results (no n)", {
   p <- 300
   B <- 80
 
-  # Generate sketch matrix with non-zero means
+  # Generate reference factor matrix with non-zero means
   X_raw <- matrix(rnorm(B * p, mean = 3), B, p)
   X_centered <- X_raw - rep(colMeans(X_raw), each = B)
 

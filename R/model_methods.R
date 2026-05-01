@@ -163,7 +163,24 @@ format_extra_diag <- function(model) {
 }
 #' @keywords internal
 format_extra_diag.default <- function(model) {
-  ""
+  if (is.null(model$lambda_bias))
+    return("")
+  lambda_bias <- model$lambda_bias
+  lambda_bias[!is.finite(lambda_bias) | lambda_bias < 1e-8] <- 0
+  if (all(lambda_bias == 0)) {
+    lb <- paste0("lambda_bias=0 x ", length(lambda_bias))
+  } else {
+    lb <- paste0("lambda_bias=", paste(format(lambda_bias, digits = 2,
+                                             scientific = TRUE), collapse = ","))
+  }
+  if (!is.null(model$B_eff)) {
+    B_eff <- model$B_eff
+    if (length(unique(B_eff[is.finite(B_eff)])) == 1) {
+      lb <- paste0(lb, " B_eff=", format(B_eff[which(is.finite(B_eff))[1]],
+                                         digits = 4, scientific = FALSE))
+    }
+  }
+  lb
 }
 
 #' @keywords internal
@@ -221,8 +238,10 @@ check_convergence.default <- function(data, params, model, elbo, iter) {
         paste0(" -- converged (", model$convergence_reason, ")")
       else
         ""
-      message(sprintf("iter %3d: max|d(alpha,PIP)|=%.2e, V=%s%s%s [mem: %.2f GB]",
-                      iter, pip_diff, V_str, chat_str, conv_tag, mem_used_gb()))
+      message(sprintf("iter %3d: max|d(alpha,PIP)|=%.2e, V=%s%s%s%s [mem: %.2f GB]",
+                      iter, pip_diff, V_str, chat_str,
+                      if (nzchar(extra_str)) paste0(", ", extra_str) else "",
+                      conv_tag, mem_used_gb()))
     }
 
     if (model$converged && !is.null(params$unmappable_effects) &&

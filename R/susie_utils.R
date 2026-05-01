@@ -870,7 +870,7 @@ add_null_effect <- function(model_init, V) {
 
 # Compute R*v product: X'(Xv), XtX*v, or R*v.
 # For multi-panel rss_lambda, pass Rv_matrix = model$X_meta to use the
-# current R(omega) sketch instead of data$X.
+# current R(omega) factor instead of data$X.
 #' @keywords internal
 compute_Rv <- function(data, v, Rv_matrix = NULL) {
   if (!is.null(Rv_matrix)) {
@@ -898,13 +898,33 @@ compute_BR <- function(data, B_mat) {
   stop("No predictor matrix available for compute_BR.")
 }
 
-# Compute sketch LD sketch diagnostics (debiased Frobenius norm,
+# Resolve finite_R into an explicit reference sample size B.
+#' @keywords internal
+resolve_finite_R <- function(finite_R, X = NULL, is_multi_panel = FALSE) {
+  if (is.null(finite_R))
+    return(NULL)
+  if (isTRUE(finite_R)) {
+    if (is.null(X))
+      stop("finite_R = TRUE requires X input. ",
+           "When using a precomputed R matrix, provide a positive number ",
+           "specifying the reference sample size B instead.")
+    if (is_multi_panel)
+      return(min(vapply(X, nrow, integer(1))))
+    return(nrow(X))
+  }
+  if (is.numeric(finite_R) && length(finite_R) == 1 &&
+      is.finite(finite_R) && finite_R > 0)
+    return(as.numeric(finite_R))
+  stop("finite_R must be NULL, TRUE, or a single positive number.")
+}
+
+# Compute finite-reference R diagnostics (debiased Frobenius norm,
 # effective rank, r/B ratio, per-variant diagonal deviation from 1).
 # Used by both summary_stats_constructor and rss_lambda_constructor.
 #
 # @param X Factor matrix (B x p), or NULL.
-# @param R Precomputed LD matrix (p x p), or NULL.
-# @param B Sketch size (number of reference panel samples).
+# @param R Precomputed R matrix (p x p), or NULL.
+# @param B Reference panel sample size.
 # @param p Number of variants.
 # @param x_is_standardized If TRUE, X has been standardized so X'X = R_hat
 #   directly (no normalization). If FALSE, R_hat = X'X/B so the Frobenius
@@ -912,8 +932,8 @@ compute_BR <- function(data, B_mat) {
 # @return List with B, p, R_frob_sq_debiased, effective_rank, r_over_B,
 #   Rhat_diag_deviation.
 #' @keywords internal
-compute_sketch_diagnostics <- function(X = NULL, R = NULL, B, p,
-                                               x_is_standardized = FALSE) {
+compute_finite_R_diagnostics <- function(X = NULL, R = NULL, B, p,
+                                  x_is_standardized = FALSE) {
   if (!is.null(X)) {
     A <- tcrossprod(X)           # B x B Gram matrix
     R_frob_sq <- sum(A * A)      # ||XX'||_F^2 = ||X'X||_F^2
@@ -1269,7 +1289,7 @@ get_nig_sufficient_stats <- function(data, model) {
     # SS/RSS path: use pre-computed quantities
     yy  <- model$yy_residual
     sxy <- model$residuals / sqrt(model$predictor_weights * yy)
-    # Clamp sxy to [-1, 1]: with approximate LD (stochastic sketches),
+    # Clamp sxy to [-1, 1]: with approximate R from a finite reference,
     # Cauchy-Schwarz may be violated numerically, giving |sxy| > 1.
     # This would make rss = yy*(1 - r0*sxy^2) negative, producing NaN in log BF.
     sxy <- pmin(pmax(sxy, -1), 1)

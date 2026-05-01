@@ -348,12 +348,19 @@ ibss_finalize <- function(data, params, model, elbo = NULL, iter = NA_integer_,
   # Assign Variable Names
   model <- get_variable_names(data, model)
 
-  # Sketch diagnostics (from data -> model, following sets/pip/z pattern)
-  if (!is.null(data$sketch_diagnostics)) {
-    model$sketch_diagnostics <- data$sketch_diagnostics
+  # R diagnostics (from data -> model, following sets/pip/z pattern)
+  finite_R_diagnostics <- data$finite_R_diagnostics
+  if (!is.null(finite_R_diagnostics)) {
+    model$finite_R_diagnostics <- finite_R_diagnostics
+    if (!is.null(model$lambda_bias))
+      model$finite_R_diagnostics$lambda_bias <- model$lambda_bias
+    if (!is.null(model$B_eff))
+      model$finite_R_diagnostics$B_eff <- model$B_eff
+    if (!is.null(data$R_bias))
+      model$finite_R_diagnostics$R_bias <- data$R_bias
     # Store final-iteration per-variable penalty: v_j/sigma^2 = inflation - 1
     if (!is.null(model$shat2_inflation))
-      model$sketch_diagnostics$per_variable_penalty <- model$shat2_inflation - 1
+      model$finite_R_diagnostics$per_variable_penalty <- as.vector(model$shat2_inflation - 1)
   }
 
   # Multi-panel omega weights

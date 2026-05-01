@@ -54,7 +54,8 @@ susie_rss(
   n_purity = 100,
   r_tol = 1e-08,
   refine = FALSE,
-  sketch_samples = NULL,
+  finite_R = NULL,
+  R_bias = c("none", "mle", "map"),
   multipanel_safeguard = TRUE,
   alpha0 = if (is.null(n)) NULL else 1/sqrt(n),
   beta0 = if (is.null(n)) NULL else 1/sqrt(n),
@@ -71,7 +72,7 @@ susie_rss(
 \item{n}{The sample size, not required but recommended.}
 
 \item{X}{A factor matrix (B x p) such that \code{R = crossprod(X) /
-nrow(X)} approximates the LD (correlation) matrix. When
+nrow(X)} approximates the R (correlation) matrix. When
 \code{nrow(X) >= ncol(X)}, the correlation matrix \code{R} is
 formed explicitly and the standard path is used. When
 \code{nrow(X) < ncol(X)}, a low-rank path is used that avoids
@@ -97,7 +98,7 @@ When the sample variance is not provided, the coefficients
 \item{L}{Maximum number of non-zero effects in the model. If L is larger than
 the number of covariates, p, L is set to p.}
 
-\item{lambda}{Regularization parameter for LD matrix (default 0).
+\item{lambda}{Regularization parameter for R matrix (default 0).
 When \code{lambda} > 0, eigenvalues of R are regularized as
 \code{sigma2 * D + lambda}, which can shrink credible sets.
 For multi-panel mixture (\code{R} is a list), lambda = 0 is
@@ -117,7 +118,7 @@ longer recommended to set this to a non-zero value. When
 z_ld_weight}.}
 
 \item{prior_variance}{This specifies the prior variance parameter
-for the SuSiE-RSS variant with the \dQuote{regularized} LD matrix R.
+for the SuSiE-RSS variant with the \dQuote{regularized} R matrix.
 This is ignored when \code{lambda = 0}.}
 
 \item{scaled_prior_variance}{The prior variance, divided by
@@ -160,7 +161,7 @@ is ignored when \code{lambda = 0}.}
 
 \item{estimate_residual_variance}{The default is FALSE, the
 residual variance is fixed to 1 or variance of y. If the in-sample
-LD matrix is provided, we recommend setting
+R matrix is provided, we recommend setting
 \code{estimate_residual_variance = TRUE}.}
 
 \item{estimate_residual_method}{The method used for estimating residual variance.
@@ -288,28 +289,35 @@ matrix \code{XtX}.}
 iterative refinement procedure is used, after the IBSS algorithm,
 to check and escape from local optima (see details).}
 
-\item{sketch_samples}{Controls variance inflation to account
-  for LD estimation noise from stochastic sketches. Accepts three
+\item{finite_R}{Controls variance inflation to account
+  for estimating the R matrix from a finite reference panel. Accepts three
   types of input:
   \describe{
-    \item{\code{NULL} (default)}{Input X is correct genotype not 
-stochastic samples, and no variance inflation applied.}
-    \item{\code{TRUE}}{Infer the sketch size B from the input
+    \item{\code{NULL} (default)}{The R matrix is treated as trusted, and no
+      finite-reference variance inflation is applied.}
+    \item{\code{TRUE}}{Infer the reference sample size B from the input
       \code{X}. Sets \code{B = nrow(X)} for single-panel input,
       or \code{B = min(nrow(X_k))} across panels for multi-panel
       input. Requires \code{X} to be provided (errors if only
       \code{R} is given, since B cannot be inferred).}
-    \item{Integer}{Explicit sketch size B. Only valid when
-      the input is a precomputed correlation matrix \code{R}
-      (errors if \code{X} is provided, since B should be
-      inferred via \code{TRUE}).}
+    \item{Number}{Explicit reference sample size B.}
   }
   When active, this dynamically inflates the null variance of each
   variable's score statistic at every IBSS iteration to account for
-  LD estimation uncertainty in the Single Effect Regression (SER).
+  finite-reference uncertainty in the Single Effect Regression (SER).
   When provided, the output includes a
-  \code{sketch_diagnostics} element with per-region and
+  \code{finite_R_diagnostics} element with per-region and
   per-variable quality metrics.}
+
+\item{R_bias}{Whether to estimate an additional R-bias variance
+  component \code{lambda_bias} on top of the finite-reference uncertainty
+  implied by \code{finite_R}. The default \code{"none"} does not estimate
+  this extra component. \code{"mle"} uses maximum likelihood and is a
+  less regularized diagnostic. \code{"map"} uses weak regularization toward
+  zero with a half-Cauchy prior on \eqn{\sqrt{\lambda_bias}} with scale
+  \eqn{\sqrt{\max(1/B, 1/10000)}}; this is recommended for routine bias
+  correction when the supplied \code{R} matrix may not be fully trusted.
+  \code{R_bias} requires \code{finite_R}.}
 
 \item{multipanel_safeguard}{Deprecated. Ignored. Single-panel fits
 are always stored in the returned object as \code{$single_panel_fits}
@@ -343,16 +351,20 @@ is checked using \code{convergence_method = "pip"}.}
 In addition to the standard \code{"susie"} output (see
   \code{\link{susie}}), the returned object may contain:
 
-\item{sketch_diagnostics}{A list of diagnostics for the
-  sketch LD correction (only present when
-  \code{sketch_samples} is provided), containing:
-  \code{B} (the sketch dimension);
+\item{finite_R_diagnostics}{A list of diagnostics for the
+  finite-reference R correction (only present when
+  \code{finite_R} is provided), containing:
+  \code{B} (the reference sample size);
   \code{p} (number of variables);
   \code{effective_rank} (debiased \eqn{\tilde{r} = p^2 / \|R\|_F^2});
   \code{r_over_B} (\eqn{\tilde{r}/B}, one number per region; values
-    \eqn{\le 0.2} indicate the sketch is adequate);
+    \eqn{\le 0.2} indicate the reference panel is adequate);
   \code{Rhat_diag_deviation} (\eqn{|\hat{R}_{jj} - 1|}, one number
-    per variable; flags variables with poor random projections);
+    per variable);
+  \code{lambda_bias} (one number per effect when
+    \code{R_bias != "none"});
+  \code{B_eff} (effective reference sample size, one number per effect
+    for multi-panel fits when available);
   \code{per_variable_penalty} (final-iteration
     \eqn{v_j / \sigma^2 = \tau_j^2 / \sigma^2 - 1}, one number per
     variable; values \eqn{\le 0.2} indicate minimal power loss,
@@ -361,5 +373,5 @@ In addition to the standard \code{"susie"} output (see
 }
 \description{
 Performs SuSiE regression using z-scores and correlation matrix.
-Supports both standard RSS (lambda = 0) and RSS with regularized LD matrix (lambda > 0).
+Supports both standard RSS (lambda = 0) and RSS with regularized R matrix (lambda > 0).
 }
