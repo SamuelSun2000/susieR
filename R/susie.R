@@ -256,6 +256,18 @@
 #'   \code{susie_rss} with NIG, \code{n} must be supplied; otherwise
 #'   validation errors.
 #'
+#' @param slot_prior Optional slot activity prior created by
+#'   \code{\link{slot_prior_betabinom}} or \code{\link{slot_prior_poisson}}.
+#'   Use \code{slot_prior_betabinom(a_beta, b_beta)} for the usual
+#'   single-locus setting; it places a Beta-Binomial prior on the
+#'   number of active effects and gives an adaptive multiplicity
+#'   correction. Use \code{slot_prior_poisson(C, nu)} when you want a
+#'   Gamma-Poisson prior centered on an expected number \code{C} of
+#'   active effects. When supplied, each single-effect slot has an
+#'   estimated activity probability \code{c_hat}; fitted values and
+#'   PIPs are weighted by these activity probabilities, and convergence
+#'   is checked using \code{convergence_method = "pip"}.
+#'
 #' @param init_only Logical. If \code{TRUE}, return a list with
 #'   \code{data} and \code{params} objects without running the IBSS
 #'   algorithm. Used by packages like susieAnn that implement their own
