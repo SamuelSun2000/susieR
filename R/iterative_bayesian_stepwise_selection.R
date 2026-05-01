@@ -149,6 +149,18 @@ ibss_initialize.default <- function(data, params) {
     model <- recompute_fitted_weighted(data, model)
   }
 
+  # SS-path lambda_bias is stored as a scalar on the model. Only
+  # allocate when R_bias is active so R_bias = "none" returns to the
+  # un-augmented behavior (compute_shat2_inflation falls back to 0
+  # when model$lambda_bias is NULL). The rss_lambda dispatch is out
+  # of scope and continues to use a length-L vector.
+  R_bias_mode <- if (!is.null(params$R_bias)) params$R_bias else "none"
+  if (R_bias_mode != "none" && !is.null(data$finite_R_B) &&
+      inherits(data, c("ss", "ss_mixture"))) {
+    model$lambda_bias <- 0
+    model$B_corrected <- data$finite_R_B
+  }
+
   return(model)
 }
 
@@ -174,9 +186,13 @@ ibss_fit <- function(data, params, model) {
   use_c_hat <- !is.null(model$c_hat_state)
 
   # Per-sweep reset so slots skipped by c_hat do not carry stale
-  # diagnostics from earlier sweeps.
-  if (!is.null(model$lambda_bias)) model$lambda_bias <- rep(0, L)
-  if (!is.null(model$B_corrected)) model$B_corrected <- rep(NA_real_, L)
+  # diagnostics from earlier sweeps. The SS path stores lambda_bias /
+  # B_corrected as scalars (set per-sweep by fit_R_bias at sweep end);
+  # only the rss_lambda path keeps the per-slot vector form.
+  if (inherits(data, "rss_lambda")) {
+    if (!is.null(model$lambda_bias)) model$lambda_bias <- rep(0, L)
+    if (!is.null(model$B_corrected)) model$B_corrected <- rep(NA_real_, L)
+  }
 
   if (L > 0) {
     for (l in seq_len(L)) {
@@ -216,6 +232,16 @@ ibss_fit <- function(data, params, model) {
     c_hat_baseline <- 1 / (1 + exp(-baseline_logodds))
     model$c_hat_state$skip_threshold <-
       st$skip_threshold_multiplier * c_hat_baseline
+  }
+
+  # Region-level R-bias fit at the end of the sweep, before validate.
+  # No-op when R_bias = "none" or on the rss_lambda dispatch (out of
+  # scope; that path keeps the legacy per-slot fit). Reuses the
+  # existing estimate_lambda_bias optimizer; only the cadence and
+  # storage shape change (was per-slot inside the SER step; now
+  # scalar at sweep boundary).
+  if (inherits(data, c("ss", "ss_mixture"))) {
+    model <- fit_R_bias(data, params, model)
   }
 
   # Validate prior variance is reasonable
@@ -353,7 +379,10 @@ ibss_finalize <- function(data, params, model, elbo = NULL, iter = NA_integer_,
   # Assign Variable Names
   model <- get_variable_names(data, model)
 
-  # R diagnostics (from data -> model, following sets/pip/z pattern)
+  # R diagnostics (from data -> model, following sets/pip/z pattern).
+  # SS / ss_mixture paths store lambda_bias / B_corrected as scalars
+  # (set by fit_R_bias once per sweep). The rss_lambda dispatch keeps
+  # the per-slot vector form. Copy whatever shape lives on the model.
   finite_R_diagnostics <- data$finite_R_diagnostics
   if (!is.null(finite_R_diagnostics)) {
     model$finite_R_diagnostics <- finite_R_diagnostics

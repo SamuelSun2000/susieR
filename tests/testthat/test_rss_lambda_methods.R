@@ -1057,20 +1057,16 @@ test_that("R_bias requires finite_R and stores lambda_bias and B_corrected", {
 
   fit <- susie_rss(z = z, R = R, n = n, L = 3, finite_R = 10000,
                    R_bias = "map", max_iter = 2, verbose = FALSE)
-  expect_length(fit$finite_R_diagnostics$lambda_bias, 3)
-  # F1: B_corrected is the spec quantity 1/(1/finite_R_B + lambda_bias),
-  # not the input panel size.
-  expect_length(fit$finite_R_diagnostics$B_corrected, 3)
-  expect_true(all(fit$finite_R_diagnostics$lambda_bias >= 0))
+  # SS path: region-level scalar lambda_bias and B_corrected (Commit 3 redesign).
+  expect_length(fit$finite_R_diagnostics$lambda_bias, 1)
+  # B_corrected = 1 / (1/finite_R_B + lambda_bias).
+  expect_length(fit$finite_R_diagnostics$B_corrected, 1)
+  expect_true(fit$finite_R_diagnostics$lambda_bias >= 0)
   finite_RB <- fit$finite_R_diagnostics$B
-  positive <- fit$finite_R_diagnostics$lambda_bias > 0
-  if (any(positive)) {
-    expect_true(all(fit$finite_R_diagnostics$B_corrected[positive] < finite_RB))
-  }
-  zero_lb <- fit$finite_R_diagnostics$lambda_bias == 0
-  if (any(zero_lb)) {
-    expect_equal(fit$finite_R_diagnostics$B_corrected[zero_lb],
-                 rep(finite_RB, sum(zero_lb)))
+  if (fit$finite_R_diagnostics$lambda_bias > 0) {
+    expect_true(fit$finite_R_diagnostics$B_corrected < finite_RB)
+  } else {
+    expect_equal(fit$finite_R_diagnostics$B_corrected, finite_RB)
   }
 })
 

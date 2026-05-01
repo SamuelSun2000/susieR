@@ -38,15 +38,19 @@ compute_residuals.ss_mixture <- function(data, params, model, l, ...) {
   model$residual_variance <- model$sigma2
   model$predictor_weights <- rep(data$nm1, data$p)
 
-  if (!is.null(data$finite_R_B)) {
-    # Convert to z-score scale for inflation computation
-    sqnm1 <- sqrt(data$nm1)
-    sw <- if (!is.null(model$slot_weights)) model$slot_weights else rep(1, nrow(model$alpha))
-    b_minus_l_z <- (colSums(sw * model$alpha * model$mu) - sw_l * bl) * sqnm1
-    Rz_without_l_z <- XtXr_without_l / sqnm1
-    model$shat2_inflation <- compute_shat2_inflation_rss(
-      data, model, Rz_without_l_z, b_minus_l_z)
-    model <- update_R_bias_state(model, model$shat2_inflation, l)
+  if (!is.null(data$finite_R_B) && model$sigma2 > .Machine$double.eps) {
+    # Region-level scalar lambda_bias is set by fit_R_bias once per
+    # IBSS sweep; here we just apply it through the slot-specific
+    # xi_l = eta_l^2 + v_g,l on z-scale.
+    sw <- if (!is.null(model$slot_weights)) model$slot_weights else
+            rep(1, nrow(model$alpha))
+    b_minus_l <- colSums(sw * model$alpha * model$mu) - sw_l * bl
+    nm1  <- data$nm1
+    v_g  <- max(sum(b_minus_l * XtXr_without_l), 0)
+    xi_l <- XtXr_without_l^2 / nm1 + v_g
+    lambda_bias <- if (!is.null(model$lambda_bias)) model$lambda_bias[1] else 0
+    model$shat2_inflation <- 1 + (1 / data$finite_R_B + lambda_bias) *
+                                  xi_l / model$sigma2
   }
   return(model)
 }
