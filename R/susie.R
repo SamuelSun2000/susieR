@@ -636,14 +636,11 @@ susie_ss <- function(XtX, Xty, yty, n,
 #'   \code{"map"} adds a region-level population-mismatch variance
 #'   component on top of the finite-reference correction; recommended
 #'   whenever \code{R} comes from a different cohort than the GWAS.
-#'   \code{"map_qc"} is \code{"map"} plus a QC diagnostic
-#'   (\code{Q_art}) that warns when the fitted residual carries energy
-#'   in low-eigenvalue directions of the supplied \code{R}. This catches
-#'   rank-deficient \code{R}, summary-LD shrinkage that flattens part of
-#'   the spectrum, and reference panels with imputed or missing entries.
-#'   Allele-coding or strand-flip errors are similarity transforms that
-#'   preserve the spectrum and are NOT detected by \code{Q_art}; use a
-#'   kriging-style flip checker (e.g., DENTIST, SLALOM) for those.
+#'   \code{"map_qc"} is \code{"map"} plus a QC score (\code{Q_art}) that
+#'   warns when the fitted residual carries energy in directions where
+#'   the supplied \code{R} indicates signal should be weak. For
+#'   allele-coding / strand-flip checks, see the kriging diagnostic in
+#'   \code{susie_rss}'s companion utilities.
 #'   Requires \code{finite_R}; auto-disables \code{estimate_residual_variance}
 #'   with a warning. \code{"map_qc"} works only with \code{lambda = 0}.
 #'
