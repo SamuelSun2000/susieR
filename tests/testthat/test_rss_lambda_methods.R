@@ -1112,6 +1112,25 @@ test_that("Fisher SE zero-mask sends near-boundary estimates to 0", {
               info = "Fisher zero-mask must leave no values in the (0, 1e-6) gap")
 })
 
+test_that("lambda_bias MAP is robust to sparse residual signal", {
+  # The population-bias variance is a regional diffuse variance component.
+  # A few large residuals from an omitted sparse effect should not be
+  # interpreted as population-wide LD mismatch.
+  set.seed(1)
+  s <- runif(200, 50, 150)
+  r_sparse <- rnorm(200)
+  r_sparse[1:5] <- 25
+  lb_sparse <- estimate_lambda_bias(r_sparse, s, sigma2 = 1,
+                                    finite_R_B = 1000, method = "map")
+  expect_equal(lb_sparse, 0)
+
+  set.seed(2)
+  r_diffuse <- rnorm(200, sd = sqrt(1 + s / 1000 + 0.05 * s))
+  lb_diffuse <- estimate_lambda_bias(r_diffuse, s, sigma2 = 1,
+                                     finite_R_B = 1000, method = "map")
+  expect_gt(lb_diffuse, 0)
+})
+
 test_that("In-sample LD identity yields lambda_bias = 0 (spec invariant 5.3)", {
   # Spec invariant 5.3: when R is the in-sample LD of the data that
   # produced z, there is no population mismatch and the MAP estimator

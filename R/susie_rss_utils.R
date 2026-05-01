@@ -294,6 +294,27 @@ estimate_lambda_bias <- function(r, s, sigma2, finite_R_B, method) {
 
   cache <- list(r2 = r[keep]^2, s = s[keep])
   cache$base <- sigma2 + cache$s / finite_R_B
+
+  # Robustify the MAP estimate against active sparse signals. During the
+  # lth SER update, r contains the lth effect. If variants carrying this
+  # omitted sparse effect are used to estimate a population-wide R-bias
+  # variance, lambda_bias can absorb true signal and then suppress power.
+  # Estimate lambda_bias from residuals compatible with the null/base
+  # variance, keeping enough variants for a stable regional estimate.
+  std2 <- cache$r2 / cache$base
+  ok_null <- is.finite(std2) & std2 <= qchisq(0.99, df = 1)
+  min_keep <- min(length(std2), max(20L, ceiling(0.5 * length(std2))))
+  if (sum(ok_null) < min_keep) {
+    cutoff <- as.numeric(quantile(std2[is.finite(std2)], 0.90,
+                                  na.rm = TRUE, names = FALSE))
+    ok_null <- is.finite(std2) & std2 <= cutoff
+  }
+  if (sum(ok_null) >= 5L) {
+    cache$r2 <- cache$r2[ok_null]
+    cache$s <- cache$s[ok_null]
+    cache$base <- cache$base[ok_null]
+  }
+
   pos <- (cache$r2 - cache$base) / cache$s
   pos <- pos[is.finite(pos) & pos > 0]
   prior_scale <- sqrt(max(1 / finite_R_B, 1 / 10000))
