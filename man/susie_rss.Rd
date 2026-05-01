@@ -55,7 +55,12 @@ susie_rss(
   r_tol = 1e-08,
   refine = FALSE,
   finite_R = NULL,
-  R_bias = c("none", "map"),
+  R_bias = c("none", "map", "map_qc"),
+  artifact_action = c("warn", "penalize"),
+  eig_delta_rel = 0.001,
+  eig_delta_abs = 0,
+  artifact_threshold = 0.1,
+  B_artifact = 500,
   multipanel_safeguard = TRUE,
   alpha0 = if (is.null(n)) NULL else 1/sqrt(n),
   beta0 = if (is.null(n)) NULL else 1/sqrt(n),
@@ -310,21 +315,34 @@ When provided, the output includes a
 \code{finite_R_diagnostics} element with per-region and
 per-variable quality metrics.}
 
-\item{R_bias}{Whether to estimate an additional population-mismatch
-  variance component \code{lambda_bias} on top of the finite-reference
-  uncertainty implied by \code{finite_R}.  The default \code{"none"} does
-  not estimate this extra component.  \code{"map"} performs MAP estimation
-  with a half-Cauchy prior on \eqn{\sqrt{\lambda_{\mathrm{bias}}}} (scale
-  \eqn{\sqrt{\max(1/B,\,10^{-4})}}); this is recommended for routine bias
-  correction when the supplied \code{R} matrix may not be fully trusted.
-  \code{R_bias} requires \code{finite_R}, and is incompatible with
-  \code{estimate_residual_variance = TRUE} (see Notes).
+\item{R_bias}{LD-bias correction mode. \code{"none"} (default) is off.
+\code{"map"} adds a region-level population-mismatch variance component
+on top of the finite-reference correction; recommended whenever
+\code{R} comes from a different cohort than the GWAS. \code{"map_qc"}
+is \code{"map"} plus a QC diagnostic that warns if the fitted residual
+carries energy the supplied \code{R} cannot explain (likely allele
+flips or summary-LD artifacts). Requires \code{finite_R}; auto-disables
+\code{estimate_residual_variance} with a warning.
+\code{"map_qc"} works only with \code{lambda = 0}.}
 
-  When \code{R_bias = "map"} is enabled, \code{estimate_residual_variance}
-  is automatically disabled with a warning, since \eqn{\sigma^2} and
-  \eqn{\lambda_{\mathrm{bias}}} both inflate the residual variance and are
-  only weakly jointly identified through the spread of
-  \eqn{\eta_j^2 + v_g} across variants.}
+\item{artifact_action}{What to do when \code{R_bias = "map_qc"} flags
+the region. \code{"warn"} (default) emits an R warning and leaves
+numerics unchanged. \code{"penalize"} also floors the effective LD
+reliability at \code{1/B_artifact} as a conservative fallback.}
+
+\item{eig_delta_rel, eig_delta_abs}{Cutoffs for "low-eigenvalue"
+directions of \code{R} used by the QC diagnostic
+(\code{R_bias = "map_qc"}). Default \code{eig_delta_rel = 1e-3},
+\code{eig_delta_abs = 0}; the threshold is
+\code{max(eig_delta_abs, eig_delta_rel * max_eigenvalue(R))}. Tighter
+(smaller) values flag fewer regions.}
+
+\item{artifact_threshold}{Flag threshold on the QC score \code{Q_art}
+(a fraction in [0, 1]). Default \code{0.1}; flag fires when
+\code{Q_art > artifact_threshold}. Heuristic, not a calibrated test.}
+
+\item{B_artifact}{Effective LD reference size used by the conservative
+floor in \code{artifact_action = "penalize"}. Default \code{500}.}
 
 \item{multipanel_safeguard}{Deprecated. Ignored. Single-panel fits
 are always stored in the returned object as \code{$single_panel_fits}

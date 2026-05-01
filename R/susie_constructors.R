@@ -615,6 +615,11 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
                                       refine = FALSE,
                                       finite_R = NULL,
                                       R_bias = "none",
+                                      artifact_action = "warn",
+                                      eig_delta_rel = 1e-3,
+                                      eig_delta_abs = 0,
+                                      artifact_threshold = 0.1,
+                                      B_artifact = 500,
                                       alpha0 = 0.1,
                                       beta0 = 0.1,
                                       slot_prior = NULL,
@@ -699,6 +704,9 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
       check_prior = check_prior, check_R = check_R, check_z = check_z,
       n_purity = n_purity, r_tol = r_tol, refine = refine,
       finite_R = finite_R, R_bias = R_bias,
+      artifact_action = artifact_action,
+      eig_delta_rel = eig_delta_rel, eig_delta_abs = eig_delta_abs,
+      artifact_threshold = artifact_threshold, B_artifact = B_artifact,
       slot_prior = slot_prior, L_greedy = L_greedy,
       greedy_lbf_cutoff = greedy_lbf_cutoff
     ))
@@ -825,7 +833,7 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
     X <- standardize_X(X)
   }
 
-  R_bias <- match.arg(R_bias, c("none", "map"))
+  R_bias <- match.arg(R_bias, c("none", "map", "map_qc"))
   if (R_bias != "none" && is.null(finite_R))
     stop("R_bias requires finite_R because lambda_bias is estimated ",
          "as extra R bias beyond finite-reference uncertainty.")
@@ -910,6 +918,14 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
     result$data$R_bias <- R_bias
   }
 
+  # Attach R-bias / mismatch params consumed by R/rss_mismatch.R.
+  result$params$R_bias <- R_bias
+  result$params$artifact_action <- artifact_action
+  result$params$eig_delta_rel <- eig_delta_rel
+  result$params$eig_delta_abs <- eig_delta_abs
+  result$params$artifact_threshold <- artifact_threshold
+  result$params$B_artifact <- B_artifact
+
   return(result)
 }
 
@@ -970,6 +986,11 @@ rss_lambda_constructor <- function(z, R = NULL, X = NULL, n = NULL,
                                    refine = FALSE,
                                    finite_R = NULL,
                                    R_bias = "none",
+                                   artifact_action = "warn",
+                                   eig_delta_rel = 1e-3,
+                                   eig_delta_abs = 0,
+                                   artifact_threshold = 0.1,
+                                   B_artifact = 500,
                                    slot_prior = NULL,
                                    L_greedy = NULL,
                                    greedy_lbf_cutoff = 0.1) {
@@ -987,7 +1008,10 @@ rss_lambda_constructor <- function(z, R = NULL, X = NULL, n = NULL,
          "Please use estimate_residual_method = 'MLE' instead.")
   }
 
-  R_bias <- match.arg(R_bias, c("none", "map"))
+  R_bias <- match.arg(R_bias, c("none", "map", "map_qc"))
+  if (R_bias == "map_qc" && lambda != 0)
+    stop("R_bias = 'map_qc' is not supported with lambda > 0; ",
+         "use R_bias = 'map' on the lambda path or run on the SS path with lambda = 0.")
   if (R_bias != "none" && is.null(finite_R))
     stop("R_bias requires finite_R because lambda_bias is estimated ",
          "as extra R bias beyond finite-reference uncertainty.")
@@ -1243,7 +1267,13 @@ rss_lambda_constructor <- function(z, R = NULL, X = NULL, n = NULL,
     check_prior = check_prior,
     slot_prior = slot_prior,
     L_greedy = L_greedy,
-    greedy_lbf_cutoff = greedy_lbf_cutoff
+    greedy_lbf_cutoff = greedy_lbf_cutoff,
+    R_bias = R_bias,
+    artifact_action = artifact_action,
+    eig_delta_rel = eig_delta_rel,
+    eig_delta_abs = eig_delta_abs,
+    artifact_threshold = artifact_threshold,
+    B_artifact = B_artifact
   )
 
   # Validate params

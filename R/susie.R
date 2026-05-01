@@ -632,21 +632,34 @@ susie_ss <- function(XtX, Xty, yty, n,
 #'   \code{finite_R_diagnostics} element with per-region and
 #'   per-variable quality metrics.
 #'
-#' @param R_bias Whether to estimate an additional population-mismatch
-#'   variance component \code{lambda_bias} on top of the finite-reference
-#'   uncertainty implied by \code{finite_R}.  The default \code{"none"} does
-#'   not estimate this extra component.  \code{"map"} performs MAP estimation
-#'   with a half-Cauchy prior on \eqn{\sqrt{\lambda_{\mathrm{bias}}}} (scale
-#'   \eqn{\sqrt{\max(1/B,\,10^{-4})}}); this is recommended for routine bias
-#'   correction when the supplied \code{R} matrix may not be fully trusted.
-#'   \code{R_bias} requires \code{finite_R}, and is incompatible with
-#'   \code{estimate_residual_variance = TRUE} (see Notes).
+#' @param R_bias R-bias correction mode. \code{"none"} (default) is off.
+#'   \code{"map"} adds a region-level population-mismatch variance
+#'   component on top of the finite-reference correction; recommended
+#'   whenever \code{R} comes from a different cohort than the GWAS.
+#'   \code{"map_qc"} is \code{"map"} plus a QC diagnostic that warns if
+#'   the fitted residual carries energy the supplied \code{R} cannot
+#'   explain (likely allele flips or reference-panel artifacts). Requires
+#'   \code{finite_R}; auto-disables \code{estimate_residual_variance}
+#'   with a warning. \code{"map_qc"} works only with \code{lambda = 0}.
 #'
-#'   When \code{R_bias = "map"} is enabled, \code{estimate_residual_variance}
-#'   is automatically disabled with a warning, since \eqn{\sigma^2} and
-#'   \eqn{\lambda_{\mathrm{bias}}} both inflate the residual variance and are
-#'   only weakly jointly identified through the spread of
-#'   \eqn{\eta_j^2 + v_g} across variants.
+#' @param artifact_action What to do when \code{R_bias = "map_qc"} flags
+#'   the region. \code{"warn"} (default) emits an R warning and leaves
+#'   numerics unchanged. \code{"penalize"} also floors the effective
+#'   reference reliability at \code{1/B_artifact} as a conservative fallback.
+#'
+#' @param eig_delta_rel,eig_delta_abs Cutoffs for "low-eigenvalue"
+#'   directions of \code{R} used by the QC diagnostic
+#'   (\code{R_bias = "map_qc"}). Default \code{eig_delta_rel = 1e-3},
+#'   \code{eig_delta_abs = 0}; the threshold is
+#'   \code{max(eig_delta_abs, eig_delta_rel * max_eigenvalue(R))}. Tighter
+#'   (smaller) values flag fewer regions.
+#'
+#' @param artifact_threshold Flag threshold on the QC score \code{Q_art}
+#'   (a fraction in [0, 1]). Default \code{0.1}; flag fires when
+#'   \code{Q_art > artifact_threshold}. Heuristic, not a calibrated test.
+#'
+#' @param B_artifact Effective reference panel size used by the conservative
+#'   floor in \code{artifact_action = "penalize"}. Default \code{500}.
 #'
 #' @param multipanel_safeguard Deprecated. Ignored. Single-panel fits
 #'   are always stored in the returned object as \code{$single_panel_fits}
@@ -727,7 +740,12 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
                       r_tol = 1e-8,
                       refine = FALSE,
                       finite_R = NULL,
-                      R_bias = c("none", "map"),
+                      R_bias = c("none", "map", "map_qc"),
+                      artifact_action = c("warn", "penalize"),
+                      eig_delta_rel = 1e-3,
+                      eig_delta_abs = 0,
+                      artifact_threshold = 0.1,
+                      B_artifact = 500,
                       multipanel_safeguard = TRUE,
                       alpha0 = if (is.null(n)) NULL else 1/sqrt(n),
                       beta0 = if (is.null(n)) NULL else 1/sqrt(n),
@@ -742,6 +760,20 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
   is_multi_panel <- is.list(X) && !is.matrix(X)
 
   R_bias <- match.arg(R_bias)
+  artifact_action <- match.arg(artifact_action)
+  if (R_bias == "map_qc")
+    stop("R_bias = 'map_qc' is not yet implemented in this commit.")
+  if (!is.numeric(eig_delta_rel) || length(eig_delta_rel) != 1L ||
+      eig_delta_rel < 0)
+    stop("eig_delta_rel must be a single nonnegative numeric.")
+  if (!is.numeric(eig_delta_abs) || length(eig_delta_abs) != 1L ||
+      eig_delta_abs < 0)
+    stop("eig_delta_abs must be a single nonnegative numeric.")
+  if (!is.numeric(artifact_threshold) || length(artifact_threshold) != 1L ||
+      artifact_threshold < 0 || artifact_threshold > 1)
+    stop("artifact_threshold must be a single numeric in [0, 1].")
+  if (!is.numeric(B_artifact) || length(B_artifact) != 1L || B_artifact <= 0)
+    stop("B_artifact must be a single positive numeric.")
 
   # Resolve finite_R BEFORE any X -> R conversion.
   finite_R <- resolve_finite_R(finite_R, X, is_multi_panel)
@@ -886,6 +918,9 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
     check_prior = check_prior, check_R = check_R, check_z = check_z,
     n_purity = n_purity, r_tol = r_tol, refine = refine,
     finite_R = finite_R, R_bias = R_bias,
+    artifact_action = artifact_action,
+    eig_delta_rel = eig_delta_rel, eig_delta_abs = eig_delta_abs,
+    artifact_threshold = artifact_threshold, B_artifact = B_artifact,
     alpha0 = alpha0, beta0 = beta0,
     slot_prior = slot_prior, L_greedy = L_greedy,
     greedy_lbf_cutoff = greedy_lbf_cutoff
