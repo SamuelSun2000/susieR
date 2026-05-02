@@ -420,8 +420,9 @@ ibss_finalize <- function(data, params, model, elbo = NULL, iter = NA_integer_,
                     "fit$R_finite_diagnostics for details.")
       if (!is.null(model$R_finite_diagnostics$ser_model)) {
         msg <- paste0(msg, " A one-effect diagnostic is available at ",
-                      "fit$R_finite_diagnostics$ser_model; its alpha row ",
-                      "is the PIP.")
+                      "fit$R_finite_diagnostics$ser_model; it is a ",
+                      "one-effect credible-set model as in Maller et al. 2012, ",
+                      "and its alpha row is the PIP.")
       }
       warning_message(msg)
       warning(msg, call. = FALSE)

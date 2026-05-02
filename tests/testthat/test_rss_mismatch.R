@@ -349,6 +349,7 @@ test_that("eb emits one final R warning when reliability flag triggers", {
                          warnings, value = TRUE)
   expect_length(final_warnings, 1)
   expect_match(final_warnings, "fit\\$R_finite_diagnostics\\$ser_model")
+  expect_match(final_warnings, "one-effect credible-set model as in Maller et al. 2012")
   expect_true(fit$R_finite_diagnostics$artifact_flag)
   expect_true(fit$R_finite_diagnostics$R_reliability_flag)
   expect_equal(fit$R_finite_diagnostics$Q_art, 1, tolerance = 1e-6)
