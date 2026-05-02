@@ -315,6 +315,43 @@ fit_R_mismatch <- function(data, params, model) {
     }
   }
 
+  if (isTRUE(params$track_fit)) {
+    keep <- is.finite(r_fit_z) & is.finite(s_full) &
+            s_full > .Machine$double.eps
+    r2 <- r_fit_z[keep]^2
+    s_keep <- s_full[keep]
+    trace_row <- list(
+      sweep = if (is.null(model$R_mismatch_trace)) 1L else
+                length(model$R_mismatch_trace) + 1L,
+      R_mismatch = R_mismatch,
+      lambda_bias = model$lambda_bias,
+      B_corrected = model$B_corrected,
+      B = R_finite_B,
+      sigma2 = model$sigma2,
+      n_effects = nrow(model$alpha),
+      n_nonzero_lbf = if (!is.null(model$lbf))
+                        sum(is.finite(model$lbf) & model$lbf > 0)
+                      else NA_integer_,
+      mean_r2 = if (length(r2) > 0) mean(r2) else NA_real_,
+      median_r2 = if (length(r2) > 0) stats::median(r2) else NA_real_,
+      max_r2 = if (length(r2) > 0) max(r2) else NA_real_,
+      mean_s = if (length(s_keep) > 0) mean(s_keep) else NA_real_,
+      median_s = if (length(s_keep) > 0) stats::median(s_keep) else NA_real_,
+      max_s = if (length(s_keep) > 0) max(s_keep) else NA_real_,
+      cor_r2_s = if (length(r2) > 1 && stats::sd(r2) > 0 &&
+                     stats::sd(s_keep) > 0)
+                   suppressWarnings(stats::cor(r2, s_keep,
+                                               method = "spearman"))
+                 else NA_real_,
+      Q_art = if (!is.null(model$Q_art)) model$Q_art else NA_real_,
+      artifact_flag = if (!is.null(model$artifact_flag))
+                        model$artifact_flag else NA,
+      low_eigen_count = if (!is.null(model$low_eigen_count))
+                          model$low_eigen_count else NA_integer_
+    )
+    model$R_mismatch_trace[[trace_row$sweep]] <- trace_row
+  }
+
   model
 }
 

@@ -402,6 +402,8 @@ ibss_finalize <- function(data, params, model, elbo = NULL, iter = NA_integer_,
                   "mode_label"))
       if (!is.null(model[[fld]]))
         model$R_finite_diagnostics[[fld]] <- model[[fld]]
+    if (!is.null(model$R_mismatch_trace))
+      model$R_finite_diagnostics$R_mismatch_trace <- model$R_mismatch_trace
   }
 
   # Multi-panel omega weights
