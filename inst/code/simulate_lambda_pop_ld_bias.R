@@ -152,13 +152,13 @@ make_z_scores <- function(X, y) {
 }
 
 fit_susie_rss <- function(z, X_ref, n_target, cfg, method, verbose_fit = FALSE) {
-  R_bias <- switch(method,
+  R_mismatch <- switch(method,
                    no_finite_no_bias = "none",
                    finite_only = "none",
                    bias_map = "map",
                    bias_map_qc = "map_qc",
                    stop("Unknown method: ", method))
-  finite_R <- switch(method,
+  R_finite <- switch(method,
                      no_finite_no_bias = NULL,
                      finite_only = TRUE,
                      bias_map = TRUE,
@@ -172,8 +172,8 @@ fit_susie_rss <- function(z, X_ref, n_target, cfg, method, verbose_fit = FALSE) 
     coverage = cfg$coverage,
 	    min_abs_corr = cfg$min_abs_corr,
 	    max_iter = cfg$max_iter,
-	    finite_R = finite_R,
-	    R_bias = R_bias,
+	    R_finite = R_finite,
+	    R_mismatch = R_mismatch,
 	    estimate_residual_variance = FALSE,
 	    verbose = isTRUE(verbose_fit)
 	  )
@@ -186,7 +186,7 @@ fit_susie_rss <- function(z, X_ref, n_target, cfg, method, verbose_fit = FALSE) 
 }
 
 extract_lambda_table <- function(fit, rep_id, panel, method) {
-  diag <- fit$finite_R_diagnostics
+  diag <- fit$R_finite_diagnostics
   lb <- diag$lambda_bias
   if (is.null(lb)) {
     lb <- rep(NA_real_, nrow(fit$alpha))
@@ -200,7 +200,7 @@ extract_lambda_table <- function(fit, rep_id, panel, method) {
     panel = panel,
     method = method,
     effect = seq_along(lb),
-    finite_R_B = if (is.null(diag$B)) NA_real_ else as.numeric(diag$B),
+    R_finite_B = if (is.null(diag$B)) NA_real_ else as.numeric(diag$B),
     lambda_pop = as.numeric(lb),
     B_corrected = as.numeric(bc),
     stringsAsFactors = FALSE
@@ -282,7 +282,7 @@ summarize_fit <- function(fit, X_target, causal, rep_id, panel, method,
       causal_recall_proxy = NA_real_, top1_is_causal = NA,
       top1_ld_proxy = NA, max_pip_causal = NA_real_,
       mean_lambda_pop = NA_real_, max_lambda_pop = NA_real_,
-      nonzero_lambda_pop = NA_integer_, finite_R_B = NA_real_,
+      nonzero_lambda_pop = NA_integer_, R_finite_B = NA_real_,
       mean_B_corrected = NA_real_,
       max_per_variable_penalty = NA_real_, Q_art = NA_real_,
       artifact_flag = NA, mode_label = NA_character_, converged = NA,
@@ -301,7 +301,7 @@ summarize_fit <- function(fit, X_target, causal, rep_id, panel, method,
     detected <- detected[!is.na(detected)]
   }
   top1 <- which.max(fit$pip)
-  diag <- fit$finite_R_diagnostics
+  diag <- fit$R_finite_diagnostics
   lb <- diag$lambda_bias
   penalty <- diag$per_variable_penalty
   data.frame(
@@ -320,7 +320,7 @@ summarize_fit <- function(fit, X_target, causal, rep_id, panel, method,
     top1_is_causal = top1 %in% causal,
     top1_ld_proxy = max_abs_ld_to_causal(X_target, top1, causal) >= ld_threshold,
     max_pip_causal = max(fit$pip[causal]),
-    finite_R_B = if (is.null(diag$B)) NA_real_ else as.numeric(diag$B),
+    R_finite_B = if (is.null(diag$B)) NA_real_ else as.numeric(diag$B),
     mean_lambda_pop = if (is.null(lb)) NA_real_ else mean(lb),
     max_lambda_pop = if (is.null(lb)) NA_real_ else max(lb),
     nonzero_lambda_pop = if (is.null(lb)) NA_integer_ else sum(lb > 0),
@@ -340,8 +340,8 @@ write_ai_readme <- function(cfg, out_dir) {
     "",
     "Primary files for AI parsing:",
     "",
-    "- `per_fit_metrics.csv`: one row per replicate, panel, and method. Key methods are `no_finite_no_bias`, `finite_only`, `bias_map`, and `bias_map_qc`; key columns are `finite_R_B`, `max_lambda_pop`, `mean_lambda_pop`, `mean_B_corrected`, `causal_recall_proxy`, `cs_fdr_proxy`, `top1_is_causal`, and `max_pip_causal`.",
-    "- `per_effect_lambda.csv`: per-effect `finite_R_B`, `lambda_pop`, and `B_corrected` estimates.",
+    "- `per_fit_metrics.csv`: one row per replicate, panel, and method. Key methods are `no_finite_no_bias`, `finite_only`, `bias_map`, and `bias_map_qc`; key columns are `R_finite_B`, `max_lambda_pop`, `mean_lambda_pop`, `mean_B_corrected`, `causal_recall_proxy`, `cs_fdr_proxy`, `top1_is_causal`, and `max_pip_causal`.",
+    "- `per_effect_lambda.csv`: per-effect `R_finite_B`, `lambda_pop`, and `B_corrected` estimates.",
     "- `cs_metrics.csv`: one row per credible set, with exact and LD-proxy truth labels.",
     "- `replicate_metadata.csv`: source file, dimensions, causal indices, and realized h2.",
     "- `aggregate_summary.csv`: mean/median summaries grouped by panel and method.",
@@ -377,7 +377,7 @@ aggregate_metrics <- function(metrics) {
       mean_max_lambda_pop = mean(x$max_lambda_pop, na.rm = TRUE),
       median_max_lambda_pop = median(x$max_lambda_pop, na.rm = TRUE),
       mean_lambda_pop = mean(x$mean_lambda_pop, na.rm = TRUE),
-      finite_R_B = mean(x$finite_R_B, na.rm = TRUE),
+      R_finite_B = mean(x$R_finite_B, na.rm = TRUE),
       mean_B_corrected = mean(x$mean_B_corrected, na.rm = TRUE),
       mean_causal_recall_proxy = mean(x$causal_recall_proxy, na.rm = TRUE),
       mean_cs_fdr_proxy = mean(x$cs_fdr_proxy, na.rm = TRUE),
@@ -629,8 +629,8 @@ main <- function() {
         compact_fits[[key]] <- list(
           pip = if (!is.null(res$fit)) res$fit$pip else NULL,
           sets = if (!is.null(res$fit)) res$fit$sets else NULL,
-          finite_R_diagnostics =
-            if (!is.null(res$fit)) res$fit$finite_R_diagnostics else NULL
+          R_finite_diagnostics =
+            if (!is.null(res$fit)) res$fit$R_finite_diagnostics else NULL
         )
       }
     }

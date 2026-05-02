@@ -4,7 +4,7 @@
 # supplied R reference and the target population. Active on the SS
 # / ss_mixture dispatches; the rss_lambda dispatch (lambda > 0) does
 # NOT use any of this (entry-level errors block lambda > 0 with
-# finite_R or R_bias != "none").
+# R_finite or R_mismatch != "none").
 #
 #   * 1-D MAP optimizer for the variance component lambda_bias
 #     (estimate_lambda_bias)
@@ -12,11 +12,11 @@
 #     (compute_shat2_inflation)
 #   * model-state storage helper for per-slot inflation diagnostics
 #     (apply_inflation_state)
-#   * per-sweep region-level fit (fit_R_bias)
-#   * residual R-mismatch QC diagnostic Q_art (R_bias = "map_qc")
+#   * per-sweep region-level fit (fit_R_mismatch)
+#   * residual R-mismatch QC diagnostic Q_art (R_mismatch = "map_qc")
 #
 # Storage convention on the model:
-#   model$lambda_bias    scalar set once per sweep by fit_R_bias
+#   model$lambda_bias    scalar set once per sweep by fit_R_mismatch
 #   model$B_corrected    1 / (1/B + lambda_bias)
 #   model$shat2_inflation per-variable inflation vector of length p,
 #                        consumed by the SER step.
@@ -25,38 +25,38 @@
 # FINITE-REFERENCE SETUP AND DIAGNOSTICS
 # =============================================================================
 
-# Resolve finite_R into an explicit reference sample size B.
-# finite_R = TRUE is only meaningful when the reference factor X is available;
+# Resolve R_finite into an explicit reference sample size B.
+# R_finite = TRUE is only meaningful when the reference factor X is available;
 # for precomputed R, the caller must provide B explicitly.
 #' @keywords internal
-resolve_finite_R <- function(finite_R, X = NULL, is_multi_panel = FALSE) {
-  if (is.null(finite_R))
+resolve_R_finite <- function(R_finite, X = NULL, is_multi_panel = FALSE) {
+  if (is.null(R_finite))
     return(NULL)
-  if (isTRUE(finite_R)) {
+  if (isTRUE(R_finite)) {
     if (is.null(X))
-      stop("finite_R = TRUE requires X input. ",
+      stop("R_finite = TRUE requires X input. ",
            "When using a precomputed R matrix, provide a positive number ",
            "specifying the reference sample size B instead.")
     if (is_multi_panel)
       return(min(vapply(X, nrow, integer(1))))
     return(nrow(X))
   }
-  if (!is.numeric(finite_R) || any(!is.finite(finite_R)) ||
-      any(finite_R <= 0)) {
-    stop("finite_R must be NULL, TRUE, or positive numeric value(s).")
+  if (!is.numeric(R_finite) || any(!is.finite(R_finite)) ||
+      any(R_finite <= 0)) {
+    stop("R_finite must be NULL, TRUE, or positive numeric value(s).")
   }
   if (is_multi_panel) {
-    K <- if (is.null(X)) length(finite_R) else length(X)
-    if (length(finite_R) == 1)
-      return(rep(as.numeric(finite_R), K))
-    if (length(finite_R) == K)
-      return(as.numeric(finite_R))
-    stop("For multi-panel input, finite_R must be TRUE, a single positive ",
+    K <- if (is.null(X)) length(R_finite) else length(X)
+    if (length(R_finite) == 1)
+      return(rep(as.numeric(R_finite), K))
+    if (length(R_finite) == K)
+      return(as.numeric(R_finite))
+    stop("For multi-panel input, R_finite must be TRUE, a single positive ",
          "number, or one positive number per panel.")
   }
-  if (length(finite_R) == 1)
-    return(as.numeric(finite_R))
-  stop("finite_R must be NULL, TRUE, or a single positive number.")
+  if (length(R_finite) == 1)
+    return(as.numeric(R_finite))
+  stop("R_finite must be NULL, TRUE, or a single positive number.")
 }
 
 # Compute finite-reference R diagnostics (debiased Frobenius norm,
@@ -73,7 +73,7 @@ resolve_finite_R <- function(finite_R, X = NULL, is_multi_panel = FALSE) {
 # @return List with B, p, R_frob_sq_debiased, effective_rank, r_over_B,
 #   Rhat_diag_deviation.
 #' @keywords internal
-compute_finite_R_diagnostics <- function(X = NULL, R = NULL, B, p,
+compute_R_finite_diagnostics <- function(X = NULL, R = NULL, B, p,
                                          x_is_standardized = FALSE) {
   if (!is.null(X)) {
     A <- tcrossprod(X)           # B x B Gram matrix
@@ -111,7 +111,7 @@ compute_finite_R_diagnostics <- function(X = NULL, R = NULL, B, p,
 
 # Estimate extra R-bias variance beyond finite-reference uncertainty.
 # Likelihood on the z-score residual scale,
-#   tau_j^2 = sigma2 + (1/finite_R_B + lambda_bias) * s_j,
+#   tau_j^2 = sigma2 + (1/R_finite_B + lambda_bias) * s_j,
 # with a half-Cauchy(prior_scale) prior on u = sqrt(lambda_bias).
 # The Fisher-information boundary SE,
 #   SE_0 = sqrt(2) * sigma2 / sqrt(sum(s^2)),
@@ -119,7 +119,7 @@ compute_finite_R_diagnostics <- function(X = NULL, R = NULL, B, p,
 # This both suppresses Brent boundary noise and replaces ad-hoc display
 # thresholds with one rule; "none" short-circuits before optimization.
 #' @keywords internal
-estimate_lambda_bias <- function(r, s, sigma2, finite_R_B, method) {
+estimate_lambda_bias <- function(r, s, sigma2, R_finite_B, method) {
   if (is.null(method) || method == "none")
     return(0)
   keep <- is.finite(r) & is.finite(s) & s > .Machine$double.eps
@@ -127,11 +127,11 @@ estimate_lambda_bias <- function(r, s, sigma2, finite_R_B, method) {
     return(0)
 
   cache <- list(r2 = r[keep]^2, s = s[keep])
-  cache$base <- sigma2 + cache$s / finite_R_B
+  cache$base <- sigma2 + cache$s / R_finite_B
   pos <- (cache$r2 - cache$base) / cache$s
   pos <- pos[is.finite(pos) & pos > 0]
-  prior_scale <- sqrt(max(1 / finite_R_B, 1 / 10000))
-  upper_lambda <- max(c(1, 100 / finite_R_B, 100 * prior_scale^2,
+  prior_scale <- sqrt(max(1 / R_finite_B, 1 / 10000))
+  upper_lambda <- max(c(1, 100 / R_finite_B, 100 * prior_scale^2,
                         10 * pos), na.rm = TRUE)
   upper_u <- sqrt(upper_lambda)
 
@@ -153,24 +153,24 @@ estimate_lambda_bias <- function(r, s, sigma2, finite_R_B, method) {
 # =============================================================================
 
 # SS-path per-variable inflation factor tau_j^2 / sigma2 with
-#   tau_j^2 = sigma2 + (1/finite_R_B + lambda_bias) * (eta_j^2 + v_g),
+#   tau_j^2 = sigma2 + (1/R_finite_B + lambda_bias) * (eta_j^2 + v_g),
 #   eta_j^2 = XtXr_without_l[j]^2 / (n-1)   (z-score scale)
 #   v_g     = sum(b_minus_l * XtXr_without_l).
 # Reads the region-level scalar lambda_bias from model (set once per
-# sweep by fit_R_bias). Per-slot lambda_bias re-fitting was removed:
+# sweep by fit_R_mismatch). Per-slot lambda_bias re-fitting was removed:
 # the previous design re-estimated lambda_bias inside every SER step
 # from the leave-one-effect residual, which intentionally contains the
 # lth sparse signal and so confounded signal with R-bias. The fix is
-# the per-sweep fit_R_bias hook in ibss_fit; this function only
+# the per-sweep fit_R_mismatch hook in ibss_fit; this function only
 # applies the scalar to the slot-specific xi_l.
 # Returns NULL when no inflation applies, otherwise a list with the
 # inflation vector and lambda_bias / B_corrected = NULL so that
 # apply_inflation_state does not write per-slot diagnostics on the SS
-# path (those are scalars on the model, set by fit_R_bias).
+# path (those are scalars on the model, set by fit_R_mismatch).
 #' @keywords internal
 compute_shat2_inflation <- function(data, model, XtXr_without_l, b_minus_l, r) {
-  finite_R_B <- if (!is.null(model$finite_R_B)) model$finite_R_B else data$finite_R_B
-  if (is.null(finite_R_B) ||
+  R_finite_B <- if (!is.null(model$R_finite_B)) model$R_finite_B else data$R_finite_B
+  if (is.null(R_finite_B) ||
       model$sigma2 <= .Machine$double.eps) {
     return(NULL)
   }
@@ -178,7 +178,7 @@ compute_shat2_inflation <- function(data, model, XtXr_without_l, b_minus_l, r) {
   eta2    <- XtXr_without_l^2 / (data$n - 1)
   s <- eta2 + v_g
   lambda_bias <- if (is.null(model$lambda_bias)) 0 else model$lambda_bias
-  infl <- 1 + (1 / finite_R_B + lambda_bias) * s / model$sigma2
+  infl <- 1 + (1 / R_finite_B + lambda_bias) * s / model$sigma2
   list(infl = infl, lambda_bias = NULL, B_corrected = NULL)
 }
 
@@ -191,7 +191,7 @@ compute_shat2_inflation <- function(data, model, XtXr_without_l, b_minus_l, r) {
 # diagnostics model$lambda_bias[l] and model$B_corrected[l] when the
 # caller (rss_lambda dispatch) provides them. SS-path callers pass
 # infl_state$lambda_bias = NULL because the SS path stores lambda_bias
-# as a scalar set once per sweep by fit_R_bias.
+# as a scalar set once per sweep by fit_R_mismatch.
 #' @keywords internal
 apply_inflation_state <- function(model, infl_state, l) {
   if (is.null(infl_state)) {
@@ -214,7 +214,7 @@ apply_inflation_state <- function(model, infl_state, l) {
 }
 
 # =============================================================================
-# PER-SWEEP REGION-LEVEL fit_R_bias
+# PER-SWEEP REGION-LEVEL fit_R_mismatch
 # =============================================================================
 
 #' Fit the region-level lambda_bias from the post-sweep fitted residual.
@@ -242,11 +242,11 @@ apply_inflation_state <- function(model, infl_state, l) {
 #'
 #' @keywords internal
 #' @noRd
-fit_R_bias <- function(data, params, model) {
-  R_bias <- if (!is.null(params$R_bias)) params$R_bias else "none"
-  if (R_bias == "none") return(model)
-  finite_R_B <- if (!is.null(model$finite_R_B)) model$finite_R_B else data$finite_R_B
-  if (is.null(finite_R_B) || !is.finite(model$sigma2) ||
+fit_R_mismatch <- function(data, params, model) {
+  R_mismatch <- if (!is.null(params$R_mismatch)) params$R_mismatch else "none"
+  if (R_mismatch == "none") return(model)
+  R_finite_B <- if (!is.null(model$R_finite_B)) model$R_finite_B else data$R_finite_B
+  if (is.null(R_finite_B) || !is.finite(model$sigma2) ||
       model$sigma2 <= .Machine$double.eps)
     return(model)
   if (!inherits(data, c("ss", "ss_mixture"))) return(model)
@@ -265,13 +265,13 @@ fit_R_bias <- function(data, params, model) {
   s_full   <- XtXr_full^2 / nm1 + v_g_full
 
   model$lambda_bias <- estimate_lambda_bias(r_fit_z, s_full, model$sigma2,
-                                            finite_R_B, R_bias)
-  model$B_corrected <- 1 / (1 / finite_R_B + model$lambda_bias)
+                                            R_finite_B, R_mismatch)
+  model$B_corrected <- 1 / (1 / R_finite_B + model$lambda_bias)
 
-  if (R_bias == "map_qc") {
-    eigen_R <- get_R_bias_eigen(data, model)
+  if (R_mismatch == "map_qc") {
+    eigen_R <- get_R_mismatch_eigen(data, model)
     if (is.null(eigen_R))
-      stop("R_bias = 'map_qc' requires data$eigen_R; ",
+      stop("R_mismatch = 'map_qc' requires data$eigen_R; ",
            "summary_stats_constructor should have cached it.")
     eig_delta_rel <- if (!is.null(params$eig_delta_rel))
                        params$eig_delta_rel else 1e-3
@@ -313,7 +313,7 @@ fit_R_bias <- function(data, params, model) {
 # mixture spectrum from panel_R when omega is available; otherwise fall
 # back to the initialized X_meta crossproduct.
 #' @keywords internal
-get_R_bias_eigen <- function(data, model) {
+get_R_mismatch_eigen <- function(data, model) {
   if (!is.null(model$eigen_R))
     return(model$eigen_R)
   if (!is.null(data$eigen_R) && !inherits(data, "ss_mixture"))

@@ -48,8 +48,8 @@ susie_rss(
   n_purity = 100,
   r_tol = 1e-08,
   refine = FALSE,
-  finite_R = NULL,
-  R_bias = c("none", "map", "map_qc"),
+  R_finite = NULL,
+  R_mismatch = c("none", "map", "map_qc"),
   eig_delta_rel = 0.001,
   eig_delta_abs = 0,
   artifact_threshold = 0.1,
@@ -261,7 +261,7 @@ matrix \code{XtX}.}
 iterative refinement procedure is used, after the IBSS algorithm,
 to check and escape from local optima (see details).}
 
-\item{finite_R}{Controls variance inflation to account
+\item{R_finite}{Controls variance inflation to account
 for estimating the R matrix from a finite reference panel. Accepts three
 types of input:
 \describe{
@@ -278,10 +278,10 @@ When active, this dynamically inflates the null variance of each
 variable's score statistic at every IBSS iteration to account for
 finite-reference uncertainty in the Single Effect Regression (SER).
 When provided, the output includes a
-\code{finite_R_diagnostics} element with per-region and
+\code{R_finite_diagnostics} element with per-region and
 per-variable quality metrics.}
 
-\item{R_bias}{R-bias correction mode. \code{"none"} (default) is off.
+\item{R_mismatch}{R-bias correction mode. \code{"none"} (default) is off.
 \code{"map"} adds a region-level population-mismatch variance
 component on top of the finite-reference correction; recommended
 whenever \code{R} comes from a different cohort than the GWAS.
@@ -290,12 +290,12 @@ warns when the fitted residual carries energy in directions where
 the supplied \code{R} indicates signal should be weak. For
 allele-coding / strand-flip checks, see the kriging diagnostic in
 \code{susie_rss}'s companion utilities.
-Requires \code{finite_R}; auto-disables \code{estimate_residual_variance}
+Requires \code{R_finite}; auto-disables \code{estimate_residual_variance}
 with a warning.}
 
 \item{eig_delta_rel, eig_delta_abs}{Cutoffs for "low-eigenvalue"
 directions of \code{R} used by the QC diagnostic
-(\code{R_bias = "map_qc"}). Default \code{eig_delta_rel = 1e-3},
+(\code{R_mismatch = "map_qc"}). Default \code{eig_delta_rel = 1e-3},
 \code{eig_delta_abs = 0}; the threshold is
 \code{max(eig_delta_abs, eig_delta_rel * max_eigenvalue(R))}. Tighter
 (smaller) values flag fewer regions.}
@@ -336,9 +336,9 @@ is checked using \code{convergence_method = "pip"}.}
 In addition to the standard \code{"susie"} output (see
   \code{\link{susie}}), the returned object may contain:
 
-\item{finite_R_diagnostics}{A list of diagnostics for the
+\item{R_finite_diagnostics}{A list of diagnostics for the
   finite-reference correction (only present when
-  \code{finite_R} is provided), containing:
+  \code{R_finite} is provided), containing:
   \code{B} (the reference sample size);
   \code{p} (number of variables);
   \code{effective_rank} (debiased \eqn{\tilde{r} = p^2 / \|R\|_F^2});
@@ -348,7 +348,7 @@ In addition to the standard \code{"susie"} output (see
     per variable);
   \code{lambda_bias} (region-level scalar on the default
     \code{lambda = 0} sufficient-statistics path when
-    \code{R_bias != "none"});
+    \code{R_mismatch != "none"});
   \code{B_corrected} (effective reference sample size after the
     R-bias correction, \eqn{1/(1/B + \lambda_{\mathrm{bias}})};
     substantially

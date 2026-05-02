@@ -19,7 +19,7 @@ susie_rss_lambda(
   null_weight = 0,
   intercept_value = 0,
   estimate_residual_variance = FALSE,
-  estimate_residual_method = c("MLE", "MoM"),
+  estimate_residual_method = "MLE",
   estimate_prior_variance = TRUE,
   estimate_prior_method = c("optim", "EM", "simple"),
   prior_variance_grid = NULL,
@@ -67,14 +67,18 @@ internally.}
 \item{L}{Maximum number of non-zero effects in the model. If L is larger than
 the number of covariates, p, L is set to p.}
 
-\item{lambda}{Regularization parameter for the RSS-lambda likelihood.}
+\item{lambda}{Regularization parameter for the RSS-lambda likelihood.
+Must be supplied. \code{lambda = "estimate"} estimates lambda from
+the null-space residual.}
 
 \item{maf}{A p-vector of minor allele frequencies; to be used along with
 \code{maf_thresh} to filter input summary statistics.}
 
 \item{maf_thresh}{Variants with MAF smaller than this threshold are not used.}
 
-\item{prior_variance}{Prior variance used by the RSS-lambda likelihood.}
+\item{prior_variance}{Prior variance for each non-zero effect on the
+z-score scale. Replaces \code{scaled_prior_variance} from
+\code{\link{susie_rss}}. Default \code{50}.}
 
 \item{residual_variance}{Variance of the residual. If
 \code{estimate_residual_variance = TRUE}, this value provides the
@@ -92,26 +96,21 @@ prior weights are used (each variable is assigned probability
 \item{null_weight}{Prior probability of no effect (a number between 0 and 1,
 and cannot be exactly 1).}
 
-\item{intercept_value}{Intercept value used by the RSS-lambda likelihood.}
+\item{intercept_value}{Intercept used by the RSS-lambda likelihood.
+Default \code{0}.}
 
 \item{estimate_residual_variance}{The default is FALSE, the
 residual variance is fixed to 1 or variance of y. If the in-sample
 R matrix is provided, we recommend setting
 \code{estimate_residual_variance = TRUE}.}
 
-\item{estimate_residual_method}{The method used for estimating residual variance.
-For the original SuSiE model, "MLE" and "MoM" estimation is equivalent, but for
-the infinitesimal model, "MoM" is more stable. We recommend using "NIG"
-when n < 80 for improved coverage, although it is currently only implemented
-for individual-level data.}
+\item{estimate_residual_method}{Variance-component estimator. The
+RSS-lambda path supports \code{"MLE"} only; any other value errors.}
 
-\item{estimate_prior_variance}{If \code{estimate_prior_variance =
-TRUE}, the prior variance is estimated (this is a separate
-parameter for each of the L effects). If provided,
-\code{scaled_prior_variance} is then used as an initial value for
-the optimization. When \code{estimate_prior_variance = FALSE}, the
-prior variance for each of the L effects is determined by the
-value supplied to \code{scaled_prior_variance}.}
+\item{estimate_prior_variance}{If \code{estimate_prior_variance = TRUE},
+the prior variance is estimated (a separate parameter for each of
+the L effects). When \code{TRUE}, \code{prior_variance} provides the
+initial value; when \code{FALSE}, it is held fixed.}
 
 \item{estimate_prior_method}{The method used for estimating prior
 variance. When \code{estimate_prior_method = "simple"} is used, the
@@ -199,9 +198,10 @@ estimates at each iteration of the IBSS fitting procedure.}
 estimated prior variance becomes unreasonably large (comparing with
 10 * max(abs(z))^2).}
 
-\item{check_R}{If TRUE, check that R is positive semidefinite.}
+\item{check_R}{If TRUE, verify that \code{R} is positive semidefinite.}
 
-\item{check_z}{If TRUE, check that z lies in column space of R.}
+\item{check_z}{If TRUE, verify that \code{z} lies in the column space
+of \code{R}.}
 
 \item{n_purity}{Passed as argument \code{n_purity} to
 \code{\link{susie_get_cs}}.}
@@ -230,7 +230,8 @@ PIPs are weighted by these activity probabilities, and convergence
 is checked using \code{convergence_method = "pip"}.}
 }
 \value{
-A \code{"susie"} fit.
+A \code{"susie"} fit (or, with \code{init_only = TRUE}, the
+  constructed data and params objects).
 }
 \description{
 Specialized interface for the regularized eigendecomposition

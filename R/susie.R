@@ -589,7 +589,7 @@ susie_ss <- function(XtX, Xty, yty, n,
 #'   R matrix is provided, we recommend setting
 #'   \code{estimate_residual_variance = TRUE}.
 #'
-#' @param finite_R Controls variance inflation to account
+#' @param R_finite Controls variance inflation to account
 #'   for estimating the R matrix from a finite reference panel. Accepts three
 #'   types of input:
 #'   \describe{
@@ -606,10 +606,10 @@ susie_ss <- function(XtX, Xty, yty, n,
 #'   variable's score statistic at every IBSS iteration to account for
 #'   finite-reference uncertainty in the Single Effect Regression (SER).
 #'   When provided, the output includes a
-#'   \code{finite_R_diagnostics} element with per-region and
+#'   \code{R_finite_diagnostics} element with per-region and
 #'   per-variable quality metrics.
 #'
-#' @param R_bias R-bias correction mode. \code{"none"} (default) is off.
+#' @param R_mismatch R-bias correction mode. \code{"none"} (default) is off.
 #'   \code{"map"} adds a region-level population-mismatch variance
 #'   component on top of the finite-reference correction; recommended
 #'   whenever \code{R} comes from a different cohort than the GWAS.
@@ -618,12 +618,12 @@ susie_ss <- function(XtX, Xty, yty, n,
 #'   the supplied \code{R} indicates signal should be weak. For
 #'   allele-coding / strand-flip checks, see the kriging diagnostic in
 #'   \code{susie_rss}'s companion utilities.
-#'   Requires \code{finite_R}; auto-disables \code{estimate_residual_variance}
+#'   Requires \code{R_finite}; auto-disables \code{estimate_residual_variance}
 #'   with a warning.
 #'
 #' @param eig_delta_rel,eig_delta_abs Cutoffs for "low-eigenvalue"
 #'   directions of \code{R} used by the QC diagnostic
-#'   (\code{R_bias = "map_qc"}). Default \code{eig_delta_rel = 1e-3},
+#'   (\code{R_mismatch = "map_qc"}). Default \code{eig_delta_rel = 1e-3},
 #'   \code{eig_delta_abs = 0}; the threshold is
 #'   \code{max(eig_delta_abs, eig_delta_rel * max_eigenvalue(R))}. Tighter
 #'   (smaller) values flag fewer regions.
@@ -639,9 +639,9 @@ susie_ss <- function(XtX, Xty, yty, n,
 #' @return In addition to the standard \code{"susie"} output (see
 #'   \code{\link{susie}}), the returned object may contain:
 #'
-#' \item{finite_R_diagnostics}{A list of diagnostics for the
+#' \item{R_finite_diagnostics}{A list of diagnostics for the
 #'   finite-reference correction (only present when
-#'   \code{finite_R} is provided), containing:
+#'   \code{R_finite} is provided), containing:
 #'   \code{B} (the reference sample size);
 #'   \code{p} (number of variables);
 #'   \code{effective_rank} (debiased \eqn{\tilde{r} = p^2 / \|R\|_F^2});
@@ -651,7 +651,7 @@ susie_ss <- function(XtX, Xty, yty, n,
 #'     per variable);
 #'   \code{lambda_bias} (region-level scalar on the default
 #'     \code{lambda = 0} sufficient-statistics path when
-#'     \code{R_bias != "none"});
+#'     \code{R_mismatch != "none"});
 #'   \code{B_corrected} (effective reference sample size after the
 #'     R-bias correction, \eqn{1/(1/B + \lambda_{\mathrm{bias}})};
 #'     substantially
@@ -706,8 +706,8 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
                       n_purity = 100,
                       r_tol = 1e-8,
                       refine = FALSE,
-                      finite_R = NULL,
-                      R_bias = c("none", "map", "map_qc"),
+                      R_finite = NULL,
+                      R_mismatch = c("none", "map", "map_qc"),
                       eig_delta_rel = 1e-3,
                       eig_delta_abs = 0,
                       artifact_threshold = 0.1,
@@ -727,7 +727,7 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
   prior_variance <- 50
   intercept_value <- 0
 
-  R_bias <- match.arg(R_bias)
+  R_mismatch <- match.arg(R_mismatch)
 
   if (!is.numeric(eig_delta_rel) || length(eig_delta_rel) != 1L ||
       eig_delta_rel < 0)
@@ -739,22 +739,22 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
       artifact_threshold < 0 || artifact_threshold > 1)
     stop("artifact_threshold must be a single numeric in [0, 1].")
 
-  # Resolve finite_R BEFORE any X -> R conversion.
-  if (isTRUE(finite_R) && is.null(X))
-    stop("finite_R = TRUE requires X input. When using precomputed R, ",
+  # Resolve R_finite BEFORE any X -> R conversion.
+  if (isTRUE(R_finite) && is.null(X))
+    stop("R_finite = TRUE requires X input. When using precomputed R, ",
          "provide the reference sample size explicitly.")
-  finite_R <- resolve_finite_R(finite_R, if (!is.null(X)) X else R,
+  R_finite <- resolve_R_finite(R_finite, if (!is.null(X)) X else R,
                                is_multi_panel)
-  if (R_bias != "none" && is.null(finite_R))
-    stop("R_bias requires finite_R because lambda_bias is estimated ",
+  if (R_mismatch != "none" && is.null(R_finite))
+    stop("R_mismatch requires R_finite because lambda_bias is estimated ",
          "as extra R bias beyond finite-reference uncertainty.")
 
   # sigma^2 and lambda_bias both inflate the residual variance and are
   # only weakly jointly identified; we follow Zou et al. (2022) and fix
-  # sigma^2 when R_bias is active.
-  if (R_bias != "none" && isTRUE(estimate_residual_variance)) {
+  # sigma^2 when R_mismatch is active.
+  if (R_mismatch != "none" && isTRUE(estimate_residual_variance)) {
     warning_message(
-      "R_bias = '", R_bias, "' is incompatible with ",
+      "R_mismatch = '", R_mismatch, "' is incompatible with ",
       "estimate_residual_variance = TRUE; disabling sigma^2 estimation."
     )
     estimate_residual_variance <- FALSE
@@ -784,7 +784,7 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
     sp_fits <- lapply(seq_along(R), function(k) {
       Rk <- R[[k]]
       sp_call$R <- Rk
-      sp_call$finite_R <- if (is.null(finite_R)) NULL else finite_R[k]
+      sp_call$R_finite <- if (is.null(R_finite)) NULL else R_finite[k]
       tryCatch(eval(sp_call, parent.frame(2)), error = function(e) NULL)
     })
     sp_elbos <- vapply(sp_fits, function(f)
@@ -830,7 +830,7 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
       sp_fits <- lapply(seq_along(X), function(k) {
         Xk <- X[[k]]
         sp_call$X <- Xk
-        sp_call$finite_R <- if (is.null(finite_R)) NULL else finite_R[k]
+        sp_call$R_finite <- if (is.null(R_finite)) NULL else R_finite[k]
         tryCatch(eval(sp_call, parent.frame(2)), error = function(e) NULL)
       })
       sp_elbos <- vapply(sp_fits, function(f)
@@ -874,8 +874,8 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
   mixture_weights         <- mp$mixture_weights
 
   # Auto-switch to PIP convergence for finite-reference R inflation.
-  # (finite_R was already resolved to an integer above)
-  if (!is.null(finite_R) && convergence_method[1] == "elbo") {
+  # (R_finite was already resolved to an integer above)
+  if (!is.null(R_finite) && convergence_method[1] == "elbo") {
     convergence_method <- "pip"
     warning_message("Switching to PIP-based convergence because finite-reference R inflation ",
             "modifies per-variant SER likelihoods which prevents a consistent model-level ELBO.")
@@ -907,7 +907,7 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
     verbose = verbose, track_fit = track_fit, check_input = check_input,
     check_prior = check_prior,
     n_purity = n_purity, r_tol = r_tol, refine = refine,
-    finite_R = finite_R, R_bias = R_bias,
+    R_finite = R_finite, R_mismatch = R_mismatch,
     eig_delta_rel = eig_delta_rel, eig_delta_abs = eig_delta_abs,
     artifact_threshold = artifact_threshold,
     alpha0 = alpha0, beta0 = beta0,
@@ -951,13 +951,27 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
 #' finite-reference inflation, or R-bias correction.
 #'
 #' @inheritParams susie_rss
-#' @param lambda Regularization parameter for the RSS-lambda likelihood.
-#' @param prior_variance Prior variance used by the RSS-lambda likelihood.
-#' @param intercept_value Intercept value used by the RSS-lambda likelihood.
-#' @param check_R If TRUE, check that R is positive semidefinite.
-#' @param check_z If TRUE, check that z lies in column space of R.
 #'
-#' @return A \code{"susie"} fit.
+#' @param lambda Regularization parameter for the RSS-lambda likelihood.
+#'   Must be supplied. \code{lambda = "estimate"} estimates lambda from
+#'   the null-space residual.
+#' @param prior_variance Prior variance for each non-zero effect on the
+#'   z-score scale. Replaces \code{scaled_prior_variance} from
+#'   \code{\link{susie_rss}}. Default \code{50}.
+#' @param intercept_value Intercept used by the RSS-lambda likelihood.
+#'   Default \code{0}.
+#' @param estimate_residual_method Variance-component estimator. The
+#'   RSS-lambda path supports \code{"MLE"} only; any other value errors.
+#' @param estimate_prior_variance If \code{estimate_prior_variance = TRUE},
+#'   the prior variance is estimated (a separate parameter for each of
+#'   the L effects). When \code{TRUE}, \code{prior_variance} provides the
+#'   initial value; when \code{FALSE}, it is held fixed.
+#' @param check_R If TRUE, verify that \code{R} is positive semidefinite.
+#' @param check_z If TRUE, verify that \code{z} lies in the column space
+#'   of \code{R}.
+#'
+#' @return A \code{"susie"} fit (or, with \code{init_only = TRUE}, the
+#'   constructed data and params objects).
 #'
 #' @export
 susie_rss_lambda <- function(z = NULL, R = NULL, n = NULL,
@@ -973,7 +987,7 @@ susie_rss_lambda <- function(z = NULL, R = NULL, n = NULL,
                              null_weight = 0,
                              intercept_value = 0,
                              estimate_residual_variance = FALSE,
-                             estimate_residual_method = c("MLE", "MoM"),
+                             estimate_residual_method = "MLE",
                              estimate_prior_variance = TRUE,
                              estimate_prior_method = c("optim", "EM", "simple"),
                              prior_variance_grid = NULL,
@@ -1009,8 +1023,9 @@ susie_rss_lambda <- function(z = NULL, R = NULL, n = NULL,
     stop("susie_rss_lambda() accepts only a single R matrix.")
   if (is.list(X) && !is.matrix(X))
     stop("susie_rss_lambda() accepts only a single X matrix.")
+  if (!identical(estimate_residual_method, "MLE"))
+    stop("susie_rss_lambda() supports estimate_residual_method = \"MLE\" only.")
 
-  estimate_residual_method <- match.arg(estimate_residual_method)
   convergence_method       <- match.arg(convergence_method)
   mp <- resolve_mixture_prior(estimate_prior_method, estimate_prior_variance,
                               prior_variance_grid, mixture_weights)

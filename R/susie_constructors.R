@@ -610,8 +610,8 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
                                       n_purity = 100,
                                       r_tol = 1e-8,
                                       refine = FALSE,
-                                      finite_R = NULL,
-                                      R_bias = "none",
+                                      R_finite = NULL,
+                                      R_mismatch = "none",
                                       eig_delta_rel = 1e-3,
                                       eig_delta_abs = 0,
                                       artifact_threshold = 0.1,
@@ -654,11 +654,11 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
 
   is_multipanel <- (is.list(X) && !is.matrix(X)) ||
                    (is.list(R) && !is.matrix(R))
-  R_bias <- match.arg(R_bias, c("none", "map", "map_qc"))
-  if (isTRUE(finite_R) && is.null(X))
-    stop("finite_R = TRUE requires X input. When using precomputed R, ",
+  R_mismatch <- match.arg(R_mismatch, c("none", "map", "map_qc"))
+  if (isTRUE(R_finite) && is.null(X))
+    stop("R_finite = TRUE requires X input. When using precomputed R, ",
          "provide the reference sample size explicitly.")
-  finite_R <- resolve_finite_R(finite_R, if (!is.null(X)) X else R,
+  R_finite <- resolve_R_finite(R_finite, if (!is.null(X)) X else R,
                                is_multipanel)
   if (is_multipanel) {
     if (lambda != 0)
@@ -692,8 +692,8 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
       convergence_method = convergence_method, verbose = verbose,
       track_fit = track_fit, check_input = check_input,
       check_prior = check_prior, n_purity = n_purity,
-      r_tol = r_tol, refine = refine, finite_R = finite_R,
-      R_bias = R_bias, eig_delta_rel = eig_delta_rel,
+      r_tol = r_tol, refine = refine, R_finite = R_finite,
+      R_mismatch = R_mismatch, eig_delta_rel = eig_delta_rel,
       eig_delta_abs = eig_delta_abs, artifact_threshold = artifact_threshold,
       alpha0 = alpha0, beta0 = beta0, slot_prior = slot_prior,
       L_greedy = L_greedy, greedy_lbf_cutoff = greedy_lbf_cutoff
@@ -701,10 +701,10 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
   }
 
   if (lambda != 0) {
-    if (!is.null(finite_R))
-      stop("finite_R is not available in the RSS-lambda path.")
-    if (R_bias != "none")
-      stop("R_bias is not available in the RSS-lambda path.")
+    if (!is.null(R_finite))
+      stop("R_finite is not available in the RSS-lambda path.")
+    if (R_mismatch != "none")
+      stop("R_mismatch is not available in the RSS-lambda path.")
     if (!is.null(bhat) || !is.null(shat)) {
       stop("Parameters 'bhat' and 'shat' are not supported in the ",
            "RSS-lambda path.")
@@ -848,17 +848,17 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
     X <- standardize_X(X)
   }
 
-  R_bias <- match.arg(R_bias, c("none", "map", "map_qc"))
-  if (R_bias != "none" && is.null(finite_R))
-    stop("R_bias requires finite_R because lambda_bias is estimated ",
+  R_mismatch <- match.arg(R_mismatch, c("none", "map", "map_qc"))
+  if (R_mismatch != "none" && is.null(R_finite))
+    stop("R_mismatch requires R_finite because lambda_bias is estimated ",
          "as extra R bias beyond finite-reference uncertainty.")
 
   # R diagnostics (static, computed once at initialization).
   # X is standardized (X'X = R) at this point.
-  finite_R_diagnostics <- NULL
-  if (!is.null(finite_R)) {
-    finite_R_diagnostics <- compute_finite_R_diagnostics(
-      X = X, R = R, B = finite_R, p = length(z),
+  R_finite_diagnostics <- NULL
+  if (!is.null(R_finite)) {
+    R_finite_diagnostics <- compute_R_finite_diagnostics(
+      X = X, R = R, B = R_finite, p = length(z),
       x_is_standardized = TRUE)
   }
 
@@ -868,7 +868,7 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
   # standardize_X, crossprod(X) == R. Reuses the attr(R, "eigen")
   # convention when the caller pre-computed it.
   eigen_R_cache <- NULL
-  if (R_bias == "map_qc") {
+  if (R_mismatch == "map_qc") {
     eigen_R_cache <- if (!is.null(R)) attr(R, "eigen") else NULL
     if (is.null(eigen_R_cache)) {
       R_for_eigen <- if (!is.null(R)) R else crossprod(X)
@@ -941,10 +941,10 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
   )
 
   # Attach finite-reference R metadata to data object.
-  if (!is.null(finite_R)) {
-    result$data$finite_R_B <- finite_R
-    result$data$finite_R_diagnostics <- finite_R_diagnostics
-    result$data$R_bias <- R_bias
+  if (!is.null(R_finite)) {
+    result$data$R_finite_B <- R_finite
+    result$data$R_finite_diagnostics <- R_finite_diagnostics
+    result$data$R_mismatch <- R_mismatch
   }
 
   # eigen(R) cache for Q_art diagnostic (map_qc only).
@@ -952,7 +952,7 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
     result$data$eigen_R <- eigen_R_cache
 
   # Attach R-bias / mismatch params consumed by R/rss_mismatch.R.
-  result$params$R_bias <- R_bias
+  result$params$R_mismatch <- R_mismatch
   result$params$eig_delta_rel <- eig_delta_rel
   result$params$eig_delta_abs <- eig_delta_abs
   result$params$artifact_threshold <- artifact_threshold
@@ -999,8 +999,8 @@ ss_mixture_constructor <- function(z, R = NULL, X = NULL, n,
                                    n_purity = 100,
                                    r_tol = 1e-8,
                                    refine = FALSE,
-                                   finite_R = NULL,
-                                   R_bias = "none",
+                                   R_finite = NULL,
+                                   R_mismatch = "none",
                                    eig_delta_rel = 1e-3,
                                    eig_delta_abs = 0,
                                    artifact_threshold = 0.1,
@@ -1034,7 +1034,7 @@ ss_mixture_constructor <- function(z, R = NULL, X = NULL, n,
     }
     panel_R <- lapply(R, safe_cov2cor)
     X_list <- NULL
-    B_list <- finite_R
+    B_list <- R_finite
     init_panel <- attr(R, ".init_panel")
     omega_cache <- NULL
   } else {
@@ -1046,7 +1046,7 @@ ss_mixture_constructor <- function(z, R = NULL, X = NULL, n,
     }
     X_list <- lapply(X, standardize_X)
     panel_R <- lapply(X_list, function(Xk) cov2cor(crossprod(Xk)))
-    B_list <- if (is.null(finite_R)) NULL else finite_R
+    B_list <- if (is.null(R_finite)) NULL else R_finite
     init_panel <- attr(X, ".init_panel")
     omega_cache <- if (sum(vapply(X_list, nrow, integer(1))) < p)
                      precompute_omega_cache(X_list, z) else NULL
@@ -1098,13 +1098,13 @@ ss_mixture_constructor <- function(z, R = NULL, X = NULL, n,
   R_init <- Reduce("+", Map(function(w, Rk) w * Rk, omega_init, panel_R))
   R_init <- 0.5 * (R_init + t(R_init))
 
-  finite_R_B <- NULL
-  finite_R_diagnostics <- NULL
-  if (!is.null(finite_R)) {
-    B_list <- as.numeric(finite_R)
-    finite_R_B <- 1 / sum(omega_init^2 / B_list)
-    finite_R_diagnostics <- compute_finite_R_diagnostics(
-      R = R_init, B = finite_R_B, p = p)
+  R_finite_B <- NULL
+  R_finite_diagnostics <- NULL
+  if (!is.null(R_finite)) {
+    B_list <- as.numeric(R_finite)
+    R_finite_B <- 1 / sum(omega_init^2 / B_list)
+    R_finite_diagnostics <- compute_R_finite_diagnostics(
+      R = R_init, B = R_finite_B, p = p)
   }
 
   nm1 <- n - 1
@@ -1155,7 +1155,7 @@ ss_mixture_constructor <- function(z, R = NULL, X = NULL, n,
     slot_prior = slot_prior,
     L_greedy = L_greedy,
     greedy_lbf_cutoff = greedy_lbf_cutoff,
-    R_bias = R_bias,
+    R_mismatch = R_mismatch,
     eig_delta_rel = eig_delta_rel,
     eig_delta_abs = eig_delta_abs,
     artifact_threshold = artifact_threshold
@@ -1169,15 +1169,15 @@ ss_mixture_constructor <- function(z, R = NULL, X = NULL, n,
       n = n, p = p,
       X_colmeans = rep(0, p), y_mean = 0,
       nm1 = nm1, z = z, lambda = 0,
-      finite_R_B = finite_R_B,
-      finite_R_diagnostics = finite_R_diagnostics,
-      R_bias = R_bias,
+      R_finite_B = R_finite_B,
+      R_finite_diagnostics = R_finite_diagnostics,
+      R_mismatch = R_mismatch,
       X_list_std = X_list, B_list = B_list,
       K = K, panel_R = panel_R, omega_cache = omega_cache
     ),
     class = c("ss_mixture", "ss")
   )
-  if (R_bias == "map_qc")
+  if (R_mismatch == "map_qc")
     data_object$eigen_R <- eigen(R_init, symmetric = TRUE)
 
   list(data = data_object, params = params_object)
@@ -1209,7 +1209,7 @@ rss_lambda_constructor <- function(z, R = NULL, X = NULL, n = NULL,
                                    null_weight = 0,
                                    intercept_value = 0,
                                    estimate_residual_variance = FALSE,
-                                   estimate_residual_method = "MoM",
+                                   estimate_residual_method = "MLE",
                                    estimate_prior_variance = TRUE,
                                    estimate_prior_method = "optim",
                                    prior_variance_grid = NULL,
@@ -1235,22 +1235,22 @@ rss_lambda_constructor <- function(z, R = NULL, X = NULL, n = NULL,
                                    L_greedy = NULL,
                                    greedy_lbf_cutoff = 0.1) {
 
-  # Handle MoM fallback for RSS eigendecomposition path
-  if (estimate_residual_method == "MoM") {
-    warning_message("Method of Moments (MoM) variance estimation is not implemented ",
-            "for the eigendecomposition path (RSS-lambda / multi-panel). ",
-            "Automatically switching to estimate_residual_method = 'MLE'.")
-    estimate_residual_method <- "MLE"
-  }
-
-  if (estimate_residual_method == "NIG") {
-    stop("NIG prior on residual variance is not implemented for RSS with lambda > 0. ",
-         "Please use estimate_residual_method = 'MLE' instead.")
+  if (!identical(estimate_residual_method, "MLE")) {
+    stop("RSS-lambda supports estimate_residual_method = \"MLE\" only.")
   }
   if (is.list(R) && !is.matrix(R))
     stop("rss_lambda_constructor() accepts only a single R matrix.")
   if (is.list(X) && !is.matrix(X))
     stop("rss_lambda_constructor() accepts only a single X matrix.")
+
+  # PVE-adjust z when sample size is provided. Shrinks large z toward
+  # zero to account for winner's curse. Same form as the SS path
+  # (summary_stats_constructor); skipped when n is unavailable.
+  if (!is.null(z) && !is.null(n) && is.numeric(n) && length(n) == 1 &&
+      is.finite(n) && n > 1) {
+    adj <- (n - 1) / (z^2 + n - 2)
+    z <- sqrt(adj) * z
+  }
 
   if (is.null(X)) {
     # R path: validate R
@@ -1438,13 +1438,17 @@ rss_lambda_constructor <- function(z, R = NULL, X = NULL, n = NULL,
   # Validate params
   params_object <- validate_and_override_params(params_object)
 
-  # Create data object with RSS-lambda specific fields
+  # Create data object with RSS-lambda specific fields. n is the GWAS
+  # sample size (used by the PVE adjustment above and by any downstream
+  # consumer that needs to know the GWAS size); we store NA_integer_ when
+  # the caller did not supply it. p (the number of variants) is always
+  # length(z).
   data_object <- structure(
     list(
       z = z,
       R = R,
       X = X,
-      n = length(z),
+      n = if (is.null(n)) NA_integer_ else as.integer(n),
       p = length(z),
       lambda = lambda,
       intercept_value = intercept_value,

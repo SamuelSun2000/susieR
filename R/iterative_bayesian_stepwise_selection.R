@@ -150,16 +150,16 @@ ibss_initialize.default <- function(data, params) {
   }
 
   # SS-path lambda_bias is stored as a scalar on the model. Only
-  # allocate when R_bias is active so R_bias = "none" returns to the
+  # allocate when R_mismatch is active so R_mismatch = "none" returns to the
   # un-augmented behavior (compute_shat2_inflation falls back to 0
   # when model$lambda_bias is NULL). The rss_lambda dispatch is out
   # of scope and continues to use a length-L vector.
-  R_bias_mode <- if (!is.null(params$R_bias)) params$R_bias else "none"
-  if (R_bias_mode != "none" && !is.null(data$finite_R_B) &&
+  R_mismatch_mode <- if (!is.null(params$R_mismatch)) params$R_mismatch else "none"
+  if (R_mismatch_mode != "none" && !is.null(data$R_finite_B) &&
       inherits(data, c("ss", "ss_mixture"))) {
     model$lambda_bias <- 0
-    model$B_corrected <- data$finite_R_B
-    model$finite_R_B <- data$finite_R_B
+    model$B_corrected <- data$R_finite_B
+    model$R_finite_B <- data$R_finite_B
   }
 
   return(model)
@@ -187,8 +187,8 @@ ibss_fit <- function(data, params, model) {
   use_c_hat <- !is.null(model$c_hat_state)
 
   # SS / ss_mixture: lambda_bias / B_corrected are scalars set per-sweep
-  # by fit_R_bias at the end of the sweep. rss_lambda does not carry
-  # these (lambda > 0 + R_bias != "none" errors at entry). No reset
+  # by fit_R_mismatch at the end of the sweep. rss_lambda does not carry
+  # these (lambda > 0 + R_mismatch != "none" errors at entry). No reset
   # needed.
 
   if (L > 0) {
@@ -232,14 +232,14 @@ ibss_fit <- function(data, params, model) {
   }
 
   # Region-level R-bias fit at the end of the sweep, before validate.
-  # No-op when R_bias = "none" or on the rss_lambda dispatch (out of
+  # No-op when R_mismatch = "none" or on the rss_lambda dispatch (out of
   # scope; that path keeps the legacy per-slot fit). Reuses the
   # existing estimate_lambda_bias optimizer; only the cadence and
   # storage shape change (was per-slot inside the SER step; now
   # scalar at sweep boundary).
   if (inherits(data, c("ss", "ss_mixture"))) {
     old_lambda_bias <- model$lambda_bias
-    model <- fit_R_bias(data, params, model)
+    model <- fit_R_mismatch(data, params, model)
     new_lambda_bias <- model$lambda_bias
     if (!is.null(old_lambda_bias) || !is.null(new_lambda_bias)) {
       old <- if (is.null(old_lambda_bias)) 0 else old_lambda_bias
@@ -385,26 +385,26 @@ ibss_finalize <- function(data, params, model, elbo = NULL, iter = NA_integer_,
 
   # R diagnostics (from data -> model, following sets/pip/z pattern).
   # SS / ss_mixture paths store lambda_bias / B_corrected as scalars
-  # (set by fit_R_bias once per sweep). The rss_lambda dispatch keeps
+  # (set by fit_R_mismatch once per sweep). The rss_lambda dispatch keeps
   # the per-slot vector form. Copy whatever shape lives on the model.
-  finite_R_diagnostics <- data$finite_R_diagnostics
-  if (!is.null(finite_R_diagnostics)) {
-    model$finite_R_diagnostics <- finite_R_diagnostics
+  R_finite_diagnostics <- data$R_finite_diagnostics
+  if (!is.null(R_finite_diagnostics)) {
+    model$R_finite_diagnostics <- R_finite_diagnostics
     if (!is.null(model$lambda_bias))
-      model$finite_R_diagnostics$lambda_bias <- model$lambda_bias
+      model$R_finite_diagnostics$lambda_bias <- model$lambda_bias
     if (!is.null(model$B_corrected))
-      model$finite_R_diagnostics$B_corrected <- model$B_corrected
-    if (!is.null(data$R_bias))
-      model$finite_R_diagnostics$R_bias <- data$R_bias
+      model$R_finite_diagnostics$B_corrected <- model$B_corrected
+    if (!is.null(data$R_mismatch))
+      model$R_finite_diagnostics$R_mismatch <- data$R_mismatch
     if (!is.null(model$shat2_inflation))
-      model$finite_R_diagnostics$per_variable_penalty <- as.vector(model$shat2_inflation - 1)
-    # Q_art / artifact fields are present only for R_bias = "map_qc"
-    # (set by fit_R_bias). Copy whichever exist.
+      model$R_finite_diagnostics$per_variable_penalty <- as.vector(model$shat2_inflation - 1)
+    # Q_art / artifact fields are present only for R_mismatch = "map_qc"
+    # (set by fit_R_mismatch). Copy whichever exist.
     for (fld in c("Q_art", "artifact_flag", "artifact_evaluable",
                   "low_eigen_count", "low_eigen_fraction", "eig_delta",
                   "mode_label"))
       if (!is.null(model[[fld]]))
-        model$finite_R_diagnostics[[fld]] <- model[[fld]]
+        model$R_finite_diagnostics[[fld]] <- model[[fld]]
   }
 
   # Multi-panel omega weights

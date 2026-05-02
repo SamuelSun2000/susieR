@@ -1,8 +1,8 @@
-context("RSS R-reference mismatch (R_bias correction)")
+context("RSS R-reference mismatch (R_mismatch correction)")
 
 # ---- API surface guards ----
 
-test_that("R_bias = 'map_qc' runs and returns Q_art diagnostics", {
+test_that("R_mismatch = 'map_qc' runs and returns Q_art diagnostics", {
   set.seed(11)
   p <- 20
   n <- 1000
@@ -10,9 +10,9 @@ test_that("R_bias = 'map_qc' runs and returns Q_art diagnostics", {
   R <- cor(X)
   z <- rnorm(p)
 
-  fit <- susie_rss(z = z, R = R, n = n, L = 3, finite_R = 5000,
-                   R_bias = "map_qc", max_iter = 2, verbose = FALSE)
-  d <- fit$finite_R_diagnostics
+  fit <- susie_rss(z = z, R = R, n = n, L = 3, R_finite = 5000,
+                   R_mismatch = "map_qc", max_iter = 2, verbose = FALSE)
+  d <- fit$R_finite_diagnostics
   expect_true(!is.null(d$Q_art))
   expect_true(d$Q_art >= 0 && d$Q_art <= 1)
   expect_true(is.logical(d$artifact_flag))
@@ -28,20 +28,20 @@ test_that("Optional artifact args validate ranges", {
   z <- rnorm(p)
 
   expect_error(
-    susie_rss(z = z, R = R, n = n, L = 3, finite_R = 5000,
-              R_bias = "map", artifact_threshold = -0.1,
+    susie_rss(z = z, R = R, n = n, L = 3, R_finite = 5000,
+              R_mismatch = "map", artifact_threshold = -0.1,
               max_iter = 2, verbose = FALSE),
     "artifact_threshold"
   )
   expect_error(
-    susie_rss(z = z, R = R, n = n, L = 3, finite_R = 5000,
-              R_bias = "map", artifact_threshold = 1.1,
+    susie_rss(z = z, R = R, n = n, L = 3, R_finite = 5000,
+              R_mismatch = "map", artifact_threshold = 1.1,
               max_iter = 2, verbose = FALSE),
     "artifact_threshold"
   )
   expect_error(
-    susie_rss(z = z, R = R, n = n, L = 3, finite_R = 5000,
-              R_bias = "map", eig_delta_rel = -1,
+    susie_rss(z = z, R = R, n = n, L = 3, R_finite = 5000,
+              R_mismatch = "map", eig_delta_rel = -1,
               max_iter = 2, verbose = FALSE),
     "eig_delta_rel"
   )
@@ -57,14 +57,14 @@ test_that("SS path stores scalar lambda_bias / B_corrected (not per-slot)", {
   R <- cor(X)
   z <- rnorm(p)
 
-  fit <- susie_rss(z = z, R = R, n = n, L = 3, finite_R = 5000,
-                   R_bias = "map", max_iter = 5, verbose = FALSE)
-  expect_length(fit$finite_R_diagnostics$lambda_bias, 1)
-  expect_length(fit$finite_R_diagnostics$B_corrected, 1)
-  expect_true(fit$finite_R_diagnostics$lambda_bias >= 0)
-  expect_equal(fit$finite_R_diagnostics$B_corrected,
-               1 / (1 / fit$finite_R_diagnostics$B +
-                      fit$finite_R_diagnostics$lambda_bias),
+  fit <- susie_rss(z = z, R = R, n = n, L = 3, R_finite = 5000,
+                   R_mismatch = "map", max_iter = 5, verbose = FALSE)
+  expect_length(fit$R_finite_diagnostics$lambda_bias, 1)
+  expect_length(fit$R_finite_diagnostics$B_corrected, 1)
+  expect_true(fit$R_finite_diagnostics$lambda_bias >= 0)
+  expect_equal(fit$R_finite_diagnostics$B_corrected,
+               1 / (1 / fit$R_finite_diagnostics$B +
+                      fit$R_finite_diagnostics$lambda_bias),
                tolerance = 1e-12)
 })
 
@@ -132,9 +132,9 @@ test_that("map_qc on well-behaved data yields Q_art near 0 and no flag", {
   z <- rnorm(p)
   z[3] <- 4
 
-  fit <- susie_rss(z = z, R = R, n = n, L = 3, finite_R = 5000,
-                   R_bias = "map_qc", max_iter = 5, verbose = FALSE)
-  d <- fit$finite_R_diagnostics
+  fit <- susie_rss(z = z, R = R, n = n, L = 3, R_finite = 5000,
+                   R_mismatch = "map_qc", max_iter = 5, verbose = FALSE)
+  d <- fit$R_finite_diagnostics
   expect_lt(d$Q_art, 0.1)
   expect_false(d$artifact_flag)
   expect_equal(d$mode_label, "normal")
@@ -145,14 +145,14 @@ test_that("map_qc emits a true R warning when artifact_flag triggers", {
   z <- c(-8, -8)
   R <- matrix(c(1, -rho, -rho, 1), 2, 2)
   expect_warning(
-    fit <- susie_rss(z = z, R = R, n = 5000, L = 1, finite_R = 1e6,
-                     R_bias = "map_qc", max_iter = 5,
+    fit <- susie_rss(z = z, R = R, n = 5000, L = 1, R_finite = 1e6,
+                     R_mismatch = "map_qc", max_iter = 5,
                      estimate_prior_variance = FALSE,
                      estimate_residual_variance = FALSE, verbose = FALSE),
     "Residual R-bias artifact detected"
   )
-  expect_true(fit$finite_R_diagnostics$artifact_flag)
-  expect_equal(fit$finite_R_diagnostics$Q_art, 1, tolerance = 1e-6)
+  expect_true(fit$R_finite_diagnostics$artifact_flag)
+  expect_equal(fit$R_finite_diagnostics$Q_art, 1, tolerance = 1e-6)
 })
 
 test_that("map_qc surfaces Q_art and mode_label diagnostics", {
@@ -162,9 +162,9 @@ test_that("map_qc surfaces Q_art and mode_label diagnostics", {
   R <- cor(X)
   z <- rnorm(p)
 
-  fit <- susie_rss(z = z, R = R, n = n, L = 3, finite_R = 5000,
-                   R_bias = "map_qc", max_iter = 3, verbose = FALSE)
-  d <- fit$finite_R_diagnostics
+  fit <- susie_rss(z = z, R = R, n = n, L = 3, R_finite = 5000,
+                   R_mismatch = "map_qc", max_iter = 3, verbose = FALSE)
+  d <- fit$R_finite_diagnostics
   for (fld in c("Q_art", "artifact_flag", "artifact_evaluable",
                 "low_eigen_count", "low_eigen_fraction", "eig_delta",
                 "mode_label", "lambda_bias", "B_corrected"))
@@ -179,9 +179,9 @@ test_that("map_qc with X-input runs and surfaces Q_art", {
   beta <- rep(0, p); beta[5] <- 0.4
   y <- drop(X %*% beta + rnorm(n))
   z <- as.numeric(crossprod(X, y) / sqrt(diag(crossprod(X))))
-  fit <- susie_rss(z = z, X = X, n = n, L = 3, finite_R = 5000,
-                   R_bias = "map_qc", max_iter = 3, verbose = FALSE)
-  d <- fit$finite_R_diagnostics
+  fit <- susie_rss(z = z, X = X, n = n, L = 3, R_finite = 5000,
+                   R_mismatch = "map_qc", max_iter = 3, verbose = FALSE)
+  d <- fit$R_finite_diagnostics
   expect_true(!is.null(d$Q_art))
   expect_true(d$Q_art >= 0 && d$Q_art <= 1)
 })
@@ -195,9 +195,9 @@ test_that("map_qc works on lambda=0 multi-panel SS path", {
   z <- rnorm(p)
 
   fit <- susie_rss(z = z, X = list(X1, X2), n = 1000, L = 3,
-                   finite_R = TRUE, R_bias = "map_qc", max_iter = 3,
+                   R_finite = TRUE, R_mismatch = "map_qc", max_iter = 3,
                    verbose = FALSE)
-  d <- fit$finite_R_diagnostics
+  d <- fit$R_finite_diagnostics
   expect_true(!is.null(d$Q_art))
   expect_true(d$Q_art >= 0 && d$Q_art <= 1)
   expect_length(d$lambda_bias, 1)

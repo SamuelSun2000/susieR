@@ -237,12 +237,12 @@ test_that("Mixture prior works with finite-reference R inflation", {
   grid <- c(1, 10, 50)
   w <- c(0.3, 0.5, 0.2)
 
-  # Run with finite_R to trigger shat2 inflation
+  # Run with R_finite to trigger shat2 inflation
   fit <- susie_rss(z = z, R = R, n = n, L = L,
                    prior_variance_grid = grid,
                    mixture_weights = w,
                    estimate_residual_variance = FALSE,
-                   finite_R = 30,
+                   R_finite = 30,
                    max_iter = 5)
 
   # Basic validity

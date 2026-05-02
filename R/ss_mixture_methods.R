@@ -38,8 +38,8 @@ compute_residuals.ss_mixture <- function(data, params, model, l, ...) {
   model$residual_variance <- model$sigma2
   model$predictor_weights <- rep(data$nm1, data$p)
 
-  if (!is.null(data$finite_R_B) && model$sigma2 > .Machine$double.eps) {
-    # Region-level scalar lambda_bias is set by fit_R_bias once per
+  if (!is.null(data$R_finite_B) && model$sigma2 > .Machine$double.eps) {
+    # Region-level scalar lambda_bias is set by fit_R_mismatch once per
     # IBSS sweep; here we just apply it through the slot-specific
     # xi_l = eta_l^2 + v_g,l on z-scale.
     sw <- if (!is.null(model$slot_weights)) model$slot_weights else
@@ -49,8 +49,8 @@ compute_residuals.ss_mixture <- function(data, params, model, l, ...) {
     v_g  <- max(sum(b_minus_l * XtXr_without_l), 0)
     xi_l <- XtXr_without_l^2 / nm1 + v_g
     lambda_bias <- if (is.null(model$lambda_bias)) 0 else model$lambda_bias
-    finite_R_B <- if (!is.null(model$finite_R_B)) model$finite_R_B else data$finite_R_B
-    model$shat2_inflation <- 1 + (1 / finite_R_B + lambda_bias) *
+    R_finite_B <- if (!is.null(model$R_finite_B)) model$R_finite_B else data$R_finite_B
+    model$shat2_inflation <- 1 + (1 / R_finite_B + lambda_bias) *
                                   xi_l / model$sigma2
   }
   return(model)
@@ -114,8 +114,8 @@ update_model_variance.ss_mixture <- function(data, params, model) {
     if (!is.null(eval_omega)) {
       opt <- optimize_omega(eval_omega, omega_cur, data$K)
       model$omega <- opt$omega
-      if (!is.null(data$finite_R_B) && !is.null(data$B_list))
-        model$finite_R_B <- 1 / sum(model$omega^2 / data$B_list)
+      if (!is.null(data$R_finite_B) && !is.null(data$B_list))
+        model$R_finite_B <- 1 / sum(model$omega^2 / data$B_list)
       # Recompute XtXr with updated R(omega)
       b_bar <- colSums(model$alpha * model$mu)
       model$XtXr <- compute_XtXv_mixture(data, model, b_bar)

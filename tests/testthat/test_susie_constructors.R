@@ -1076,17 +1076,21 @@ test_that("rss_lambda_constructor creates data object with correct fields", {
   expect_true("p" %in% names(result$data))
 })
 
-test_that("rss_lambda_constructor sets correct dimensions", {
+test_that("rss_lambda_constructor stores n and dimensions correctly", {
   p <- 50
   z <- rnorm(p)
   R <- diag(p)
 
+  # When n is not provided, data$n is NA_integer_ (not silently set to p)
   result <- rss_lambda_constructor(z, R, lambda = 0.5)
-
-  expect_equal(result$data$n, p)
+  expect_true(is.na(result$data$n))
   expect_equal(result$data$p, p)
   expect_length(result$data$z, p)
   expect_equal(dim(result$data$R), c(p, p))
+
+  # When n is provided, data$n stores the GWAS sample size as supplied
+  result_n <- rss_lambda_constructor(z, R, lambda = 0.5, n = 1000)
+  expect_equal(result_n$data$n, 1000L)
 })
 
 test_that("rss_lambda_constructor computes eigen decomposition", {
@@ -1351,27 +1355,19 @@ test_that("rss_lambda_constructor adjusts residual variance with lambda", {
 # RSS LAMBDA CONSTRUCTOR - Method Restrictions
 # =============================================================================
 
-test_that("rss_lambda_constructor switches MoM to MLE", {
-  z <- rnorm(50)
-  R <- diag(50)
-
-  expect_message(
-    result <- rss_lambda_constructor(z, R, lambda = 0.5,
-                                    estimate_residual_method = "MoM"),
-    "Automatically switching to estimate_residual_method = 'MLE'"
-  )
-
-  expect_equal(result$params$estimate_residual_method, "MLE")
-})
-
-test_that("rss_lambda_constructor rejects NIG", {
+test_that("rss_lambda_constructor rejects non-MLE residual variance methods", {
   z <- rnorm(50)
   R <- diag(50)
 
   expect_error(
     rss_lambda_constructor(z, R, lambda = 0.5,
+                          estimate_residual_method = "MoM"),
+    "RSS-lambda supports estimate_residual_method"
+  )
+  expect_error(
+    rss_lambda_constructor(z, R, lambda = 0.5,
                           estimate_residual_method = "NIG"),
-    "NIG prior on residual variance is not implemented"
+    "RSS-lambda supports estimate_residual_method"
   )
 })
 
@@ -1512,7 +1508,8 @@ test_that("summary_stats_constructor routes to rss_lambda when lambda != 0", {
   z <- rnorm(p)
   R <- diag(p)
 
-  result <- summary_stats_constructor(z = z, R = R, lambda = 0.5)
+  result <- summary_stats_constructor(z = z, R = R, lambda = 0.5,
+                                      estimate_residual_method = "MLE")
 
   expect_s3_class(result$data, "rss_lambda")
   expect_equal(result$data$lambda, 0.5)
@@ -1785,8 +1782,10 @@ test_that("summary_stats_constructor accepts n when lambda != 0 for PVE adjustme
   z <- rnorm(50)
   R <- diag(50)
 
-  # n is now used for PVE adjustment in all paths; no "n is not used" warning
-  result <- summary_stats_constructor(z = z, R = R, n = 100, lambda = 0.5)
+  # n is used for PVE adjustment in all paths; the lambda > 0 dispatch
+  # routes through rss_lambda_constructor which requires MLE.
+  result <- summary_stats_constructor(z = z, R = R, n = 100, lambda = 0.5,
+                                      estimate_residual_method = "MLE")
   expect_true(!is.null(result))
 })
 
