@@ -641,7 +641,7 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
 
   is_multipanel <- (is.list(X) && !is.matrix(X)) ||
                    (is.list(R) && !is.matrix(R))
-  R_mismatch <- match.arg(R_mismatch, c("none", "eb", "eb_zero"))
+  R_mismatch <- match.arg(R_mismatch, c("none", "eb", "eb_force_init", "eb_no_init"))
   R_finite_explicit_false <- identical(R_finite, FALSE)
   if (isTRUE(R_finite) && is.null(X))
     stop("R_finite = TRUE requires X input. When using precomputed R, ",
@@ -795,7 +795,7 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
     X <- standardize_X(X)
   }
 
-  R_mismatch <- match.arg(R_mismatch, c("none", "eb", "eb_zero"))
+  R_mismatch <- match.arg(R_mismatch, c("none", "eb", "eb_force_init", "eb_no_init"))
   R_finite_B <- R_finite
   if (R_mismatch != "none" && is.null(R_finite_B))
     R_finite_B <- Inf

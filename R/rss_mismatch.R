@@ -356,20 +356,23 @@ compute_R_mismatch_state <- function(data, params, model, phase = "sweep") {
   model
 }
 
-#' SER-protected initialization for the recommended R_mismatch EB path.
+#' SER-protected initialization for the R_mismatch EB path.
 #'
 #' The joint EB/sparse objective is path dependent. Starting lambda_bias at
 #' zero can let secondary R-mismatch patterns enter as sparse effects before
-#' the variance component is estimated. For R_mismatch = "eb", initialize by
-#' fitting one SER update, then estimate lambda_bias from the residual after
-#' this dominant signal has been protected. R_mismatch = "eb_zero" skips this
-#' initializer and starts at lambda_bias = 0.
+#' the variance component is estimated. For R_mismatch = "eb", initialize only
+#' in the B = Inf limit, where no finite-reference component is available for
+#' early protection. R_mismatch = "eb_force_init" always initializes this way;
+#' R_mismatch = "eb_no_init" always skips it.
 #'
 #' @keywords internal
 #' @noRd
 initialize_R_mismatch <- function(data, params, model) {
   R_mismatch <- if (!is.null(params$R_mismatch)) params$R_mismatch else "none"
-  if (R_mismatch != "eb" || !inherits(data, c("ss", "ss_mixture")) ||
+  R_finite_B <- if (!is.null(model$R_finite_B)) model$R_finite_B else data$R_finite_B
+  should_init <- R_mismatch == "eb_force_init" ||
+                 (R_mismatch == "eb" && is.infinite(R_finite_B))
+  if (!should_init || !inherits(data, c("ss", "ss_mixture")) ||
       nrow(model$alpha) < 1)
     return(model)
 

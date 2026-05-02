@@ -57,7 +57,7 @@ test_that("R_mismatch = 'eb' uses SER-protected initialization", {
   expect_equal(d$R_mismatch_trace[[1]]$phase, "init_ser")
 })
 
-test_that("R_mismatch = 'eb_zero' skips SER-protected initialization", {
+test_that("R_mismatch = 'eb' skips SER-protected initialization with finite R_finite", {
   set.seed(14)
   p <- 20
   n <- 1000
@@ -66,7 +66,39 @@ test_that("R_mismatch = 'eb_zero' skips SER-protected initialization", {
   z <- rnorm(p)
 
   fit <- susie_rss(z = z, R = R, n = n, L = 3,
-                   R_mismatch = "eb_zero", max_iter = 2,
+                   R_finite = 5000, R_mismatch = "eb", max_iter = 2,
+                   track_fit = TRUE, verbose = FALSE)
+  d <- fit$R_finite_diagnostics
+  expect_true(is.null(d$R_mismatch_init))
+  expect_true(!is.null(d$Q_art))
+})
+
+test_that("R_mismatch = 'eb_force_init' initializes even with finite R_finite", {
+  set.seed(16)
+  p <- 20
+  n <- 1000
+  X <- matrix(rnorm(n * p), n, p)
+  R <- cor(X)
+  z <- rnorm(p)
+
+  fit <- susie_rss(z = z, R = R, n = n, L = 3,
+                   R_finite = 5000, R_mismatch = "eb_force_init",
+                   max_iter = 2, track_fit = TRUE, verbose = FALSE)
+  d <- fit$R_finite_diagnostics
+  expect_true(!is.null(d$R_mismatch_init))
+  expect_equal(d$R_mismatch_trace[[1]]$phase, "init_ser")
+})
+
+test_that("R_mismatch = 'eb_no_init' skips SER-protected initialization", {
+  set.seed(18)
+  p <- 20
+  n <- 1000
+  X <- matrix(rnorm(n * p), n, p)
+  R <- cor(X)
+  z <- rnorm(p)
+
+  fit <- susie_rss(z = z, R = R, n = n, L = 3,
+                   R_mismatch = "eb_no_init", max_iter = 2,
                    track_fit = TRUE, verbose = FALSE)
   d <- fit$R_finite_diagnostics
   expect_true(is.null(d$R_mismatch_init))
@@ -83,19 +115,19 @@ test_that("Optional artifact args validate ranges", {
 
   expect_error(
     susie_rss(z = z, R = R, n = n, L = 3, R_finite = 5000,
-              R_mismatch = "eb_zero", artifact_threshold = -0.1,
+              R_mismatch = "eb_no_init", artifact_threshold = -0.1,
               max_iter = 2, verbose = FALSE),
     "artifact_threshold"
   )
   expect_error(
     susie_rss(z = z, R = R, n = n, L = 3, R_finite = 5000,
-              R_mismatch = "eb_zero", artifact_threshold = 1.1,
+              R_mismatch = "eb_no_init", artifact_threshold = 1.1,
               max_iter = 2, verbose = FALSE),
     "artifact_threshold"
   )
   expect_error(
     susie_rss(z = z, R = R, n = n, L = 3, R_finite = 5000,
-              R_mismatch = "eb_zero", eig_delta_rel = -1,
+              R_mismatch = "eb_no_init", eig_delta_rel = -1,
               max_iter = 2, verbose = FALSE),
     "eig_delta_rel"
   )
@@ -112,7 +144,7 @@ test_that("SS path stores scalar lambda_bias / B_corrected (not per-slot)", {
   z <- rnorm(p)
 
   fit <- susie_rss(z = z, R = R, n = n, L = 3, R_finite = 5000,
-                   R_mismatch = "eb_zero", max_iter = 5, verbose = FALSE)
+                   R_mismatch = "eb_no_init", max_iter = 5, verbose = FALSE)
   expect_length(fit$R_finite_diagnostics$lambda_bias, 1)
   expect_length(fit$R_finite_diagnostics$B_corrected, 1)
   expect_true(fit$R_finite_diagnostics$lambda_bias >= 0)

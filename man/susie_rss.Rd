@@ -49,7 +49,7 @@ susie_rss(
   r_tol = 1e-08,
   refine = FALSE,
   R_finite = NULL,
-  R_mismatch = c("none", "eb", "eb_zero"),
+  R_mismatch = c("none", "eb", "eb_force_init", "eb_no_init"),
   eig_delta_rel = 0.001,
   eig_delta_abs = 0,
   artifact_threshold = 0.1,
@@ -290,14 +290,14 @@ When provided, the output includes a
 per-variable quality metrics.}
 
 \item{R_mismatch}{R-mismatch correction mode. \code{"none"} (default) is
-off. \code{"eb"} is the recommended empirical-Bayes correction: it
-initializes the region-level variance component from a one-SER
-protected residual, then updates it after each IBSS sweep. \code{"eb_zero"}
-uses the same EB updates but starts from \code{lambda = 0}; this is mainly
-useful as an ablation/diagnostic mode. When \code{R_finite} is provided,
-the EB component is added on top of the finite-reference correction;
-otherwise it is the \eqn{B = \infty} limit with no finite-reference term.
-Both EB modes report a QC score (\code{Q_art}) that extends the Zou et al.
+off. \code{"eb"} is the recommended empirical-Bayes correction: it uses a
+one-SER protected initialization only in the \eqn{B = \infty} limit, then
+updates the region-level variance component after each IBSS sweep. With
+finite \code{R_finite}, the finite-reference component already supplies
+early protection, so \code{"eb"} skips the initializer. \code{"eb_force_init"}
+always uses the one-SER initializer, and \code{"eb_no_init"} always starts
+from \code{lambda = 0}; these are mainly useful as diagnostic modes. All
+EB modes report a QC score (\code{Q_art}) that extends the Zou et al.
 (2022) column-space check from the input summary vector to the fitted
 residual after correction. They warn when that residual still projects
 onto near-null directions of the supplied \code{R}, and auto-disable
