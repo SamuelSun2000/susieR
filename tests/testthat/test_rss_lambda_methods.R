@@ -922,7 +922,7 @@ test_that("susie_rss_lambda excludes R_finite, R_mismatch, and multi-panel", {
 # SS-PATH R_MISMATCH REGRESSION TESTS
 # =============================================================================
 
-test_that("R_mismatch requires R_finite and stores lambda_bias and B_corrected", {
+test_that("R_mismatch works with and without finite-reference input", {
   set.seed(511)
   p <- 20
   n <- 1000
@@ -930,11 +930,19 @@ test_that("R_mismatch requires R_finite and stores lambda_bias and B_corrected",
   R <- cor(X)
   z <- rnorm(p)
 
-  expect_error(
-    susie_rss(z = z, R = R, n = n, L = 3, R_mismatch = "map",
-              max_iter = 2, verbose = FALSE),
-    "R_mismatch requires R_finite"
-  )
+  fit_inf <- susie_rss(z = z, R = R, n = n, L = 3, R_mismatch = "map",
+                       max_iter = 2, verbose = FALSE)
+  expect_equal(fit_inf$R_finite_diagnostics$B, Inf)
+  expect_length(fit_inf$R_finite_diagnostics$lambda_bias, 1)
+  expect_length(fit_inf$R_finite_diagnostics$B_corrected, 1)
+  expect_true(fit_inf$R_finite_diagnostics$lambda_bias >= 0)
+  expect_equal(fit_inf$R_finite_diagnostics$B_corrected,
+               1 / fit_inf$R_finite_diagnostics$lambda_bias,
+               tolerance = 1e-12)
+
+  fit_false <- susie_rss(z = z, R = R, n = n, L = 3, R_finite = FALSE,
+                         R_mismatch = "map", max_iter = 2, verbose = FALSE)
+  expect_equal(fit_false$R_finite_diagnostics$B, Inf)
 
   # F6: "mle" is no longer a valid choice.
   expect_error(

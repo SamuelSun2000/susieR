@@ -94,8 +94,10 @@ compute_R_finite_diagnostics <- function(X = NULL, R = NULL, B, p,
     Rhat_diag <- rep(1, p)
   }
 
-  # Debiased Frobenius norm (Ledoit-Wolf unbiased estimator)
-  R_frob_sq_db <- (B * R_frob_sq - p^2) / (B + 1)
+  # Debiased Frobenius norm (Ledoit-Wolf unbiased estimator). In the
+  # B = Inf limit there is no finite-reference debiasing term.
+  R_frob_sq_db <- if (is.infinite(B)) R_frob_sq else
+                    (B * R_frob_sq - p^2) / (B + 1)
   eff_rank <- p^2 / max(R_frob_sq_db, 1)
 
   list(
@@ -112,7 +114,9 @@ compute_R_finite_diagnostics <- function(X = NULL, R = NULL, B, p,
 # 1-D MAP OPTIMIZER FOR lambda_bias
 # =============================================================================
 
-# Estimate extra R-bias variance beyond finite-reference uncertainty.
+# Estimate R-bias variance beyond any supplied finite-reference uncertainty.
+# With R_finite_B = Inf this is the B^{-1} = 0 limit, so lambda_bias is the
+# total continuous R-mismatch variance component.
 # Likelihood on the z-score residual scale,
 #   tau_j^2 = sigma2 + (1/R_finite_B + lambda_bias) * s_j,
 # with a half-Cauchy(prior_scale) prior on u = sqrt(lambda_bias).

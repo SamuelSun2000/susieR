@@ -619,15 +619,15 @@ susie_ss <- function(XtX, Xty, yty, n,
 #'
 #' @param R_mismatch R-mismatch correction mode. \code{"none"} (default) is off.
 #'   \code{"map"} adds a region-level population-mismatch variance
-#'   component on top of the finite-reference correction; recommended
-#'   whenever \code{R} comes from a different cohort than the GWAS.
+#'   component. When \code{R_finite} is provided, the component is added on
+#'   top of the finite-reference correction; otherwise it is the
+#'   \eqn{B = \infty} limit with no finite-reference term.
 #'   \code{"map_qc"} is \code{"map"} plus a QC score (\code{Q_art}) that
 #'   extends the Zou et al. (2022) column-space check from the input
 #'   summary vector to the fitted residual after \code{R_mismatch}
 #'   correction. It warns when that residual still projects onto
 #'   near-null directions of the supplied \code{R}.
-#'   Requires \code{R_finite}; auto-disables \code{estimate_residual_variance}
-#'   with a warning.
+#'   Auto-disables \code{estimate_residual_variance} with a warning.
 #'
 #' @param eig_delta_rel,eig_delta_abs Cutoffs for "low-eigenvalue"
 #'   directions of \code{R} used by the QC diagnostic
@@ -648,8 +648,8 @@ susie_ss <- function(XtX, Xty, yty, n,
 #'   \code{\link{susie}}), the returned object may contain:
 #'
 #' \item{R_finite_diagnostics}{A list of diagnostics for the
-#'   finite-reference correction (only present when
-#'   \code{R_finite} is provided), containing:
+#'   R-uncertainty correction (only present when \code{R_finite} is provided
+#'   or \code{R_mismatch != "none"}), containing:
 #'   \code{B} (the reference sample size);
 #'   \code{p} (number of variables);
 #'   \code{effective_rank} (debiased \eqn{\tilde{r} = p^2 / \|R\|_F^2});
@@ -751,10 +751,6 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
          "provide the reference sample size explicitly.")
   R_finite <- resolve_R_finite(R_finite, if (!is.null(X)) X else R,
                                is_multi_panel)
-  if (R_mismatch != "none" && is.null(R_finite))
-    stop("R_mismatch requires R_finite because lambda_bias is estimated ",
-         "as extra R bias beyond finite-reference uncertainty.")
-
   # sigma^2 and lambda_bias both inflate the residual variance and are
   # only weakly jointly identified; we follow Zou et al. (2022) and fix
   # sigma^2 when R_mismatch is active.
@@ -873,11 +869,12 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
   prior_variance_grid     <- mp$prior_variance_grid
   mixture_weights         <- mp$mixture_weights
 
-  # Auto-switch to PIP convergence for finite-reference R inflation.
-  # (R_finite was already resolved to an integer above)
-  if (!is.null(R_finite) && convergence_method[1] == "elbo") {
+  # Auto-switch to PIP convergence when the SER likelihood is dynamically
+  # inflated by finite-reference R uncertainty or R-mismatch correction.
+  if ((!is.null(R_finite) || R_mismatch != "none") &&
+      convergence_method[1] == "elbo") {
     convergence_method <- force_pip(
-      "finite-reference R inflation modifies per-variant SER ",
+      "R uncertainty inflation modifies per-variant SER ",
       "likelihoods, which prevents a consistent model-level ELBO")
   }
 

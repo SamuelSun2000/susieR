@@ -291,15 +291,15 @@ per-variable quality metrics.}
 
 \item{R_mismatch}{R-mismatch correction mode. \code{"none"} (default) is off.
 \code{"map"} adds a region-level population-mismatch variance
-component on top of the finite-reference correction; recommended
-whenever \code{R} comes from a different cohort than the GWAS.
+component. When \code{R_finite} is provided, the component is added on
+top of the finite-reference correction; otherwise it is the
+\eqn{B = \infty} limit with no finite-reference term.
 \code{"map_qc"} is \code{"map"} plus a QC score (\code{Q_art}) that
 extends the Zou et al. (2022) column-space check from the input
 summary vector to the fitted residual after \code{R_mismatch}
 correction. It warns when that residual still projects onto
 near-null directions of the supplied \code{R}.
-Requires \code{R_finite}; auto-disables \code{estimate_residual_variance}
-with a warning.}
+Auto-disables \code{estimate_residual_variance} with a warning.}
 
 \item{eig_delta_rel, eig_delta_abs}{Cutoffs for "low-eigenvalue"
 directions of \code{R} used by the QC diagnostic
@@ -345,8 +345,8 @@ In addition to the standard \code{"susie"} output (see
   \code{\link{susie}}), the returned object may contain:
 
 \item{R_finite_diagnostics}{A list of diagnostics for the
-  finite-reference correction (only present when
-  \code{R_finite} is provided), containing:
+  R-uncertainty correction (only present when \code{R_finite} is provided
+  or \code{R_mismatch != "none"}), containing:
   \code{B} (the reference sample size);
   \code{p} (number of variables);
   \code{effective_rank} (debiased \eqn{\tilde{r} = p^2 / \|R\|_F^2});

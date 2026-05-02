@@ -796,16 +796,16 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
   }
 
   R_mismatch <- match.arg(R_mismatch, c("none", "map", "map_qc"))
-  if (R_mismatch != "none" && is.null(R_finite))
-    stop("R_mismatch requires R_finite because lambda_bias is estimated ",
-         "as extra R bias beyond finite-reference uncertainty.")
+  R_finite_B <- R_finite
+  if (R_mismatch != "none" && is.null(R_finite_B))
+    R_finite_B <- Inf
 
   # R diagnostics (static, computed once at initialization).
   # X is standardized (X'X = R) at this point.
   R_finite_diagnostics <- NULL
-  if (!is.null(R_finite)) {
+  if (!is.null(R_finite_B)) {
     R_finite_diagnostics <- compute_R_finite_diagnostics(
-      X = X, R = R, B = R_finite, p = length(z),
+      X = X, R = R, B = R_finite_B, p = length(z),
       x_is_standardized = TRUE)
   }
 
@@ -885,9 +885,10 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
     greedy_lbf_cutoff = greedy_lbf_cutoff
   )
 
-  # Attach finite-reference R metadata to data object.
-  if (!is.null(R_finite)) {
-    result$data$R_finite_B <- R_finite
+  # Attach R-uncertainty metadata. For R_mismatch without finite-reference
+  # input, R_finite_B = Inf gives the B^{-1} = 0 limit of the same model.
+  if (!is.null(R_finite_B)) {
+    result$data$R_finite_B <- R_finite_B
     result$data$R_finite_diagnostics <- R_finite_diagnostics
     result$data$R_mismatch <- R_mismatch
   }
@@ -1039,6 +1040,10 @@ ss_mixture_constructor <- function(z, R = NULL, X = NULL, n,
   if (!is.null(R_finite)) {
     B_list <- as.numeric(R_finite)
     R_finite_B <- 1 / sum(omega_init^2 / B_list)
+  }
+  if (R_mismatch != "none" && is.null(R_finite_B))
+    R_finite_B <- Inf
+  if (!is.null(R_finite_B)) {
     R_finite_diagnostics <- compute_R_finite_diagnostics(
       R = R_init, B = R_finite_B, p = p)
   }

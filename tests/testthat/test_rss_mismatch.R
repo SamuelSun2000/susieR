@@ -19,6 +19,25 @@ test_that("R_mismatch = 'map_qc' runs and returns Q_art diagnostics", {
   expect_true(d$mode_label %in% c("normal", "warning", "conservative"))
 })
 
+test_that("R_mismatch = 'map_qc' supports the B = Inf limit", {
+  set.seed(12)
+  p <- 20
+  n <- 1000
+  X <- matrix(rnorm(n * p), n, p)
+  R <- cor(X)
+  z <- rnorm(p)
+
+  fit <- susie_rss(z = z, R = R, n = n, L = 3,
+                   R_mismatch = "map_qc", max_iter = 2, verbose = FALSE)
+  d <- fit$R_finite_diagnostics
+  expect_equal(d$B, Inf)
+  expect_true(is.finite(d$r_over_B))
+  expect_equal(d$r_over_B, 0)
+  expect_length(d$lambda_bias, 1)
+  expect_true(d$lambda_bias >= 0)
+  expect_true(!is.null(d$Q_art))
+})
+
 test_that("Optional artifact args validate ranges", {
   set.seed(17)
   p <- 20
