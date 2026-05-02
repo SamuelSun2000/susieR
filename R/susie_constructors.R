@@ -1,4 +1,63 @@
 # =============================================================================
+# CONSTRUCTOR HELPERS
+# =============================================================================
+
+#' @keywords internal
+#' @noRd
+resolve_model_init <- function(model_init, s_init) {
+  if (!is.null(s_init)) {
+    if (!is.null(model_init))
+      stop("Cannot specify both 's_init' and 'model_init'.")
+    warning_message("s_init is deprecated and will be removed in a future ",
+                    "version of susieR. Please use model_init instead.")
+    model_init <- s_init
+  }
+  model_init
+}
+
+#' @keywords internal
+#' @noRd
+normalize_null_weight <- function(null_weight, prior_weights, p) {
+  if (!is.null(null_weight)) {
+    if (!is.numeric(null_weight))
+      stop("Null weight must be numeric.")
+    if (length(null_weight) != 1L)
+      stop("Null weight must be numeric.")
+    if (is.na(null_weight))
+      stop("Null weight must be numeric.")
+    if (null_weight == 0)
+      null_weight <- NULL
+  }
+
+  if (!is.null(null_weight)) {
+    if (null_weight < 0 || null_weight >= 1)
+      stop("Null weight must be between 0 and 1.")
+
+    if (is.null(prior_weights)) {
+      prior_weights <- c(rep((1 - null_weight) / p, p), null_weight)
+    } else {
+      prior_weights <- c(prior_weights * (1 - null_weight), null_weight)
+    }
+  }
+
+  list(null_weight = null_weight,
+       prior_weights = prior_weights,
+       add_null = !is.null(null_weight))
+}
+
+#' @keywords internal
+#' @noRd
+normalize_prior_weights <- function(prior_weights, p) {
+  if (is.null(prior_weights))
+    prior_weights <- rep(1 / p, p)
+  if (length(prior_weights) != p)
+    stop("Prior weights must have length p.")
+  if (all(prior_weights == 0))
+    stop("Prior weight should be greater than 0 for at least one variable.")
+  prior_weights / sum(prior_weights)
+}
+
+# =============================================================================
 # INDIVIDUAL-LEVEL DATA CONSTRUCTOR
 #
 # Constructs data and params objects for SuSiE from individual-level data (X, y).
@@ -50,14 +109,7 @@ individual_data_constructor <- function(X, y, L = min(10, ncol(X)),
                                         L_greedy = NULL,
                                         greedy_lbf_cutoff = 0.1) {
 
-  # Handle deprecated s_init argument
-  if (!is.null(s_init)) {
-    if (!is.null(model_init))
-      stop("Cannot specify both 's_init' and 'model_init'.")
-    warning_message("s_init is deprecated and will be removed in a future ",
-                    "version of susieR. Please use model_init instead.")
-    model_init <- s_init
-  }
+  model_init <- resolve_model_init(model_init, s_init)
 
   # Validate input X
   if (!(is.double(X) & is.matrix(X)) &
@@ -126,25 +178,11 @@ individual_data_constructor <- function(X, y, L = min(10, ncol(X)),
          "Please use estimate_prior_method = 'optim' instead.")
   }
 
-  # Handle null weights
-  if (is.numeric(null_weight) && null_weight == 0) {
-    null_weight <- NULL
-  }
+  nw <- normalize_null_weight(null_weight, prior_weights, ncol(X))
+  null_weight <- nw$null_weight
+  prior_weights <- nw$prior_weights
 
-  if (!is.null(null_weight)) {
-    if (!is.numeric(null_weight)) {
-      stop("Null weight must be numeric.")
-    }
-    if (null_weight < 0 || null_weight >= 1) {
-      stop("Null weight must be between 0 and 1.")
-    }
-
-    if (is.null(prior_weights)) {
-      prior_weights <- c(rep(1 / ncol(X) * (1 - null_weight), ncol(X)), null_weight)
-    } else {
-      prior_weights <- c(prior_weights * (1 - null_weight), null_weight)
-    }
-
+  if (nw$add_null) {
     # add the extra 0 column to X
     X <- cbind(X, 0)
   }
@@ -153,19 +191,7 @@ individual_data_constructor <- function(X, y, L = min(10, ncol(X)),
   n <- nrow(X)
   p <- ncol(X)
 
-  # Set uniform prior weights if not provided
-  if (is.null(prior_weights)) {
-    prior_weights <- rep(1 / p, p)
-  }
-
-  # Validate and normalize prior_weights
-  if (length(prior_weights) != p) {
-    stop("Prior weights must have length p.")
-  }
-  if (all(prior_weights == 0)) {
-    stop("Prior weight should be greater than 0 for at least one variable.")
-  }
-  prior_weights <- prior_weights / sum(prior_weights)
+  prior_weights <- normalize_prior_weights(prior_weights, p)
 
   # nocov start
   if (p > 1000 & !requireNamespace("Rfast", quietly = TRUE)) {
@@ -301,14 +327,7 @@ sufficient_stats_constructor <- function(Xty, yty, n,
                                          L_greedy = NULL,
                                          greedy_lbf_cutoff = 0.1) {
 
-  # Handle deprecated s_init argument
-  if (!is.null(s_init)) {
-    if (!is.null(model_init))
-      stop("Cannot specify both 's_init' and 'model_init'.")
-    warning_message("s_init is deprecated and will be removed in a future ",
-                    "version of susieR. Please use model_init instead.")
-    model_init <- s_init
-  }
+  model_init <- resolve_model_init(model_init, s_init)
 
   # Validate required inputs
   if (missing(n)) {
@@ -402,23 +421,11 @@ sufficient_stats_constructor <- function(Xty, yty, n,
   # Define p before null_weight handling
   p <- if (!is.null(XtX)) ncol(XtX) else ncol(X)
 
-  # Handle null weights
-  if (is.numeric(null_weight) && null_weight == 0) {
-    null_weight <- NULL
-  }
+  nw <- normalize_null_weight(null_weight, prior_weights, p)
+  null_weight <- nw$null_weight
+  prior_weights <- nw$prior_weights
 
-  if (!is.null(null_weight)) {
-    if (!is.numeric(null_weight)) {
-      stop("Null weight must be numeric.")
-    }
-    if (null_weight < 0 || null_weight >= 1) {
-      stop("Null weight must be between 0 and 1.")
-    }
-    if (is.null(prior_weights)) {
-      prior_weights <- c(rep(1 / p * (1 - null_weight), p), null_weight)
-    } else {
-      prior_weights <- c(prior_weights * (1 - null_weight), null_weight)
-    }
+  if (nw$add_null) {
     if (!is.null(XtX)) {
       XtX <- cbind(rbind(XtX, 0), 0)
     }
@@ -438,19 +445,7 @@ sufficient_stats_constructor <- function(Xty, yty, n,
     p <- p + 1
   }
 
-  # Set uniform prior weights if not provided
-  if (is.null(prior_weights)) {
-    prior_weights <- rep(1 / p, p)
-  }
-
-  # Validate and normalize prior_weights
-  if (length(prior_weights) != p) {
-    stop("Prior weights must have length p.")
-  }
-  if (all(prior_weights == 0)) {
-    stop("Prior weight should be greater than 0 for at least one variable.")
-  }
-  prior_weights <- prior_weights / sum(prior_weights)
+  prior_weights <- normalize_prior_weights(prior_weights, p)
 
   # Standardize if requested
   if (!is.null(X)) {
@@ -619,14 +614,7 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
                                       L_greedy = NULL,
                                       greedy_lbf_cutoff = 0.1) {
 
-  # Handle deprecated s_init argument
-  if (!is.null(s_init)) {
-    if (!is.null(model_init))
-      stop("Cannot specify both 's_init' and 'model_init'.")
-    warning_message("s_init is deprecated and will be removed in a future ",
-                    "version of susieR. Please use model_init instead.")
-    model_init <- s_init
-  }
+  model_init <- resolve_model_init(model_init, s_init)
 
   # NIG prior requires an explicit sample size n: the default alpha0/beta0
   # scale as 1/sqrt(n) and the NIG marginal likelihood depends on n. Without
@@ -1025,18 +1013,11 @@ ss_mixture_constructor <- function(z, R = NULL, X = NULL, n,
     z[is.na(z)] <- 0
   }
 
-  if (is.numeric(null_weight) && null_weight == 0)
-    null_weight <- NULL
-  if (!is.null(null_weight)) {
-    if (!is.numeric(null_weight))
-      stop("Null weight must be numeric.")
-    if (null_weight < 0 || null_weight >= 1)
-      stop("Null weight must be between 0 and 1.")
-    if (is.null(prior_weights)) {
-      prior_weights <- c(rep(1 / p * (1 - null_weight), p), null_weight)
-    } else {
-      prior_weights <- c(prior_weights * (1 - null_weight), null_weight)
-    }
+  nw <- normalize_null_weight(null_weight, prior_weights, p)
+  null_weight <- nw$null_weight
+  prior_weights <- nw$prior_weights
+
+  if (nw$add_null) {
     panel_R <- lapply(panel_R, function(Rk) cbind(rbind(Rk, 0), 0))
     if (!is.null(X_list))
       X_list <- lapply(X_list, function(Xk) cbind(Xk, 0))
@@ -1044,8 +1025,7 @@ ss_mixture_constructor <- function(z, R = NULL, X = NULL, n,
     p <- p + 1L
   }
 
-  if (is.null(prior_weights))
-    prior_weights <- rep(1 / p, p)
+  prior_weights <- normalize_prior_weights(prior_weights, p)
 
   k_best <- if (!is.null(init_panel)) init_panel else 1L
   omega_init <- rep(0, K)
@@ -1261,23 +1241,12 @@ rss_lambda_constructor <- function(z, R = NULL, X = NULL, n = NULL,
     z[is.na(z)] <- 0
   }
 
-  # Handle null weight
-  if (is.numeric(null_weight) && null_weight == 0) {
-    null_weight <- NULL
-  }
-  if (!is.null(null_weight)) {
-    if (!is.numeric(null_weight)) {
-      stop("Null weight must be numeric.")
-    }
-    if (null_weight < 0 || null_weight >= 1) {
-      stop("Null weight must be between 0 and 1.")
-    }
-    p_cur <- if (!is.null(R)) ncol(R) else ncol(X)
-    if (is.null(prior_weights)) {
-      prior_weights <- c(rep(1 / p_cur * (1 - null_weight), p_cur), null_weight)
-    } else {
-      prior_weights <- c(prior_weights * (1 - null_weight), null_weight)
-    }
+  p_cur <- if (!is.null(R)) ncol(R) else ncol(X)
+  nw <- normalize_null_weight(null_weight, prior_weights, p_cur)
+  null_weight <- nw$null_weight
+  prior_weights <- nw$prior_weights
+
+  if (nw$add_null) {
     if (!is.null(R)) R <- cbind(rbind(R, 0), 0)
     if (!is.null(X)) X <- cbind(X, 0)
     z <- c(z, 0)
@@ -1286,9 +1255,7 @@ rss_lambda_constructor <- function(z, R = NULL, X = NULL, n = NULL,
   # Determine p and set prior weights
   p <- if (!is.null(R)) ncol(R) else ncol(X)
 
-  if (is.null(prior_weights)) {
-    prior_weights <- rep(1 / p, p)
-  }
+  prior_weights <- normalize_prior_weights(prior_weights, p)
 
   # Eigen decomposition: from R or SVD of X
   if (!is.null(X)) {
