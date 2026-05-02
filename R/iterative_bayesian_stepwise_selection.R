@@ -406,6 +406,8 @@ ibss_finalize <- function(data, params, model, elbo = NULL, iter = NA_integer_,
       model$R_finite_diagnostics$R_mismatch_trace <- model$R_mismatch_trace
     if (!is.null(model$R_mismatch_init))
       model$R_finite_diagnostics$R_mismatch_init <- model$R_mismatch_init
+    if (!is.null(model$R_mismatch_ser_model))
+      model$R_finite_diagnostics$ser_model <- model$R_mismatch_ser_model
     threshold <- if (!is.null(params$R_sensitivity_threshold))
                    params$R_sensitivity_threshold else log(20)
     model <- summarize_R_bf_attenuation(model, threshold)
@@ -413,9 +415,14 @@ ibss_finalize <- function(data, params, model, elbo = NULL, iter = NA_integer_,
       isTRUE(model$R_finite_diagnostics$artifact_flag) ||
       isTRUE(model$R_finite_diagnostics$R_sensitivity_flag)
     if (isTRUE(model$R_finite_diagnostics$R_reliability_flag)) {
-      msg <- paste0("Summary statistics and R reference mismatch detected. ",
+      msg <- paste0("Possible summary statistics and R reference mismatch detected. ",
                     "Fine-mapping results may be unreliable; inspect ",
                     "fit$R_finite_diagnostics for details.")
+      if (!is.null(model$R_finite_diagnostics$ser_model)) {
+        msg <- paste0(msg, " A one-effect diagnostic is available at ",
+                      "fit$R_finite_diagnostics$ser_model; its alpha row ",
+                      "is the PIP.")
+      }
       warning_message(msg)
       warning(msg, call. = FALSE)
     }

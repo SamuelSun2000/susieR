@@ -134,12 +134,17 @@ susie_plot <- function(model, y, add_bar = FALSE, pos = NULL, b = NULL,
   } else if (y == "PIP") {
     if (is_susie) {
       p <- model$pip
+      if (is.null(p) && !is.null(model$alpha) && nrow(model$alpha) == 1)
+        p <- as.vector(model$alpha[1, ])
     } else {
       p <- model
     }
   } else if (y == "log10PIP") {
     if (is_susie) {
-      p <- log10(model$pip)
+      p <- model$pip
+      if (is.null(p) && !is.null(model$alpha) && nrow(model$alpha) == 1)
+        p <- as.vector(model$alpha[1, ])
+      p <- log10(p)
     } else {
       p <- log10(model)
     }

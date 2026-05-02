@@ -337,7 +337,7 @@ test_that("eb emits one final R warning when reliability flag triggers", {
   R <- matrix(c(1, -rho, -rho, 1), 2, 2)
   warnings <- character()
   fit <- withCallingHandlers(
-    susie_rss(z = z, R = R, n = 5000, L = 1, R_finite = 1e6,
+    susie_rss(z = z, R = R, n = 5000, L = 1,
               R_mismatch = "eb", max_iter = 5,
               estimate_prior_variance = FALSE,
               estimate_residual_variance = FALSE, verbose = FALSE),
@@ -345,12 +345,19 @@ test_that("eb emits one final R warning when reliability flag triggers", {
       warnings <<- c(warnings, conditionMessage(w))
       invokeRestart("muffleWarning")
     })
-  final_warnings <- grep("Summary statistics and R reference mismatch detected",
+  final_warnings <- grep("Possible summary statistics and R reference mismatch detected",
                          warnings, value = TRUE)
   expect_length(final_warnings, 1)
+  expect_match(final_warnings, "fit\\$R_finite_diagnostics\\$ser_model")
   expect_true(fit$R_finite_diagnostics$artifact_flag)
   expect_true(fit$R_finite_diagnostics$R_reliability_flag)
   expect_equal(fit$R_finite_diagnostics$Q_art, 1, tolerance = 1e-6)
+  ser <- fit$R_finite_diagnostics$ser_model
+  expect_s3_class(ser, "susie")
+  expect_equal(nrow(ser$alpha), 1)
+  expect_equal(as.vector(ser$alpha[1, ]), ser$pip)
+  expect_named(ser$sets, c("cs", "purity", "cs_index", "coverage",
+                           "requested_coverage"))
 })
 
 test_that("eb surfaces Q_art and mode_label diagnostics", {

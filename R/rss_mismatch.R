@@ -451,6 +451,7 @@ initialize_R_mismatch <- function(data, params, model) {
     return(model)
 
   model <- single_effect_update(data, params, model, 1L)
+  model$R_mismatch_ser_model <- make_R_mismatch_ser_model(data, params, model, 1L)
   model <- compute_R_mismatch_state(data, params, model, phase = "init_ser")
   model$R_mismatch_init <- list(
     method = "ser",
@@ -467,6 +468,34 @@ initialize_R_mismatch <- function(data, params, model) {
 #' @noRd
 fit_R_mismatch <- function(data, params, model) {
   compute_R_mismatch_state(data, params, model, phase = "sweep")
+}
+
+#' One-effect diagnostic model for R_mismatch initialization.
+#'
+#' @keywords internal
+#' @noRd
+make_R_mismatch_ser_model <- function(data, params, model, l = 1L) {
+  ser <- list(
+    alpha = model$alpha[l, , drop = FALSE],
+    mu = model$mu[l, , drop = FALSE],
+    mu2 = model$mu2[l, , drop = FALSE],
+    lbf = model$lbf[l],
+    lbf_variable = model$lbf_variable[l, , drop = FALSE],
+    V = model$V[l],
+    KL = if (!is.null(model$KL)) model$KL[l] else NA_real_,
+    sigma2 = model$sigma2,
+    pi = model$pi,
+    null_index = model$null_index,
+    niter = 1L,
+    converged = NA
+  )
+  class(ser) <- c("susie", "list")
+  ser$pip <- as.vector(ser$alpha[1, ])
+  if (!is.null(data$z))
+    ser$z <- data$z
+  ser$sets <- get_cs(data, params, ser)
+  ser <- get_variable_names(data, ser)
+  ser
 }
 
 # Eigen accessor for R-mismatch QC. The ordinary SS path stores data$eigen_R.
