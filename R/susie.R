@@ -723,9 +723,6 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
     stop("Please provide either R or X, but not both.")
   is_multi_panel <- (is.list(X) && !is.matrix(X)) ||
                     (is.list(R) && !is.matrix(R))
-  lambda <- 0
-  prior_variance <- 50
-  intercept_value <- 0
 
   R_mismatch <- match.arg(R_mismatch)
 
@@ -760,14 +757,13 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
     estimate_residual_variance <- FALSE
   }
 
-  # Handle multi-panel R input.
-  if (!is.null(R) && is_multi_panel) {
-    for (k in seq_along(R)) {
-      if (!is.matrix(R[[k]]) || !is.numeric(R[[k]]))
-        stop("Each element of R list must be a numeric matrix.")
-      if (nrow(R[[k]]) != ncol(R[[k]]))
-        stop("Each element of R list must be square.")
-    }
+  # Multi-panel: shared validation, PIP-switch, and per-panel sub-fit
+  # machinery. The R-input and X-input branches differ only in (i) what
+  # "valid" means for an element and (ii) whether the panels need
+  # centering. They share everything else: the n requirement, the
+  # PIP-convergence switch, and the per-panel single-panel sub-fits used
+  # to pick the best mixture init via attr(., ".init_panel").
+  if (is_multi_panel) {
     if (is.null(n))
       stop("Sample size 'n' is required for multi-panel mode.")
     if (convergence_method[1] == "elbo") {
@@ -776,89 +772,78 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
               "as mixture weights updates change R(omega) each iteration, which prevents ",
               "ELBO monotonicity.")
     }
+
+    # Capture the user's call frame here so the per-panel recursive call
+    # can resolve any unevaluated arguments in the original caller env.
+    user_env <- parent.frame()
     sp_call <- match.call()
     sp_call[[1]] <- quote(susie_rss)
     sp_call$verbose <- FALSE
     sp_call$s_init <- NULL
     sp_call$model_init <- NULL
-    sp_fits <- lapply(seq_along(R), function(k) {
-      Rk <- R[[k]]
-      sp_call$R <- Rk
-      sp_call$R_finite <- if (is.null(R_finite)) NULL else R_finite[k]
-      tryCatch(eval(sp_call, parent.frame(2)), error = function(e) NULL)
-    })
-    sp_elbos <- vapply(sp_fits, function(f)
-      if (!is.null(f)) tail(f$elbo, 1) else -Inf, numeric(1))
-    attr(R, ".init_panel") <- which.max(sp_elbos)
-  }
 
-  # Handle X input
-  if (!is.null(X)) {
-    if (is_multi_panel) {
-      # Multi-panel: validate each matrix
+    # Returns the index of the panel with the highest single-panel ELBO.
+    # `panel_arg` selects which call slot to substitute (`"R"` or `"X"`).
+    pick_init_panel <- function(panels, panel_arg) {
+      sp_fits <- lapply(seq_along(panels), function(k) {
+        sp_call[[panel_arg]] <- panels[[k]]
+        sp_call$R_finite <- if (is.null(R_finite)) NULL else R_finite[k]
+        tryCatch(eval(sp_call, user_env), error = function(e) NULL)
+      })
+      sp_elbos <- vapply(sp_fits, function(f)
+        if (!is.null(f)) tail(f$elbo, 1) else -Inf, numeric(1))
+      which.max(sp_elbos)
+    }
+
+    if (!is.null(R)) {
+      for (k in seq_along(R)) {
+        if (!is.matrix(R[[k]]) || !is.numeric(R[[k]]))
+          stop("Each element of R list must be a numeric matrix.")
+        if (nrow(R[[k]]) != ncol(R[[k]]))
+          stop("Each element of R list must be square.")
+      }
+      attr(R, ".init_panel") <- pick_init_panel(R, "R")
+    } else {
       for (k in seq_along(X)) {
         if (!is.matrix(X[[k]]) || !is.numeric(X[[k]]))
           stop("Each element of X list must be a numeric matrix.")
       }
-      if (lambda == 0 && is.null(n))
-        stop("Sample size 'n' is required for multi-panel mode with lambda=0.")
-      # Multi-panel: auto-switch to PIP convergence. Omega updates change
-      # R(omega) each iteration, breaking ELBO monotonicity guarantees.
-      if (convergence_method[1] == "elbo") {
-        convergence_method <- "pip"
-        warning_message("Switching to PIP-based convergence for multi-panel mixture ",
-                "as mixture weights updates change R(omega) each iteration, which prevents ",
-                "ELBO monotonicity.")
-      }
-      # Center each panel
+      # Center each panel before sub-fits so that crossprod(Xk) gives a
+      # covariance-like quantity, matching the ss_mixture_constructor's
+      # downstream expectation.
       X <- lapply(X, function(Xk) {
         cm <- colMeans(Xk)
         if (max(abs(cm)) > 1e-10 * max(abs(Xk)))
           Xk <- t(t(Xk) - cm)
         Xk
       })
-      # Run each single panel to convergence. This serves two purposes:
-      # (1) select the best vertex for mixture initialization (avoids rank
-      #     bias in null marginal log-likelihoods when B_k < p), and
-      # (2) provide users with single-panel fits for comparison (stored
-      #     in the returned object as $single_panel_fits).
-      sp_call <- match.call()
-      sp_call[[1]] <- quote(susie_rss)
-      sp_call$verbose <- FALSE
-      sp_call$s_init <- NULL
-      sp_call$model_init <- NULL
-      sp_fits <- lapply(seq_along(X), function(k) {
-        Xk <- X[[k]]
-        sp_call$X <- Xk
-        sp_call$R_finite <- if (is.null(R_finite)) NULL else R_finite[k]
-        tryCatch(eval(sp_call, parent.frame(2)), error = function(e) NULL)
-      })
-      sp_elbos <- vapply(sp_fits, function(f)
-        if (!is.null(f)) tail(f$elbo, 1) else -Inf, numeric(1))
-      attr(X, ".init_panel") <- which.max(sp_elbos)
-      } else {
-      if (!is.matrix(X) || !is.numeric(X))
-        stop("X must be a numeric matrix.")
+      attr(X, ".init_panel") <- pick_init_panel(X, "X")
+    }
+  }
 
-      # Center columns of X so that crossprod gives covariance-like quantities.
-      cm <- colMeans(X)
-      if (max(abs(cm)) > 1e-10 * max(abs(X)))
-        X <- t(t(X) - cm)
+  # Handle single-panel X input.
+  if (!is.null(X) && !is_multi_panel) {
+    if (!is.matrix(X) || !is.numeric(X))
+      stop("X must be a numeric matrix.")
 
-      # Features incompatible with the low-rank path: fall back to forming R
-      needs_R <- !is.null(var_y) && !is.null(shat)
-      if (needs_R && nrow(X) < ncol(X)) {
-        warning_message(
-          "X is provided as a low-rank factor matrix, but var_y/shat ",
-          "requires the full correlation matrix R. Forming ",
-          "R = cov2cor(crossprod(X)/nrow(X)) and using the standard path.")
-      }
+    # Center columns of X so that crossprod gives covariance-like quantities.
+    cm <- colMeans(X)
+    if (max(abs(cm)) > 1e-10 * max(abs(X)))
+      X <- t(t(X) - cm)
 
-      # If nrow(X) >= ncol(X) or features require R, form R and use standard path
-      if (nrow(X) >= ncol(X) || needs_R) {
-        R <- safe_cor(X)
-        X <- NULL
-      }
+    # Features incompatible with the low-rank path: fall back to forming R
+    needs_R <- !is.null(var_y) && !is.null(shat)
+    if (needs_R && nrow(X) < ncol(X)) {
+      warning_message(
+        "X is provided as a low-rank factor matrix, but var_y/shat ",
+        "requires the full correlation matrix R. Forming ",
+        "R = cov2cor(crossprod(X)/nrow(X)) and using the standard path.")
+    }
+
+    # If nrow(X) >= ncol(X) or features require R, form R and use standard path
+    if (nrow(X) >= ncol(X) || needs_R) {
+      R <- safe_cor(X)
+      X <- NULL
     }
   }
 
@@ -885,12 +870,11 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
   susie_objects <- summary_stats_constructor(
     z = z, R = R, X = X, n = n,
     bhat = bhat, shat = shat, var_y = var_y,
-    L = L, lambda = lambda, maf = maf, maf_thresh = maf_thresh,
-    prior_variance = prior_variance,
+    L = L, maf = maf, maf_thresh = maf_thresh,
     scaled_prior_variance = scaled_prior_variance,
     residual_variance = residual_variance,
     prior_weights = prior_weights, null_weight = null_weight,
-    standardize = standardize, intercept_value = intercept_value,
+    standardize = standardize,
     estimate_residual_variance = estimate_residual_variance,
     estimate_residual_method = estimate_residual_method,
     estimate_prior_variance = estimate_prior_variance,
@@ -966,6 +950,11 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
 #'   the prior variance is estimated (a separate parameter for each of
 #'   the L effects). When \code{TRUE}, \code{prior_variance} provides the
 #'   initial value; when \code{FALSE}, it is held fixed.
+#' @param check_null_threshold When the prior variance is estimated,
+#'   compare its likelihood to the likelihood at zero and use zero
+#'   unless the larger value exceeds it by at least
+#'   \code{check_null_threshold}. \code{0} (default) takes the larger
+#'   likelihood at face value.
 #' @param check_R If TRUE, verify that \code{R} is positive semidefinite.
 #' @param check_z If TRUE, verify that \code{z} lies in the column space
 #'   of \code{R}.

@@ -186,12 +186,15 @@ compute_shat2_inflation <- function(data, model, XtXr_without_l, b_minus_l, r) {
 # MODEL-STATE STORAGE FOR PER-SLOT INFLATION DIAGNOSTICS
 # =============================================================================
 
-# Unpack the inflation list from compute_shat2_inflation* into the model:
-# bare per-variant vector at model$shat2_inflation, plus per-slot
-# diagnostics model$lambda_bias[l] and model$B_corrected[l] when the
-# caller (rss_lambda dispatch) provides them. SS-path callers pass
-# infl_state$lambda_bias = NULL because the SS path stores lambda_bias
-# as a scalar set once per sweep by fit_R_mismatch.
+# Unpack the inflation list from compute_shat2_inflation into the model.
+# Sets model$shat2_inflation to the per-variant inflation vector. The
+# per-slot writes to model$lambda_bias[l] / model$B_corrected[l] gated
+# below are dormant in the current code: SS / ss_mixture callers always
+# pass infl_state$lambda_bias = NULL (the scalar lambda_bias is set
+# once per sweep by fit_R_mismatch), and the rss_lambda path no longer
+# calls this function. The per-slot machinery is retained as inert
+# back-compat shim and will be removed when the next constructor pass
+# converges on a single storage shape.
 #' @keywords internal
 apply_inflation_state <- function(model, infl_state, l) {
   if (is.null(infl_state)) {

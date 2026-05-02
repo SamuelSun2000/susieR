@@ -131,15 +131,10 @@ to 1, giving the mixture proportions for the variance grid. Default is
 is provided.}
 
 \item{check_null_threshold}{When the prior variance is estimated,
-compare the estimate with the null, and set the prior variance to
-zero unless the log-likelihood using the estimate is larger by this
-threshold amount. For example, if you set
-\code{check_null_threshold = 0.1}, this will "nudge" the estimate
-towards zero when the difference in log-likelihoods is small. A
-note of caution that setting this to a value greater than zero may
-lead the IBSS fitting procedure to occasionally decrease the ELBO. This
-setting is disabled when using \code{unmappable_effects = "inf"} or
-\code{unmappable_effects = "ash"}.}
+compare its likelihood to the likelihood at zero and use zero
+unless the larger value exceeds it by at least
+\code{check_null_threshold}. \code{0} (default) takes the larger
+likelihood at face value.}
 
 \item{prior_tol}{When the prior variance is estimated, compare the
 estimated value to \code{prior_tol} at the end of the computation,
