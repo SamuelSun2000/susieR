@@ -290,12 +290,7 @@ susie_get_cs <- function(res, X = NULL, Xcorr = NULL, coverage = 0.95,
   }
   if (check_symmetric) {
     if (!is.null(Xcorr) && !is_symmetric_matrix(Xcorr)) {
-      warning_message(
-        "Xcorr is not symmetric; forcing Xcorr to be symmetric ",
-        "by replacing Xcorr with (Xcorr + t(Xcorr))/2"
-      )
-      Xcorr <- Xcorr + t(Xcorr)
-      Xcorr <- Xcorr / 2
+      Xcorr <- symmetrize_warned(Xcorr, "Xcorr")
     }
   }
 
@@ -450,12 +445,7 @@ get_cs_correlation <- function(model, X = NULL, Xcorr = NULL, max = FALSE) {
     stop("One of X or Xcorr must be specified")
   }
   if (!is.null(Xcorr) && !is_symmetric_matrix(Xcorr)) {
-    warning_message(
-      "Xcorr is not symmetric; forcing Xcorr to be symmetric ",
-      "by replacing Xcorr with (Xcorr + t(Xcorr))/2"
-    )
-    Xcorr <- Xcorr + t(Xcorr)
-    Xcorr <- Xcorr / 2
+    Xcorr <- symmetrize_warned(Xcorr, "Xcorr")
   }
   # Get index for the best PIP per CS
   max_pip_idx <- sapply(model$sets$cs, function(cs) cs[which.max(model$pip[cs])])

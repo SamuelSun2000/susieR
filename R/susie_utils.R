@@ -60,6 +60,54 @@ warning_message <- function(..., style = c("warning", "hint")) {
   }
 }
 
+# Auto-switch convergence_method to "pip". Emits a hint explaining why.
+# Used at every site where the chosen method makes ELBO ill-defined or
+# unreliable. Returns "pip" so callers can do
+# `convergence_method <- force_pip(...)`. Variadic, like
+# `warning_message()`.
+#' @keywords internal
+force_pip <- function(...) {
+  warning_message("Switching to PIP-based convergence: ", ..., ".",
+                  style = "hint")
+  "pip"
+}
+
+# Standard "please supply n" hint used by every RSS entry that allows
+# n = NULL.
+#' @keywords internal
+hint_sample_size_recommended <- function() {
+  warning_message(
+    "Providing the sample size (n), or even a rough estimate of n, ",
+    "is highly recommended. Without n, the implicit assumption is ",
+    "n is large (Inf) and the effect sizes are small (close to zero).",
+    style = "hint")
+}
+
+# Symmetrize a matrix and warn. Returns (M + t(M)) / 2.
+#' @keywords internal
+symmetrize_warned <- function(M, name) {
+  warning_message(name, " is not symmetric; using (", name, " + t(",
+                  name, "))/2.")
+  (M + t(M)) / 2
+}
+
+# Replace NAs in a numeric vector with 0 and warn.
+#' @keywords internal
+replace_na_zero_warned <- function(v, name) {
+  warning_message("NA values in ", name, " are replaced with 0.")
+  v[is.na(v)] <- 0
+  v
+}
+
+# Warn that R is not positive semidefinite (callers clamp the negative
+# eigenvalues themselves, since they hold the local eigenvalue handle).
+#' @keywords internal
+warn_R_not_psd <- function() {
+  warning_message(
+    "The matrix R is not positive semidefinite. Negative ",
+    "eigenvalues are set to zero.")
+}
+
 #' Converts covariance matrix to correlation matrix
 #' Constant variables (zero variance) get correlation 0 with others, 1 with self
 #'
@@ -578,7 +626,8 @@ validate_and_override_params <- function(params) {
     }
     params$L_greedy <- as.integer(params$L_greedy)
     if (params$L_greedy > params$L) {
-      warning_message("L_greedy is greater than L; using L instead.")
+      warning_message("L_greedy is greater than L; using L instead.",
+                      style = "hint")
       params$L_greedy <- as.integer(params$L)
     }
   }
@@ -614,25 +663,23 @@ validate_and_override_params <- function(params) {
     stop("unmappable_effects must be one of 'none', 'inf', or 'ash'.")
   }
 
-  # Auto-create Beta-Binomial slot prior for ash mode (identifiability).
+  # Auto-create Beta-Binomial slot prior for ash mode (identifiability)
+  # and report defaults as a single hint. Users who want an
+  # uninformative prior can pass slot_prior_betabinom(1, 1).
   if (params$unmappable_effects == "ash" && is.null(params$slot_prior)) {
     params$slot_prior <- slot_prior_betabinom()
-    warning_message(
-      "For SuSiE-ash it is strongly advised to set slot_prior with ",
-      "a beta-binomial prior based on your expected sparsity of data. ",
-      "Set slot_prior = slot_prior_betabinom(a_beta, b_beta) explicitly.")
   }
-  # Report BB default parameters (separate from the warning above).
   if (!is.null(params$slot_prior) && inherits(params$slot_prior, "slot_prior_betabinom") &&
       isTRUE(params$slot_prior$ab_was_default)) {
     sp <- params$slot_prior
     n_active <- round(sp$a_beta / (sp$a_beta + sp$b_beta) * params$L)
     warning_message(
-      "Beta-Binomial prior parameters not specified, using default ",
+      "For SuSiE-ash, slot_prior was not specified; using default ",
       "Beta(a=", sp$a_beta, ", b=", sp$b_beta, "), ",
       "roughly expecting ~", n_active, " of ", params$L,
-      " slots to be active. Set a_beta and b_beta explicitly ",
-      "to change this behavior.")
+      " slots to be active. Set slot_prior = slot_prior_betabinom(a, b) ",
+      "to override; for an uninformative prior use slot_prior_betabinom(1, 1).",
+      style = "hint")
   }
   # Report nu default after the C message so the user sees C first.
   if (!is.null(params$slot_prior) && !inherits(params$slot_prior, "slot_prior_betabinom") &&
@@ -646,7 +693,8 @@ validate_and_override_params <- function(params) {
       ", so the number of active effects ranges roughly from ",
       round(max(0, sp$C - 2 * sd_mu), 1), " to ",
       round(sp$C + 2 * sd_mu, 1),
-      " around the prior mean. Set nu explicitly to change this behavior.")
+      " around the prior mean. Set nu explicitly to change this behavior.",
+      style = "hint")
   }
 
   # Override convergence method for unmappable effects or slot_prior.
@@ -654,16 +702,12 @@ validate_and_override_params <- function(params) {
   # or when unmappable effects modify the residual structure.
   needs_pip <- params$unmappable_effects != "none" || !is.null(params$slot_prior)
   if (needs_pip && params$convergence_method != "pip") {
-    if (params$unmappable_effects != "none") {
-      warning_message("Unmappable effects models (inf/ash) do not have a well ",
-              "defined ELBO and require PIP convergence. ",
-              "Setting convergence_method='pip'.")
-    } else {
-      warning_message("Slot activity model modifies fitted values ",
-              "by slot weights, making the standard ELBO invalid. ",
-              "Setting convergence_method='pip'.")
-    }
-    params$convergence_method <- "pip"
+    reason <- if (params$unmappable_effects != "none")
+      "unmappable effects models (inf/ash) do not have a well-defined ELBO"
+    else
+      paste("slot activity model modifies fitted values by slot weights,",
+            "making the standard ELBO invalid")
+    params$convergence_method <- force_pip(reason)
   }
 
   # Check for incompatible parameter combinations
@@ -724,20 +768,22 @@ validate_and_override_params <- function(params) {
       warning_message("NIG prior integrates out residual variance, ",
                       "implying estimate_residual_variance = TRUE. ",
                       "Setting estimate_residual_variance = TRUE. ",
-                      "To suppress this warning, explicitly set ",
-                      "estimate_residual_variance = TRUE in the function call.")
+                      "To suppress this hint, explicitly set ",
+                      "estimate_residual_variance = TRUE in the function call.",
+                      style = "hint")
       params$estimate_residual_variance <- TRUE
     }
 
     # Override convergence method only when L > 1
     if (params$L > 1 && params$convergence_method != "pip") {
-      warning_message("NIG method with L > 1 requires PIP convergence. Setting convergence_method='pip'.")
-      params$convergence_method <- "pip"
+      params$convergence_method <- force_pip("NIG method with L > 1")
     }
 
     # Override prior variance estimation method (only when estimation is enabled)
     if (params$estimate_prior_variance && params$estimate_prior_method != "EM") {
-      warning_message("NIG method works better with EM. Setting estimate_prior_method='EM'.")
+      warning_message("NIG method works better with EM. ",
+                      "Setting estimate_prior_method='EM'.",
+                      style = "hint")
       params$estimate_prior_method <- "EM"
     }
   } else {
@@ -813,7 +859,7 @@ adjust_L <- function(params, model_init_pruned, var_y) {
       " is smaller than the ", num_effects,
       " effects in model_init after pruning; ",
       "using L = ", num_effects, " instead."
-    ))
+    ), style = "hint")
     L <- num_effects
   }
 

@@ -549,7 +549,7 @@ test_that("sufficient_stats_constructor rejects non-symmetric XtX", {
 
   expect_message(
     result <- sufficient_stats_constructor(Xty = Xty, yty = yty, n = n, XtX = XtX),
-    "XtX not symmetric"
+    "XtX is not symmetric"
   )
 
   expect_true(isSymmetric(result$data$XtX))

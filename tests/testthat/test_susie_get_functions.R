@@ -428,7 +428,7 @@ test_that("susie_get_cs warns and fixes non-symmetric Xcorr", {
   # Should warn about non-symmetry
   expect_message(
     cs <- susie_get_cs(fit, Xcorr = Xcorr, coverage = 0.95, check_symmetric = TRUE),
-    "Xcorr is not symmetric; forcing Xcorr to be symmetric"
+    "Xcorr is not symmetric"
   )
 
   # Verify the symmetrization formula: (Xcorr + t(Xcorr)) / 2
@@ -583,7 +583,7 @@ test_that("get_cs_correlation warns and fixes non-symmetric Xcorr", {
     # Should warn about non-symmetry
     expect_message(
       cs_corr <- get_cs_correlation(fit, Xcorr = Xcorr),
-      "Xcorr is not symmetric; forcing Xcorr to be symmetric"
+      "Xcorr is not symmetric"
     )
 
     # Verify the symmetrization formula: (Xcorr + t(Xcorr)) / 2

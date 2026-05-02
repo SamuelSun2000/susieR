@@ -9,7 +9,8 @@ resolve_model_init <- function(model_init, s_init) {
     if (!is.null(model_init))
       stop("Cannot specify both 's_init' and 'model_init'.")
     warning_message("s_init is deprecated and will be removed in a future ",
-                    "version of susieR. Please use model_init instead.")
+                    "version of susieR. Please use model_init instead.",
+                    style = "hint")
     model_init <- s_init
   }
   model_init
@@ -154,11 +155,13 @@ individual_data_constructor <- function(X, y, L = min(10, ncol(X)),
   # Force required preprocessing for unmappable effects methods
   if (unmappable_effects != "none") {
     if (!intercept) {
-      warning_message("Unmappable effects methods require centered data. Setting intercept=TRUE.")
+      warning_message("Unmappable effects methods require centered data. ",
+                      "Setting intercept=TRUE.", style = "hint")
       intercept <- TRUE
     }
     if (!standardize) {
-      warning_message("Unmappable effects methods require scaled data. Setting standardize=TRUE.")
+      warning_message("Unmappable effects methods require scaled data. ",
+                      "Setting standardize=TRUE.", style = "hint")
       standardize <- TRUE
     }
   }
@@ -366,8 +369,7 @@ sufficient_stats_constructor <- function(Xty, yty, n,
 
     # Ensure XtX is symmetric
     if (!is_symmetric_matrix(XtX)) {
-      warning_message("XtX not symmetric; using (XtX + t(XtX))/2.")
-      XtX <- (XtX + t(XtX)) / 2
+      XtX <- symmetrize_warned(XtX, "XtX")
     }
 
     # Apply MAF filter if provided
@@ -414,8 +416,7 @@ sufficient_stats_constructor <- function(Xty, yty, n,
     stop("Input Xty contains infinite values.")
   }
   if (anyNA(Xty)) {
-    warning_message("NA values in Xty are replaced with 0.")
-    Xty[is.na(Xty)] <- 0
+    Xty <- replace_na_zero_warned(Xty, "Xty")
   }
 
   # Define p before null_weight handling
@@ -707,7 +708,7 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
     warning_message("SuSiE-ash with z-scores and R only operates on a ",
             "standardized scale. For best agreement with ",
             "individual-level analysis, provide bhat, shat, and ",
-            "var_y instead of z-scores.")
+            "var_y instead of z-scores.", style = "hint")
   }
 
   # Determine p from z or bhat
@@ -826,9 +827,7 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
   XtX <- NULL
   if (is.null(n)) {
     # Sample size not provided - use unadjusted z-scores
-    warning_message("Providing the sample size (n), or even a rough estimate of n, ",
-            "is highly recommended. Without n, the implicit assumption is ",
-            "n is large (Inf) and the effect sizes are small (close to zero).")
+    hint_sample_size_recommended()
     if (!is.null(R)) {
       XtX <- R
     }
@@ -1012,8 +1011,7 @@ ss_mixture_constructor <- function(z, R = NULL, X = NULL, n,
   if (any(is.infinite(z)))
     stop("z contains infinite values.")
   if (anyNA(z)) {
-    warning_message("NA values in z-scores are replaced with 0.")
-    z[is.na(z)] <- 0
+    z <- replace_na_zero_warned(z, "z-scores")
   }
 
   nw <- normalize_null_weight(null_weight, prior_weights, p)
@@ -1202,8 +1200,7 @@ rss_lambda_constructor <- function(z, R = NULL, X = NULL, n = NULL,
       ))
     }
     if (!is_symmetric_matrix(R)) {
-      warning_message("R not symmetric; using (R + t(R))/2.")
-      R <- (R + t(R)) / 2
+      R <- symmetrize_warned(R, "R")
     }
     if (!(is.double(R) & is.matrix(R)) & !inherits(R, "sparseMatrix")) {
       stop("Input R must be a double-precision matrix or a sparse matrix.")
@@ -1240,8 +1237,7 @@ rss_lambda_constructor <- function(z, R = NULL, X = NULL, n = NULL,
 
   # Replace NAs in z with zero
   if (anyNA(z)) {
-    warning_message("NA values in z-scores are replaced with 0.")
-    z[is.na(z)] <- 0
+    z <- replace_na_zero_warned(z, "z-scores")
   }
 
   p_cur <- if (!is.null(R)) ncol(R) else ncol(X)

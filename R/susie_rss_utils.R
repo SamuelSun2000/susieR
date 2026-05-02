@@ -198,20 +198,13 @@ estimate_s_rss <- function(z, R, n, r_tol = 1e-08, method = "null-mle") {
   }
   eigenld <- attr(R, "eigen")
   if (any(eigenld$values < -r_tol)) {
-    warning_message(
-      "The matrix R is not positive semidefinite. Negative ",
-      "eigenvalues are set to zero"
-    )
+    warn_R_not_psd()
   }
   eigenld$values[eigenld$values < r_tol] <- 0
 
   # Check input n, and adjust the z-scores if n is provided.
   if (missing(n)) {
-    warning_message(
-      "Providing the sample size (n), or even a rough estimate of n, ",
-      "is highly recommended. Without n, the implicit assumption is ",
-      "n is large (Inf) and the effect sizes are small (close to zero)."
-    )
+    hint_sample_size_recommended()
   } else if (n <= 1) {
     stop("n must be greater than 1")
   }
@@ -635,10 +628,7 @@ kriging_rss <- function(z, R, n, r_tol = 1e-08,
   }
   eigenld <- attr(R, "eigen")
   if (any(eigenld$values < -r_tol)) {
-    warning_message(
-      "The matrix R is not positive semidefinite. Negative ",
-      "eigenvalues are set to zero."
-    )
+    warn_R_not_psd()
   }
   eigenld$values[eigenld$values < r_tol] <- 0
 
@@ -656,11 +646,7 @@ kriging_rss <- function(z, R, n, r_tol = 1e-08,
     stop("n must be greater than 1")
   }
   if (missing(n)) {
-    warning_message(
-      "Providing the sample size (n), or even a rough estimate of n, ",
-      "is highly recommended. Without n, the implicit assumption is ",
-      "n is large (Inf) and the effect sizes are small (close to zero)."
-    )
+    hint_sample_size_recommended()
   } else {
     sigma2 <- (n - 1) / (z^2 + n - 2)
     z <- sqrt(sigma2) * z

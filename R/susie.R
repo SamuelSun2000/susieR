@@ -761,7 +761,8 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
   if (R_mismatch != "none" && isTRUE(estimate_residual_variance)) {
     warning_message(
       "R_mismatch = '", R_mismatch, "' is incompatible with ",
-      "estimate_residual_variance = TRUE; disabling sigma^2 estimation."
+      "estimate_residual_variance = TRUE; disabling sigma^2 estimation.",
+      style = "hint"
     )
     estimate_residual_variance <- FALSE
   }
@@ -776,10 +777,9 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
     if (is.null(n))
       stop("Sample size 'n' is required for multi-panel mode.")
     if (convergence_method[1] == "elbo") {
-      convergence_method <- "pip"
-      warning_message("Switching to PIP-based convergence for multi-panel mixture ",
-              "as mixture weights updates change R(omega) each iteration, which prevents ",
-              "ELBO monotonicity.")
+      convergence_method <- force_pip(
+        "multi-panel mixture weight updates change R(omega) each ",
+        "iteration, which prevents ELBO monotonicity")
     }
 
     # Capture the user's call frame here so the per-panel recursive call
@@ -851,7 +851,8 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
       warning_message(
         "X is provided as a low-rank factor matrix, but var_y/shat ",
         "requires the full correlation matrix R. Forming ",
-        "R = cov2cor(crossprod(X)/nrow(X)) and using the standard path.")
+        "R = cov2cor(crossprod(X)/nrow(X)) and using the standard path.",
+        style = "hint")
     }
 
     # If nrow(X) >= ncol(X) or features require R, form R and use standard path
@@ -875,9 +876,9 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
   # Auto-switch to PIP convergence for finite-reference R inflation.
   # (R_finite was already resolved to an integer above)
   if (!is.null(R_finite) && convergence_method[1] == "elbo") {
-    convergence_method <- "pip"
-    warning_message("Switching to PIP-based convergence because finite-reference R inflation ",
-            "modifies per-variant SER likelihoods which prevents a consistent model-level ELBO.")
+    convergence_method <- force_pip(
+      "finite-reference R inflation modifies per-variant SER ",
+      "likelihoods, which prevents a consistent model-level ELBO")
   }
 
   # Construct data and params objects with ALL parameters

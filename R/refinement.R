@@ -114,7 +114,8 @@ block_coordinate_ascent <- function(model, data, step_fn,
 run_refine <- function(model, data, params) {
 
   if (!is.null(params$model_init))
-    warning_message("The given model_init is not used in refinement")
+    warning_message("The given model_init is not used in refinement.",
+                    style = "hint")
 
   pw_s <- extract_prior_weights(model)
 

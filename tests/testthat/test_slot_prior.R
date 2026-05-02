@@ -105,7 +105,7 @@ test_that("ash model auto-creates binomial slot_prior with warning", {
   expect_message(
     fit <- susie(X, y, L = 10, unmappable_effects = "ash",
                  verbose = FALSE, max_iter = 5),
-    "strongly advised"
+    "slot_prior was not specified"
   )
   expect_true(!is.null(fit$c_hat))
 })

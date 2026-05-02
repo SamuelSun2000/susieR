@@ -653,7 +653,7 @@ test_that("validate_and_override_params validates and adjusts parameters", {
   inf_params$convergence_method <- "elbo"
   expect_message(
     result <- validate_and_override_params(inf_params),
-    "Setting convergence_method='pip'"
+    "Switching to PIP-based convergence"
   )
   expect_equal(result$convergence_method, "pip")
 
@@ -675,7 +675,7 @@ test_that("validate_and_override_params validates and adjusts parameters", {
 
   expect_message(
     result <- validate_and_override_params(nig_params),
-    "PIP convergence"
+    "PIP-based convergence"
   )
   expect_message(
     result <- validate_and_override_params(nig_params),

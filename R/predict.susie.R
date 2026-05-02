@@ -72,7 +72,8 @@ predict.susie <- function(object, newx = NULL,
     return(s$fitted)
   }
   if (is.na(s$intercept)) {
-    warning_message("The prediction assumes intercept = 0")
+    warning_message("The prediction assumes intercept = 0.",
+                    style = "hint")
     return(drop(newx %*% coef(s)[-1]))
   } else {
     return(drop(s$intercept + newx %*% coef(s)[-1]))

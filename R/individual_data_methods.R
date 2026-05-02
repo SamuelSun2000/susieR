@@ -15,7 +15,10 @@ configure_data.individual <- function(data, params) {
     return(configure_data.default(data, params))
   } else {
     # "inf" mode still requires sufficient statistics conversion
-    warning_message("Individual-level data will be converted to sufficient statistics for unmappable effects methods (this step may take a while for a large data set)")
+    warning_message("Individual-level data will be converted to sufficient ",
+                    "statistics for unmappable effects methods (this step ",
+                    "may take a while for a large data set).",
+                    style = "hint")
     return(convert_individual_to_ss(data, params))
   }
 }
@@ -412,7 +415,8 @@ get_zscore.individual <- function(data, params, model, ...) {
       "Calculation of univariate regression z-scores is not ",
       "implemented specifically for sparse or trend filtering ",
       "matrices, so this step may be slow if the matrix is large; ",
-      "to skip this step set compute_univariate_zscore = FALSE"
+      "to skip this step set compute_univariate_zscore = FALSE.",
+      style = "hint"
     )
   }
   if (!is.null(model$null_weight) && model$null_weight != 0) {
