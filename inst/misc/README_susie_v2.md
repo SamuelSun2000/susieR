@@ -35,6 +35,7 @@ The architecture revolves around three key objects:
   - Algorithm parameters: L, max_iter, tol, convergence_method
   - Estimation settings: estimate_prior_method, estimate_residual_method
   - Model options: unmappable_effects, refine, standardize, intercept
+  - Exception: the `rss_lambda` path is intentionally narrower; it fixes `unmappable_effects = "none"`, `standardize = FALSE`, `intercept = FALSE`, and supports only `estimate_residual_method = "MLE"`.
 
 ### **Model Object**
 - **Purpose**: Contains fitted SuSiE model state, results, and algorithm outputs
@@ -48,16 +49,15 @@ The architecture revolves around three key objects:
 ## Constructor Pattern
 
 ### **Constructor Workflow**:
-1. **Interface functions** (`susie()`, `susie_ss()`, and `susie_rss()`) take user inputs and call constructors functions
+1. **Interface functions** (`susie()`, `susie_ss()`, `susie_rss()`, and `susie_rss_lambda()`) take user inputs and call constructors functions
 2. **Constructors** create validated (data, params) objects
 3. **Workhorse** Validated (data, params) objects are directly forwarded to the workhorse function for the main SuSiE algorithm
 
 ### **Constructor Functions** (`susie_constructors.R`):
 - `individual_data_constructor()` → Processes X, y matrices → (data, params)
 - `sufficient_stats_constructor()`→ Processes XtX, Xty, yty → (data, params)  
-- `summary_stats_constructor()`: Routes RSS inputs based on lambda parameter
-   - If `lambda = 0` → Converts RSS data to SS → `sufficient_stats_constructor()` → (data, params)
-   - If `lambda > 0` → `rss_lambda_constructor()`→ Processes z, R for regularized LD → (data, params)
+- `summary_stats_constructor()`: Converts `susie_rss()` inputs to sufficient-statistics data, including single-panel and multi-panel reference inputs
+- `rss_lambda_constructor()` → Processes single-panel `susie_rss_lambda()` inputs for the regularized RSS-lambda likelihood → (data, params)
 
 ### **Data Type Support**:
 
@@ -65,7 +65,7 @@ Each data object receives an S3 class to automatically route to the appropriate 
 
 - **`individual`**: Individual-level data (X, y matrices)
 - **`ss`**: Sufficient statistics (XtX, Xty, yty, n)
-- **`rss_lambda`**: RSS with regularized LD matrix (z, R, lambda > 0)
+- **`rss_lambda`**: RSS with regularized R matrix (z, R, lambda > 0)
 
 ## Model Components
 

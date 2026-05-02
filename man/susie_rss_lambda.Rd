@@ -78,11 +78,9 @@ the null-space residual.}
 z-score scale. Replaces \code{scaled_prior_variance} from
 \code{\link{susie_rss}}. Default \code{50}.}
 
-\item{residual_variance}{Variance of the residual. If
-\code{estimate_residual_variance = TRUE}, this value provides the
-initial estimate of the residual variance. By default, it is set to
-\code{var(y)} in \code{susie} and \code{(1/(n-1))yty} in
-\code{susie_ss}.}
+\item{residual_variance}{Residual variance on the RSS-lambda scale. If
+\code{NULL}, it is initialized to \code{1 - lambda}; if supplied, the
+working residual variance is \code{residual_variance - lambda}.}
 
 \item{prior_weights}{A vector of length p, in which each entry
 gives the prior probability that corresponding column of X has a
@@ -97,10 +95,8 @@ and cannot be exactly 1).}
 \item{intercept_value}{Intercept used by the RSS-lambda likelihood.
 Default \code{0}.}
 
-\item{estimate_residual_variance}{The default is FALSE, the
-residual variance is fixed to 1 or variance of y. If the in-sample
-R matrix is provided, we recommend setting
-\code{estimate_residual_variance = TRUE}.}
+\item{estimate_residual_variance}{If \code{TRUE}, estimate the
+RSS-lambda residual variance by maximum likelihood.}
 
 \item{estimate_residual_method}{Variance-component estimator. The
 RSS-lambda path supports \code{"MLE"} only; any other value errors.}
@@ -230,5 +226,5 @@ A \code{"susie"} fit (or, with \code{init_only = TRUE}, the
 Specialized interface for the regularized eigendecomposition
 RSS likelihood of Zou et al. (2022). This path accepts a single reference
 matrix or a single factor matrix and does not support multi-panel mixture,
-finite-reference inflation, or R-bias correction.
+finite-reference inflation, or R-mismatch correction.
 }

@@ -281,7 +281,7 @@ When provided, the output includes a
 \code{R_finite_diagnostics} element with per-region and
 per-variable quality metrics.}
 
-\item{R_mismatch}{R-bias correction mode. \code{"none"} (default) is off.
+\item{R_mismatch}{R-mismatch correction mode. \code{"none"} (default) is off.
 \code{"map"} adds a region-level population-mismatch variance
 component on top of the finite-reference correction; recommended
 whenever \code{R} comes from a different cohort than the GWAS.
@@ -350,7 +350,7 @@ In addition to the standard \code{"susie"} output (see
     \code{lambda = 0} sufficient-statistics path when
     \code{R_mismatch != "none"});
   \code{B_corrected} (effective reference sample size after the
-    R-bias correction, \eqn{1/(1/B + \lambda_{\mathrm{bias}})};
+    R-mismatch correction, \eqn{1/(1/B + \lambda_{\mathrm{bias}})};
     substantially
     smaller than the input \code{B} flags a dominant population
     mismatch component);

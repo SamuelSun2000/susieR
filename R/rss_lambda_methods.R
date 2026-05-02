@@ -1,18 +1,4 @@
 # =============================================================================
-# OMEGA OPTIMIZATION TOLERANCES
-#
-# Named constants for multi-panel mixture weight optimization.
-# Collected here to avoid scattered magic numbers.
-# =============================================================================
-
-.omega_tol <- list(
-  convergence  = 1e-3,   # max|delta omega| to skip future updates
-  grid_spacing = 0.25,   # K=2 warm-start grid resolution
-  fw_stop      = 1e-6,   # Frank-Wolfe improvement stopping criterion
-  fw_max_iter  = 5L      # Frank-Wolfe max iterations
-)
-
-# =============================================================================
 # DATA INITIALIZATION & CONFIGURATION
 #
 # Functions for data object setup, configuration, and preprocessing.
@@ -181,8 +167,7 @@ get_ER2.rss_lambda <- function(data, model) {
   zbar  <- model$zbar
   postb2 <- model$diag_postb2
 
-  # z^T S^{-1} z (use model z_null_norm2 if omega changed, else data)
-  # When lambda=0, null-space components are projected out (ignored).
+  # z^T S^{-1} z. When lambda=0, null-space components are projected out.
   z_null_norm2 <- if (!is.null(model$z_null_norm2)) model$z_null_norm2 else data$z_null_norm2
   zSinvz <- sum((Dinv * Vtz) * Vtz)
   if (data$lambda > 0) zSinvz <- zSinvz + z_null_norm2 / data$lambda
@@ -221,7 +206,7 @@ Eloglik.rss_lambda <- function(data, model) {
 # Log-likelihood for RSS
 #' @keywords internal
 loglik.rss_lambda <- function(data, params, model, V, ser_stats, l = NULL, ...) {
-  # Wakefield ABF using betahat/shat2 from ser_stats (supports inflation)
+  # Wakefield ABF using betahat/shat2 from ser_stats.
   shat2 <- pmax(ser_stats$shat2, .Machine$double.eps)
   lbf   <- -0.5 * log(1 + V / shat2) +
     0.5 * ser_stats$betahat^2 * V / (shat2 * (V + shat2))

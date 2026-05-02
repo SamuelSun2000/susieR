@@ -906,7 +906,7 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
   if (!is.null(eigen_R_cache))
     result$data$eigen_R <- eigen_R_cache
 
-  # Attach R-bias / mismatch params consumed by R/rss_mismatch.R.
+  # Attach R-mismatch params consumed by R/rss_mismatch.R.
   result$params$R_mismatch <- R_mismatch
   result$params$eig_delta_rel <- eig_delta_rel
   result$params$eig_delta_abs <- eig_delta_abs

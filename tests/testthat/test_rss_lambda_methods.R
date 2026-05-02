@@ -793,7 +793,7 @@ test_that("compute_ser_statistics.rss_lambda returns betahat", {
 
 test_that("compute_residuals.rss_lambda does not set shat2_inflation", {
   # rss_lambda path no longer carries per-variant inflation; the
-  # entry-level error in susie_rss blocks lambda > 0 + R_finite, so
+  # public susie_rss_lambda() interface excludes R_finite, so
   # data$R_finite_B is never set on an rss_lambda data object.
   dat <- setup_rss_lambda_data(seed = 42)
 
@@ -917,6 +917,10 @@ test_that("susie_rss_lambda excludes R_finite, R_mismatch, and multi-panel", {
     "single X matrix"
   )
 })
+
+# =============================================================================
+# SS-PATH R_MISMATCH REGRESSION TESTS
+# =============================================================================
 
 test_that("R_mismatch requires R_finite and stores lambda_bias and B_corrected", {
   set.seed(511)

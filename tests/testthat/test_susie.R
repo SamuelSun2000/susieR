@@ -647,7 +647,7 @@ test_that("susie_rss with lambda = 0 handles maf filtering", {
 })
 
 # =============================================================================
-# SUSIE_RSS() - BASIC FUNCTIONALITY (lambda > 0)
+# SUSIE_RSS_LAMBDA() - BASIC FUNCTIONALITY
 # =============================================================================
 
 test_that("susie_rss_lambda with lambda > 0 returns valid susie object", {
@@ -729,35 +729,60 @@ test_that("susie_rss_lambda with lambda > 0 identifies causal variables", {
 })
 
 # =============================================================================
-# SUSIE_RSS() - LAMBDA PARAMETER HANDLING
+# SUSIE_RSS() / SUSIE_RSS_LAMBDA() - SPLIT API
 # =============================================================================
 
-test_that("susie_rss switches data type based on lambda", {
+test_that("susie_rss and susie_rss_lambda are separate interfaces", {
   set.seed(50)
   dat <- simulate_regression(n = 100, p = 50, k = 3)
   ss <- compute_suff_stat(dat$X, dat$y, standardize = TRUE)
   z_scores <- with(univariate_regression(dat$X, dat$y), betahat / sebetahat)
   R <- with(ss, cov2cor(XtX))
 
-  # lambda = 0 should use sufficient statistics
   fit_lambda0 <- susie_rss(z = z_scores, R = R, n = 100, L = 5 , verbose = FALSE)
 
-  # lambda > 0 should use rss_lambda class
   fit_lambda_pos <- susie_rss_lambda(z = z_scores, R = R, L = 5,
-                              lambda = 1e-5, verbose = FALSE)
+                                     lambda = 1e-5, verbose = FALSE)
 
   expect_s3_class(fit_lambda0, "susie")
   expect_s3_class(fit_lambda_pos, "susie")
+  expect_error(
+    susie_rss(z = z_scores, R = R, n = 100, L = 5,
+              lambda = 1e-5, verbose = FALSE),
+    "unused argument"
+  )
 })
 
-test_that("susie_rss_lambda with lambda > 0 accepts n parameter for PVE adjustment", {
+test_that("susie_rss_lambda stores n and uses it for PVE adjustment", {
   set.seed(51)
   setup <- setup_rss_lambda_data(n = 500, p = 50, k = 3, lambda = 1e-5, seed = NULL)
 
-  # n is now used for PVE adjustment in all paths; no "n is not used" warning
-  fit <- susie_rss_lambda(z = setup$z, R = setup$R, n = 100, L = 5,
-                   lambda = 1e-5, verbose = FALSE)
-  expect_s3_class(fit, "susie")
+  init_no_n <- susie_rss_lambda(z = setup$z, R = setup$R, L = 5,
+                                lambda = 1e-5, init_only = TRUE)
+  init_n <- susie_rss_lambda(z = setup$z, R = setup$R, n = 100, L = 5,
+                             lambda = 1e-5, init_only = TRUE)
+  adj <- (100 - 1) / (setup$z^2 + 100 - 2)
+
+  expect_true(is.na(init_no_n$data$n))
+  expect_equal(init_n$data$n, 100L)
+  expect_equal(init_no_n$data$z, setup$z)
+  expect_equal(init_n$data$z, sqrt(adj) * setup$z)
+})
+
+test_that("susie_rss_lambda only exposes MLE residual variance estimation", {
+  set.seed(510)
+  setup <- setup_rss_lambda_data(n = 500, p = 50, k = 3, lambda = 1e-5, seed = NULL)
+
+  expect_error(
+    susie_rss_lambda(z = setup$z, R = setup$R, L = 5, lambda = 1e-5,
+                     estimate_residual_method = "MoM", verbose = FALSE),
+    "MLE"
+  )
+  expect_error(
+    susie_rss_lambda(z = setup$z, R = setup$R, L = 5, lambda = 1e-5,
+                     estimate_residual_method = "NIG", verbose = FALSE),
+    "MLE"
+  )
 })
 
 test_that("susie_rss_lambda does not expose bhat/shat", {

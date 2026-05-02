@@ -1091,6 +1091,8 @@ test_that("rss_lambda_constructor stores n and dimensions correctly", {
   # When n is provided, data$n stores the GWAS sample size as supplied
   result_n <- rss_lambda_constructor(z, R, lambda = 0.5, n = 1000)
   expect_equal(result_n$data$n, 1000L)
+  adj <- (1000 - 1) / (z^2 + 1000 - 2)
+  expect_equal(result_n$data$z, sqrt(adj) * z)
 })
 
 test_that("rss_lambda_constructor computes eigen decomposition", {
@@ -1131,7 +1133,7 @@ test_that("rss_lambda_constructor rejects dimension mismatch", {
   )
 })
 
-test_that("rss_lambda_constructor rejects non-symmetric R", {
+test_that("rss_lambda_constructor symmetrizes non-symmetric R then validates PSD", {
   R <- matrix(rnorm(25), 5, 5)
   z <- rnorm(5)
 

@@ -8,7 +8,7 @@ context("susie_rss with lambda reference comparison")
 # =============================================================================
 #
 # These tests compare susie_rss_lambda(lambda > 0) against the historical
-# susie_rss(lambda > 0) implementation from stephenslab/susieR@1f9166c.
+# susie_rss_lambda() implementation from stephenslab/susieR@1f9166c.
 #
 
 # =============================================================================

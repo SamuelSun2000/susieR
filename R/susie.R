@@ -609,7 +609,7 @@ susie_ss <- function(XtX, Xty, yty, n,
 #'   \code{R_finite_diagnostics} element with per-region and
 #'   per-variable quality metrics.
 #'
-#' @param R_mismatch R-bias correction mode. \code{"none"} (default) is off.
+#' @param R_mismatch R-mismatch correction mode. \code{"none"} (default) is off.
 #'   \code{"map"} adds a region-level population-mismatch variance
 #'   component on top of the finite-reference correction; recommended
 #'   whenever \code{R} comes from a different cohort than the GWAS.
@@ -653,7 +653,7 @@ susie_ss <- function(XtX, Xty, yty, n,
 #'     \code{lambda = 0} sufficient-statistics path when
 #'     \code{R_mismatch != "none"});
 #'   \code{B_corrected} (effective reference sample size after the
-#'     R-bias correction, \eqn{1/(1/B + \lambda_{\mathrm{bias}})};
+#'     R-mismatch correction, \eqn{1/(1/B + \lambda_{\mathrm{bias}})};
 #'     substantially
 #'     smaller than the input \code{B} flags a dominant population
 #'     mismatch component);
@@ -937,7 +937,7 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
 #' @description Specialized interface for the regularized eigendecomposition
 #' RSS likelihood of Zou et al. (2022). This path accepts a single reference
 #' matrix or a single factor matrix and does not support multi-panel mixture,
-#' finite-reference inflation, or R-bias correction.
+#' finite-reference inflation, or R-mismatch correction.
 #'
 #' @inheritParams susie_rss
 #'
@@ -953,8 +953,13 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
 #' @param prior_variance Prior variance for each non-zero effect on the
 #'   z-score scale. Replaces \code{scaled_prior_variance} from
 #'   \code{\link{susie_rss}}. Default \code{50}.
+#' @param residual_variance Residual variance on the RSS-lambda scale. If
+#'   \code{NULL}, it is initialized to \code{1 - lambda}; if supplied, the
+#'   working residual variance is \code{residual_variance - lambda}.
 #' @param intercept_value Intercept used by the RSS-lambda likelihood.
 #'   Default \code{0}.
+#' @param estimate_residual_variance If \code{TRUE}, estimate the
+#'   RSS-lambda residual variance by maximum likelihood.
 #' @param estimate_residual_method Variance-component estimator. The
 #'   RSS-lambda path supports \code{"MLE"} only; any other value errors.
 #' @param estimate_prior_variance If \code{estimate_prior_variance = TRUE},

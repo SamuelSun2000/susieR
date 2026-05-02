@@ -278,9 +278,9 @@ precompute_rss_lambda_terms <- function(data, model) {
 # estimate_lambda_bias and apply_inflation_state moved to R/rss_mismatch.R.
 
 # =============================================================================
-# MULTI-PANEL LD MIXTURE
+# MULTI-PANEL R MIXTURE
 #
-# Functions for combining K reference LD panels with learnable convex weights.
+# Functions for combining K reference R panels with learnable convex weights.
 # R(omega) = sum_k omega_k R_hat_k, with X_meta = [sqrt(omega_1) X_1; ...].
 #
 # Key functions:
@@ -293,6 +293,13 @@ precompute_rss_lambda_terms <- function(data, model) {
 #   eval_omega_eloglik_R    -- O(p^3) reference implementation (testing)
 #   optimize_omega          -- simplex optimizer (Grid+Brent or Frank-Wolfe)
 # =============================================================================
+
+.omega_tol <- list(
+  convergence  = 1e-3,   # max|delta omega| to skip future updates
+  grid_spacing = 0.25,   # K=2 warm-start grid resolution
+  fw_stop      = 1e-6,   # Frank-Wolfe improvement stopping criterion
+  fw_max_iter  = 5L      # Frank-Wolfe max iterations
+)
 
 # Form composite X from K panels with weights omega
 # Pre-allocates output to avoid K intermediate copies

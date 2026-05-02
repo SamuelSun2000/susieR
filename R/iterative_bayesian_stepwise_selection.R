@@ -188,8 +188,7 @@ ibss_fit <- function(data, params, model) {
 
   # SS / ss_mixture: lambda_bias / B_corrected are scalars set per-sweep
   # by fit_R_mismatch at the end of the sweep. rss_lambda does not carry
-  # these (lambda > 0 + R_mismatch != "none" errors at entry). No reset
-  # needed.
+  # these because susie_rss_lambda() does not expose R_mismatch. No reset needed.
 
   if (L > 0) {
     for (l in seq_len(L)) {
@@ -231,12 +230,10 @@ ibss_fit <- function(data, params, model) {
       st$skip_threshold_multiplier * c_hat_baseline
   }
 
-  # Region-level R-bias fit at the end of the sweep, before validate.
-  # No-op when R_mismatch = "none" or on the rss_lambda dispatch (out of
-  # scope; that path keeps the legacy per-slot fit). Reuses the
-  # existing estimate_lambda_bias optimizer; only the cadence and
-  # storage shape change (was per-slot inside the SER step; now
-  # scalar at sweep boundary).
+  # Region-level R-mismatch fit at the end of the sweep, before validate.
+  # No-op when R_mismatch = "none" or on the rss_lambda dispatch. Reuses the
+  # existing estimate_lambda_bias optimizer; only the cadence and storage shape
+  # differ from the old per-slot fit.
   if (inherits(data, c("ss", "ss_mixture"))) {
     old_lambda_bias <- model$lambda_bias
     model <- fit_R_mismatch(data, params, model)
