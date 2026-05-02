@@ -92,10 +92,12 @@ test_that("susie_workhorse warns when not converged", {
   setup$params$convergence_method <- "elbo"
   setup$params$tol <- 1e-10  # Very strict tolerance
 
-  # Should warn about not converging
-  result <- susie_workhorse(setup$data, setup$params)
+  # Should warn about not converging via R's warning() condition.
+  expect_warning(
+    result <- susie_workhorse(setup$data, setup$params),
+    "did not converge"
+  )
 
-  # Check convergence status
   expect_false(result$converged)
   expect_equal(result$niter, 1)
 })
@@ -281,7 +283,7 @@ test_that("susie_workhorse works with max_iter=1", {
   setup$params$tol <- 1e-3
 
   # Should work but likely not converge
-  result <- susie_workhorse(setup$data, setup$params)
+  result <- suppressWarnings(susie_workhorse(setup$data, setup$params))
 
   expect_s3_class(result, "susie")
   expect_equal(result$niter, 1)
@@ -340,7 +342,7 @@ test_that("susie_workhorse skips refinement when no credible sets", {
   setup$params$tol <- 1e-10
   setup$params$refine <- TRUE
 
-  result <- susie_workhorse(setup$data, setup$params)
+  result <- suppressWarnings(susie_workhorse(setup$data, setup$params))
 
   expect_s3_class(result, "susie")
 })

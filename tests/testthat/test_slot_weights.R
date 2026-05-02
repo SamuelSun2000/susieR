@@ -78,10 +78,10 @@ test_that("slot_weight = 0 zeroes effect contribution in RSS", {
 # =============================================================================
 test_that("slot_weights works with individual data", {
   L <- 3
-  fit <- susie(X, y, L = L,
+  fit <- suppressWarnings(susie(X, y, L = L,
                estimate_prior_variance = FALSE,
                estimate_residual_variance = FALSE,
-               max_iter = 1)
+               max_iter = 1))
   # Just verify it runs without error
   expect_true(all(fit$pip >= 0 & fit$pip <= 1))
 })
@@ -95,9 +95,9 @@ test_that("slot_weights works with sufficient stats", {
   Xty <- crossprod(X, y)
   yty <- sum(y^2)
 
-  fit <- susie_ss(XtX = XtX, Xty = Xty, yty = yty, n = n, L = L,
+  fit <- suppressWarnings(susie_ss(XtX = XtX, Xty = Xty, yty = yty, n = n, L = L,
                   estimate_prior_variance = FALSE,
                   estimate_residual_variance = FALSE,
-                  max_iter = 1)
+                  max_iter = 1))
   expect_true(all(fit$pip >= 0 & fit$pip <= 1))
 })

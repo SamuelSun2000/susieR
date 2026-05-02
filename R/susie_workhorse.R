@@ -102,9 +102,14 @@ susie_workhorse <- function(data, params) {
 
   }
 
-  # Check final convergence status
+  # Check final convergence status. Emit both the cosmetic colored
+  # message and a real R warning() so callers can `suppressWarnings()`
+  # or `expect_warning()` on it (mirrors the Q_art artifact pattern in
+  # rss_mismatch.R).
   if (!model$converged) {
-    warning_message(paste("IBSS algorithm did not converge in", params$max_iter, "iterations!"))
+    msg <- paste("IBSS algorithm did not converge in", params$max_iter, "iterations!")
+    warning_message(msg)
+    warning(msg, call. = FALSE)
   }
 
   # Set ELBO from iterations

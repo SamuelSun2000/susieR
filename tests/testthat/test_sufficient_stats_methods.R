@@ -637,7 +637,7 @@ test_that("susie emits a hint pointing to compute_suff_stat() when nrow(X) >= 2 
   # emitted message; other messages (e.g. non-convergence warnings from
   # max_iter = 2) are tolerated.
   expect_message(
-    susie(X, y, L = 3, max_iter = 2, verbose = FALSE),
+    suppressWarnings(susie(X, y, L = 3, max_iter = 2, verbose = FALSE)),
     "compute_suff_stat"
   )
 })

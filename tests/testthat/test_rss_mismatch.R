@@ -30,8 +30,8 @@ test_that("R_mismatch = 'eb' runs and returns Q_art diagnostics", {
   R <- cor(X)
   z <- rnorm(p)
 
-  fit <- susie_rss(z = z, R = R, n = n, L = 3, R_finite = 5000,
-                   R_mismatch = "eb", max_iter = 2, verbose = FALSE)
+  fit <- suppressWarnings(susie_rss(z = z, R = R, n = n, L = 3, R_finite = 5000,
+                   R_mismatch = "eb", max_iter = 2, verbose = FALSE))
   d <- fit$R_finite_diagnostics
   expect_true(!is.null(d$Q_art))
   expect_true(d$Q_art >= 0 && d$Q_art <= 1)
@@ -85,9 +85,9 @@ test_that("R_mismatch = 'eb' skips SER-protected initialization with finite R_fi
   R <- cor(X)
   z <- rnorm(p)
 
-  fit <- susie_rss(z = z, R = R, n = n, L = 3,
+  fit <- suppressWarnings(susie_rss(z = z, R = R, n = n, L = 3,
                    R_finite = 5000, R_mismatch = "eb", max_iter = 2,
-                   track_fit = TRUE, verbose = FALSE)
+                   track_fit = TRUE, verbose = FALSE))
   d <- fit$R_finite_diagnostics
   expect_true(is.null(d$R_mismatch_init))
   expect_true(!is.null(d$Q_art))

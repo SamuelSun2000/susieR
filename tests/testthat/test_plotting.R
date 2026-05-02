@@ -682,7 +682,7 @@ test_that("susie_plot_changepoint with basic usage works", {
   mu <- c(rep(0, 25), rep(2, 25), rep(-1, 25), rep(1, 25))
   y <- mu + rnorm(100, sd = 0.5)
 
-  s <- susie_trendfilter(y, order = 0, use_mad = FALSE)
+  s <- suppressWarnings(susie_trendfilter(y, order = 0, use_mad = FALSE))
 
   expect_error(
     susie_plot_changepoint(s, y),
@@ -695,7 +695,7 @@ test_that("susie_plot_changepoint with custom colors works", {
   mu <- c(rep(0, 30), rep(2, 30))
   y <- mu + rnorm(60, sd = 0.3)
 
-  s <- susie_trendfilter(y, order = 0, use_mad = FALSE)
+  s <- suppressWarnings(susie_trendfilter(y, order = 0, use_mad = FALSE))
 
   expect_error(
     susie_plot_changepoint(s, y, line_col = "red", line_size = 2),
@@ -708,7 +708,7 @@ test_that("susie_plot_changepoint with cs_col parameter works", {
   mu <- c(rep(0, 30), rep(2, 30))
   y <- mu + rnorm(60, sd = 0.3)
 
-  s <- susie_trendfilter(y, order = 0, use_mad = FALSE)
+  s <- suppressWarnings(susie_trendfilter(y, order = 0, use_mad = FALSE))
 
   expect_error(
     susie_plot_changepoint(s, y, cs_col = "green"),
@@ -721,7 +721,7 @@ test_that("susie_plot_changepoint with single changepoint works", {
   mu <- c(rep(0, 30), rep(2, 30))
   y <- mu + rnorm(60, sd = 0.3)
 
-  s <- susie_trendfilter(y, order = 0, use_mad = FALSE)
+  s <- suppressWarnings(susie_trendfilter(y, order = 0, use_mad = FALSE))
 
   expect_error(
     susie_plot_changepoint(s, y),
@@ -733,7 +733,7 @@ test_that("susie_plot_changepoint with no changepoints works", {
   set.seed(29)
   y <- rnorm(50, mean = 5, sd = 0.5)
 
-  s <- susie_trendfilter(y, order = 0, use_mad = FALSE)
+  s <- suppressWarnings(susie_trendfilter(y, order = 0, use_mad = FALSE))
 
   expect_error(
     susie_plot_changepoint(s, y),
@@ -746,7 +746,7 @@ test_that("susie_plot_changepoint returns ggplot object", {
   mu <- c(rep(0, 30), rep(2, 30))
   y <- mu + rnorm(60, sd = 0.3)
 
-  s <- susie_trendfilter(y, order = 0, use_mad = FALSE)
+  s <- suppressWarnings(susie_trendfilter(y, order = 0, use_mad = FALSE))
 
   result <- susie_plot_changepoint(s, y)
 
@@ -760,7 +760,7 @@ test_that("susie_plot_changepoint with multiple changepoints", {
   mu <- c(rep(0, 25), rep(2, 25), rep(-1, 25), rep(1, 25))
   y <- mu + rnorm(100, sd = 0.3)
 
-  s <- susie_trendfilter(y, order = 0, use_mad = FALSE)
+  s <- suppressWarnings(susie_trendfilter(y, order = 0, use_mad = FALSE))
 
   result <- susie_plot_changepoint(s, y)
 
@@ -778,7 +778,7 @@ test_that("susie_plot_changepoint with very strong signal", {
   mu <- c(rep(0, 30), rep(5, 30))
   y <- mu + rnorm(60, sd = 0.1)
 
-  s <- susie_trendfilter(y, order = 0, use_mad = FALSE)
+  s <- suppressWarnings(susie_trendfilter(y, order = 0, use_mad = FALSE))
 
   result <- susie_plot_changepoint(s, y, line_col = "red", line_size = 2, cs_col = "blue")
 
@@ -791,7 +791,7 @@ test_that("susie_plot_changepoint can be modified after creation", {
   mu <- c(rep(0, 30), rep(2, 30))
   y <- mu + rnorm(60, sd = 0.3)
 
-  s <- susie_trendfilter(y, order = 0, use_mad = FALSE)
+  s <- suppressWarnings(susie_trendfilter(y, order = 0, use_mad = FALSE))
 
   # Use all defaults
   result <- susie_plot_changepoint(s, y)
@@ -860,7 +860,7 @@ test_that("all three plot functions work in sequence", {
   expect_error(susie_plot_changepoint(fit2, y), NA)
 
   # Iteration plot
-  fit3 <- susie(dat$X, dat$y, L = 5, track_fit = TRUE, max_iter = 5, verbose = FALSE)
+  fit3 <- suppressWarnings(susie(dat$X, dat$y, L = 5, track_fit = TRUE, max_iter = 5, verbose = FALSE))
   temp_prefix <- tempfile("test_seq_")
 
   expect_error({

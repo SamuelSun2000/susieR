@@ -81,13 +81,13 @@ test_that("susie_ss ash works with different data sizes", {
       k = params$k, seed = params$seed
     )
 
-    fit_ind <- susie(d$X, d$y, L = 5,
+    fit_ind <- suppressWarnings(susie(d$X, d$y, L = 5,
       unmappable_effects = "ash_filter_archived",
       estimate_residual_variance = TRUE,
       estimate_prior_method = "optim",
       intercept = FALSE, standardize = FALSE,
       max_iter = 15, verbose = FALSE
-    )
+    ))
 
     fit_ss <- susie_ss(
       XtX = d$XtX, Xty = d$Xty, yty = d$yty, n = d$n, L = 5,

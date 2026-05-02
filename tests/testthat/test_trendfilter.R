@@ -9,7 +9,7 @@ test_that("susie_trendfilter returns susie object", {
   mu <- c(rep(0, 20), rep(2, 20), rep(-1, 20))
   y <- mu + rnorm(60)
 
-  result <- susie_trendfilter(y, order = 0, use_mad = FALSE)
+  result <- suppressWarnings(susie_trendfilter(y, order = 0, use_mad = FALSE))
 
   expect_s3_class(result, "susie")
   expect_type(result, "list")
@@ -24,7 +24,7 @@ test_that("susie_trendfilter detects changepoints with order=0", {
   mu <- c(rep(0, 25), rep(3, 25), rep(-2, 25), rep(1, 25))
   y <- mu + rnorm(100, sd = 0.3)
 
-  result <- susie_trendfilter(y, order = 0, use_mad = FALSE)
+  result <- suppressWarnings(susie_trendfilter(y, order = 0, use_mad = FALSE))
 
   # Should have non-zero PIPs near changepoint locations (25, 50, 75)
   pip <- susie_get_pip(result)
@@ -38,7 +38,7 @@ test_that("susie_trendfilter fitted values track signal", {
   mu <- c(rep(0, 20), rep(2, 20), rep(0, 20))
   y <- mu + rnorm(60, sd = 0.1)
 
-  result <- susie_trendfilter(y, order = 0, use_mad = FALSE)
+  result <- suppressWarnings(susie_trendfilter(y, order = 0, use_mad = FALSE))
 
   fitted <- predict(result)
 
@@ -51,7 +51,7 @@ test_that("susie_trendfilter with no changepoints", {
   # Constant signal
   y <- rep(5, 50) + rnorm(50, sd = 0.5)
 
-  result <- susie_trendfilter(y, order = 0, use_mad = FALSE)
+  result <- suppressWarnings(susie_trendfilter(y, order = 0, use_mad = FALSE))
 
   # PIPs should be low everywhere (no clear changepoints)
   pip <- susie_get_pip(result)
@@ -68,7 +68,7 @@ test_that("susie_trendfilter with order=0 (changepoints)", {
   y <- mu + rnorm(60)
 
   expect_error(
-    result <- susie_trendfilter(y, order = 0, use_mad = FALSE),
+    result <- suppressWarnings(susie_trendfilter(y, order = 0, use_mad = FALSE)),
     NA
   )
 
@@ -104,7 +104,7 @@ test_that("susie_trendfilter order=0 vs order=1 produce different results", {
   # Linear trend
   y <- seq(0, 2, length.out = 50) + rnorm(50, sd = 0.1)
 
-  result_0 <- susie_trendfilter(y, order = 0, use_mad = FALSE, max_iter = 10)
+  result_0 <- suppressWarnings(susie_trendfilter(y, order = 0, use_mad = FALSE, max_iter = 10))
   result_1 <- suppressWarnings(
     susie_trendfilter(y, order = 1, use_mad = FALSE, max_iter = 10)
   )
@@ -136,7 +136,7 @@ test_that("susie_trendfilter with use_mad=FALSE", {
   y <- mu + rnorm(60)
 
   expect_error(
-    result <- susie_trendfilter(y, order = 0, use_mad = FALSE),
+    result <- suppressWarnings(susie_trendfilter(y, order = 0, use_mad = FALSE)),
     NA
   )
 
@@ -148,8 +148,8 @@ test_that("susie_trendfilter use_mad=TRUE vs FALSE differ", {
   mu <- c(rep(0, 20), rep(2, 20), rep(-1, 20))
   y <- mu + rnorm(60)
 
-  result_mad <- susie_trendfilter(y, order = 0, use_mad = TRUE, max_iter = 5)
-  result_no_mad <- susie_trendfilter(y, order = 0, use_mad = FALSE, max_iter = 5)
+  result_mad <- suppressWarnings(susie_trendfilter(y, order = 0, use_mad = TRUE, max_iter = 5))
+  result_no_mad <- suppressWarnings(susie_trendfilter(y, order = 0, use_mad = FALSE, max_iter = 5))
 
   # Results may differ due to initialization
   # Just verify both work
@@ -166,8 +166,8 @@ test_that("susie_trendfilter use_mad with model_init skips MAD", {
   init <- susie_init_coef(c(20), c(2), 40)
 
   # With model_init, should skip MAD even if use_mad=TRUE
-  result <- susie_trendfilter(y, order = 0, use_mad = TRUE,
-                               model_init = init, max_iter = 2)
+  result <- suppressWarnings(susie_trendfilter(y, order = 0, use_mad = TRUE,
+                               model_init = init, max_iter = 2))
 
   expect_s3_class(result, "susie")
 })
@@ -251,7 +251,7 @@ test_that("susie_trendfilter passes max_iter parameter to susie", {
   mu <- c(rep(0, 20), rep(2, 20), rep(-1, 20))
   y <- mu + rnorm(60)
 
-  result <- susie_trendfilter(y, order = 0, max_iter = 5, use_mad = FALSE)
+  result <- suppressWarnings(susie_trendfilter(y, order = 0, max_iter = 5, use_mad = FALSE))
 
   expect_true(result$niter <= 5)
 })
@@ -261,12 +261,12 @@ test_that("susie_trendfilter passes estimate_prior_variance to susie", {
   mu <- c(rep(0, 20), rep(2, 20), rep(-1, 20))
   y <- mu + rnorm(60)
 
-  result_estimate <- susie_trendfilter(y, order = 0,
+  result_estimate <- suppressWarnings(susie_trendfilter(y, order = 0,
                                        estimate_prior_variance = TRUE,
-                                       use_mad = FALSE, max_iter = 3)
-  result_fixed <- susie_trendfilter(y, order = 0,
+                                       use_mad = FALSE, max_iter = 3))
+  result_fixed <- suppressWarnings(susie_trendfilter(y, order = 0,
                                     estimate_prior_variance = FALSE,
-                                    use_mad = FALSE, max_iter = 3)
+                                    use_mad = FALSE, max_iter = 3))
 
   # Both should work
   expect_s3_class(result_estimate, "susie")
@@ -295,7 +295,7 @@ test_that("susie_trendfilter output works with susie_get_cs", {
   mu <- c(rep(0, 25), rep(3, 25), rep(-2, 25), rep(1, 25))
   y <- mu + rnorm(100, sd = 0.3)
 
-  result <- susie_trendfilter(y, order = 0, use_mad = FALSE)
+  result <- suppressWarnings(susie_trendfilter(y, order = 0, use_mad = FALSE))
 
   cs <- susie_get_cs(result, coverage = 0.95)
 
@@ -309,7 +309,7 @@ test_that("susie_trendfilter output works with susie_get_pip", {
   mu <- c(rep(0, 20), rep(2, 20), rep(-1, 20))
   y <- mu + rnorm(60)
 
-  result <- susie_trendfilter(y, order = 0, use_mad = FALSE)
+  result <- suppressWarnings(susie_trendfilter(y, order = 0, use_mad = FALSE))
 
   pip <- susie_get_pip(result)
 
@@ -323,7 +323,7 @@ test_that("susie_trendfilter output works with predict", {
   mu <- c(rep(0, 20), rep(2, 20), rep(-1, 20))
   y <- mu + rnorm(60)
 
-  result <- susie_trendfilter(y, order = 0, use_mad = FALSE)
+  result <- suppressWarnings(susie_trendfilter(y, order = 0, use_mad = FALSE))
 
   fitted <- predict(result)
 
@@ -337,7 +337,7 @@ test_that("susie_trendfilter output works with coef", {
   mu <- c(rep(0, 20), rep(2, 20), rep(-1, 20))
   y <- mu + rnorm(60)
 
-  result <- susie_trendfilter(y, order = 0, use_mad = FALSE)
+  result <- suppressWarnings(susie_trendfilter(y, order = 0, use_mad = FALSE))
 
   coefficients <- coef(result)
 
@@ -351,7 +351,7 @@ test_that("susie_trendfilter output has sets field", {
   mu <- c(rep(0, 25), rep(3, 25), rep(-2, 25), rep(1, 25))
   y <- mu + rnorm(100, sd = 0.3)
 
-  result <- susie_trendfilter(y, order = 0, use_mad = FALSE)
+  result <- suppressWarnings(susie_trendfilter(y, order = 0, use_mad = FALSE))
   result$sets <- susie_get_cs(result, coverage = 0.95)
 
   # Verify sets structure
@@ -371,7 +371,7 @@ test_that("susie_trendfilter recovers true changepoints", {
   mu <- c(rep(0, 30), rep(4, 30), rep(-2, 30))
   y <- mu + rnorm(90, sd = 0.5)
 
-  result <- susie_trendfilter(y, order = 0, use_mad = FALSE)
+  result <- suppressWarnings(susie_trendfilter(y, order = 0, use_mad = FALSE))
 
   pip <- susie_get_pip(result)
 
@@ -387,7 +387,7 @@ test_that("susie_trendfilter handles multiple small changepoints", {
   mu <- rep(c(0, 0.5), length.out = 60)
   y <- mu + rnorm(60, sd = 0.2)
 
-  result <- susie_trendfilter(y, order = 0, use_mad = FALSE)
+  result <- suppressWarnings(susie_trendfilter(y, order = 0, use_mad = FALSE))
 
   expect_s3_class(result, "susie")
   expect_true(all(result$alpha >= 0 & result$alpha <= 1))
@@ -398,7 +398,7 @@ test_that("susie_trendfilter with noisy data", {
   mu <- c(rep(0, 30), rep(2, 30))
   y <- mu + rnorm(60, sd = 2)  # High noise
 
-  result <- susie_trendfilter(y, order = 0, use_mad = FALSE)
+  result <- suppressWarnings(susie_trendfilter(y, order = 0, use_mad = FALSE))
 
   # Should still converge
   expect_s3_class(result, "susie")
@@ -413,7 +413,7 @@ test_that("susie_trendfilter with short time series", {
   set.seed(29)
   y <- c(0, 0, 0, 2, 2, 2)
 
-  result <- susie_trendfilter(y, order = 0, use_mad = FALSE, max_iter = 3)
+  result <- suppressWarnings(susie_trendfilter(y, order = 0, use_mad = FALSE, max_iter = 3))
 
   expect_s3_class(result, "susie")
 })
@@ -423,7 +423,7 @@ test_that("susie_trendfilter with long time series", {
   mu <- rep(c(0, 1, 2, 0), each = 100)
   y <- mu + rnorm(400, sd = 0.5)
 
-  result <- susie_trendfilter(y, order = 0, use_mad = FALSE, max_iter = 20)
+  result <- suppressWarnings(susie_trendfilter(y, order = 0, use_mad = FALSE, max_iter = 20))
 
   expect_s3_class(result, "susie")
   expect_length(predict(result), 400)
@@ -445,7 +445,7 @@ test_that("susie_trendfilter with single changepoint at start", {
   mu <- c(rep(0, 5), rep(2, 45))
   y <- mu + rnorm(50, sd = 0.3)
 
-  result <- susie_trendfilter(y, order = 0, use_mad = FALSE)
+  result <- suppressWarnings(susie_trendfilter(y, order = 0, use_mad = FALSE))
 
   pip <- susie_get_pip(result)
 
@@ -458,7 +458,7 @@ test_that("susie_trendfilter with single changepoint at end", {
   mu <- c(rep(0, 45), rep(2, 5))
   y <- mu + rnorm(50, sd = 0.3)
 
-  result <- susie_trendfilter(y, order = 0, use_mad = FALSE)
+  result <- suppressWarnings(susie_trendfilter(y, order = 0, use_mad = FALSE))
 
   pip <- susie_get_pip(result)
 
@@ -474,14 +474,14 @@ test_that("susie_trendfilter matches manual sparse matrix construction", {
   set.seed(34)
   with(simulate_tf(0), {
     # Manual approach with explicit X matrix
-    result_manual <- susie(X, y, estimate_prior_variance = FALSE,
-                           standardize = TRUE, max_iter = 5)
+    result_manual <- suppressWarnings(susie(X, y, estimate_prior_variance = FALSE,
+                           standardize = TRUE, max_iter = 5))
 
     # Using susie_trendfilter
-    result_tf <- susie_trendfilter(y, order = 0,
+    result_tf <- suppressWarnings(susie_trendfilter(y, order = 0,
                                     estimate_prior_variance = FALSE,
                                     standardize = TRUE,
-                                    use_mad = FALSE, max_iter = 5)
+                                    use_mad = FALSE, max_iter = 5))
 
     # Should produce similar results
     expect_equal(result_tf$alpha, result_manual$alpha, tolerance = 1e-6)
@@ -493,8 +493,8 @@ test_that("susie_trendfilter order=1 matches manual construction", {
   set.seed(35)
   with(simulate_tf(1), {
     # Manual approach
-    result_manual <- susie(X, y, estimate_prior_variance = FALSE,
-                           standardize = TRUE, max_iter = 5)
+    result_manual <- suppressWarnings(susie(X, y, estimate_prior_variance = FALSE,
+                           standardize = TRUE, max_iter = 5))
 
     # Using susie_trendfilter
     result_tf <- suppressWarnings(
@@ -514,8 +514,8 @@ test_that("susie_trendfilter order=2 matches manual construction", {
   set.seed(36)
   with(simulate_tf(2), {
     # Manual approach
-    result_manual <- susie(X, y, estimate_prior_variance = FALSE,
-                           standardize = TRUE, max_iter = 5)
+    result_manual <- suppressWarnings(susie(X, y, estimate_prior_variance = FALSE,
+                           standardize = TRUE, max_iter = 5))
 
     # Using susie_trendfilter
     result_tf <- suppressWarnings(

@@ -136,11 +136,11 @@ test_that("Uniform mixture weights give correct BF", {
   grid <- c(1, 50)
   w <- c(0.5, 0.5)
 
-  fit <- susie_rss(z = z, R = R, n = n, L = L,
+  fit <- suppressWarnings(susie_rss(z = z, R = R, n = n, L = L,
                    prior_variance_grid = grid,
                    mixture_weights = w,
                    estimate_residual_variance = FALSE,
-                   max_iter = 1)
+                   max_iter = 1))
 
   # Manually compute mixture BF for variant 1
   # lbf(V) = -0.5*log(1 + V*R[1,1]) + 0.5*z[1]^2*V*R[1,1]/(V*R[1,1]+1)
@@ -185,10 +185,10 @@ test_that("NULL mixture_weights defaults to uniform", {
   grid <- c(1, 10, 50)
 
   # Should not error, should use uniform weights
-  fit <- susie_rss(z = z, R = R, n = n, L = L,
+  fit <- suppressWarnings(susie_rss(z = z, R = R, n = n, L = L,
                    prior_variance_grid = grid,
                    estimate_residual_variance = FALSE,
-                   max_iter = 5)
+                   max_iter = 5))
 
   expect_true(all(fit$pip >= 0 & fit$pip <= 1))
 })
@@ -238,12 +238,12 @@ test_that("Mixture prior works with finite-reference R inflation", {
   w <- c(0.3, 0.5, 0.2)
 
   # Run with R_finite to trigger shat2 inflation
-  fit <- susie_rss(z = z, R = R, n = n, L = L,
+  fit <- suppressWarnings(susie_rss(z = z, R = R, n = n, L = L,
                    prior_variance_grid = grid,
                    mixture_weights = w,
                    estimate_residual_variance = FALSE,
                    R_finite = 30,
-                   max_iter = 5)
+                   max_iter = 5))
 
   # Basic validity
   expect_true(all(fit$pip >= 0 & fit$pip <= 1))
@@ -281,17 +281,17 @@ test_that("Asymmetric mixture weights shift PIPs correctly", {
 # =============================================================================
 test_that("K=1 mixture is numerically identical for L=1 individual data", {
   L <- 1
-  fit_scalar <- susie(X, y, L = L,
+  fit_scalar <- suppressWarnings(susie(X, y, L = L,
                       estimate_prior_variance = FALSE,
                       estimate_residual_variance = FALSE,
-                      max_iter = 1)
+                      max_iter = 1))
   V_eff <- fit_scalar$V[1]
 
-  fit_mixture <- susie(X, y, L = L,
+  fit_mixture <- suppressWarnings(susie(X, y, L = L,
                        prior_variance_grid = c(V_eff),
                        mixture_weights = c(1),
                        estimate_residual_variance = FALSE,
-                       max_iter = 1)
+                       max_iter = 1))
 
   # After exactly 1 iteration with L=1, results must match to machine precision
   expect_equal(fit_scalar$alpha, fit_mixture$alpha, tolerance = .Machine$double.eps * 10)

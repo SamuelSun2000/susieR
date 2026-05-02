@@ -109,8 +109,8 @@ test_that("compute_suff_stat matches susie_ss input requirements", {
 
   # Should be able to use directly with susie_ss
   expect_error(
-    fit <- susie_ss(ss$XtX, ss$Xty, ss$yty, n = ss$n, L = 5,
-                    max_iter = 2, verbose = FALSE),
+    fit <- suppressWarnings(susie_ss(ss$XtX, ss$Xty, ss$yty, n = ss$n, L = 5,
+                    max_iter = 2, verbose = FALSE)),
     NA
   )
 })
