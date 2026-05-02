@@ -333,22 +333,24 @@ low_eigen_projection_fraction <- function(eigen_A, b, eigen_tol,
        low_eigen_count = length(low), eigen_tol = eigen_tol)
 }
 
-# Check whether b is in space spanned by the non-zero eigenvectors of A
+# Check whether b is in space spanned by the non-zero eigenvectors of A.
+# A may be a matrix, optionally with attr(A, "eigen"), or an eigen() list.
 #' @keywords internal
-check_projection <- function(A, b) {
-  if (is.null(attr(A, "eigen"))) {
-    attr(A, "eigen") <- eigen(A, symmetric = TRUE)
-  }
-  v <- attr(A, "eigen")$values
-  B <- attr(A, "eigen")$vectors[, v > .Machine$double.eps]
-  msg <- all.equal(as.vector(B %*% crossprod(B, b)), as.vector(b),
-                   check.names = FALSE
-  )
-  if (!is.character(msg)) {
-    return(list(status = TRUE, msg = NA))
+check_projection <- function(A, b, tol = .Machine$double.eps,
+                             projection_tol = tol, norm_floor = 0) {
+  eig <- if (is.list(A) && !is.null(A$values) && !is.null(A$vectors)) {
+    A
   } else {
-    return(list(status = FALSE, msg = msg))
+    if (is.null(attr(A, "eigen")))
+      attr(A, "eigen") <- eigen(A, symmetric = TRUE)
+    attr(A, "eigen")
   }
+  proj <- low_eigen_projection_fraction(eig, b, tol, norm_floor)
+  status <- !proj$evaluable || proj$fraction <= projection_tol
+  msg <- if (status) NA else
+    paste0("relative squared projection ", signif(proj$fraction, 3),
+           " exceeds ", signif(projection_tol, 3))
+  c(list(status = status, msg = msg), proj)
 }
 
 # Validate Model Initialization Object

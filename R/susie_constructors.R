@@ -1279,9 +1279,10 @@ rss_lambda_constructor <- function(z, R = NULL, X = NULL, n = NULL,
 
   # Check whether z in space spanned by the non-zero eigenvectors of R
   if (is.null(X) && check_z) {
-    proj <- low_eigen_projection_fraction(eigen_R, z, r_tol)
+    proj <- check_projection(eigen_R, z, tol = r_tol,
+                             projection_tol = r_tol)
     if (proj$low_eigen_count > 0) {
-      if (proj$fraction > r_tol) {
+      if (!proj$status) {
         warning_message("Input z does not lie in the space of non-zero eigenvectors of R.")
       } else {
         message("Input z is in space spanned by the non-zero eigenvectors of R.\n")
