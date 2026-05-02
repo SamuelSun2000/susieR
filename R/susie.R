@@ -217,8 +217,10 @@
 #' @param greedy_lbf_cutoff Numeric saturation threshold for the
 #'   \code{L_greedy} outer loop. Default is 0.1.
 #'
-#' @param tol tol A small, non-negative number specifying the convergence
-#'   tolerance for the IBSS fitting procedure.
+#' @param tol A small, non-negative number specifying the convergence
+#'   tolerance for the IBSS fitting procedure. When \code{NULL}, the
+#'   default is \code{1e-4}; for \code{estimate_residual_method = "NIG"},
+#'   the default is tightened to \code{1e-6}.
 #'
 #' @param convergence_method When \code{converge_method = "elbo"} the fitting
 #'   procedure halts when the difference in the variational lower bound, or
@@ -350,15 +352,15 @@ susie <- function(X, y, L = min(10, ncol(X)),
                   max_iter = 100,
                   L_greedy = NULL,
                   greedy_lbf_cutoff = 0.1,
-                  tol = 1e-4,
+                  tol = NULL,
                   convergence_method = c("elbo", "pip"),
                   verbose = FALSE,
                   track_fit = FALSE,
                   residual_variance_lowerbound = NULL,
                   refine = FALSE,
                   n_purity = 100,
-                  alpha0 = 1/sqrt(nrow(X)),
-                  beta0 = 1/sqrt(nrow(X)),
+                  alpha0 = NULL,
+                  beta0 = NULL,
                   init_only = FALSE,
                   slot_prior = NULL) {
 
@@ -484,7 +486,7 @@ susie_ss <- function(XtX, Xty, yty, n,
                      max_iter = 100,
                      L_greedy = NULL,
                      greedy_lbf_cutoff = 0.1,
-                     tol = 1e-4,
+                     tol = NULL,
                      convergence_method = c("elbo", "pip"),
                      coverage = 0.95,
                      min_abs_corr = 0.5,
@@ -493,8 +495,8 @@ susie_ss <- function(XtX, Xty, yty, n,
                      track_fit = FALSE,
                      check_prior = FALSE,
                      refine = FALSE,
-                     alpha0 = 1/sqrt(n),
-                     beta0 = 1/sqrt(n),
+                     alpha0 = NULL,
+                     beta0 = NULL,
                      slot_prior = NULL) {
 
   # Validate method arguments
@@ -697,7 +699,7 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
                       max_iter = 100,
                       L_greedy = NULL,
                       greedy_lbf_cutoff = 0.1,
-                      tol = 1e-4,
+                      tol = NULL,
                       convergence_method = c("elbo", "pip"),
                       verbose = FALSE,
                       track_fit = FALSE,
@@ -711,8 +713,8 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
                       eig_delta_rel = 1e-3,
                       eig_delta_abs = 0,
                       artifact_threshold = 0.1,
-                      alpha0 = if (is.null(n)) NULL else 1/sqrt(n),
-                      beta0 = if (is.null(n)) NULL else 1/sqrt(n),
+                      alpha0 = NULL,
+                      beta0 = NULL,
                       init_only = FALSE,
                       slot_prior = NULL) {
 
@@ -1006,7 +1008,7 @@ susie_rss_lambda <- function(z = NULL, R = NULL, n = NULL,
                              max_iter = 100,
                              L_greedy = NULL,
                              greedy_lbf_cutoff = 0.1,
-                             tol = 1e-4,
+                             tol = NULL,
                              convergence_method = c("elbo", "pip"),
                              verbose = FALSE,
                              track_fit = FALSE,

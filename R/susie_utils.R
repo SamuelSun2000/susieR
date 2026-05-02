@@ -532,6 +532,23 @@ validate_and_override_params <- function(params) {
     stop("prior_tol must be non-negative.")
   }
 
+  tol <- params$tol
+  use_NIG_method <- identical(params$estimate_residual_method, "NIG")
+  if (is.null(tol) && use_NIG_method)
+    warning_message("tol was not specified; setting tol = 1e-6 for ",
+                    "the NIG prior to improve convergence.",
+                    style = "hint")
+  params$tol <- if (is.null(tol)) {
+    if (use_NIG_method) 1e-6 else 1e-4
+  } else {
+    tol
+  }
+  if (!is.numeric(params$tol) || length(params$tol) != 1 ||
+      is.na(params$tol) || !is.finite(params$tol) ||
+      params$tol < 0) {
+    stop("tol must be a non-negative numeric scalar.")
+  }
+
   # Validate greedy-L parameters.
   if (!is.null(params$L_greedy)) {
     if (!is.numeric(params$L_greedy) || length(params$L_greedy) != 1 ||
@@ -645,7 +662,7 @@ validate_and_override_params <- function(params) {
   }
 
   # Handle NIG parameters for small sample correction
-  if (params$estimate_residual_method == "NIG") {
+  if (use_NIG_method) {
     params$use_NIG <- TRUE
 
     # Require a valid sample size n. The default alpha0/beta0 scale as
@@ -660,6 +677,11 @@ validate_and_override_params <- function(params) {
            "susie() infers n from nrow(X); for susie_ss() and susie_rss(), ",
            "pass `n` explicitly.")
     }
+
+    if (is.null(params$alpha0))
+      params$alpha0 <- 1 / sqrt(params$n)
+    if (is.null(params$beta0))
+      params$beta0 <- 1 / sqrt(params$n)
 
     # Validate NIG prior parameters: both must be strictly positive for a proper
     # Inverse-Gamma prior. Otherwise compute_null_loglik_NIG() evaluates

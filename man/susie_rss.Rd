@@ -39,7 +39,7 @@ susie_rss(
   max_iter = 100,
   L_greedy = NULL,
   greedy_lbf_cutoff = 0.1,
-  tol = 1e-04,
+  tol = NULL,
   convergence_method = c("elbo", "pip"),
   verbose = FALSE,
   track_fit = FALSE,
@@ -53,8 +53,8 @@ susie_rss(
   eig_delta_rel = 0.001,
   eig_delta_abs = 0,
   artifact_threshold = 0.1,
-  alpha0 = if (is.null(n)) NULL else 1/sqrt(n),
-  beta0 = if (is.null(n)) NULL else 1/sqrt(n),
+  alpha0 = NULL,
+  beta0 = NULL,
   init_only = FALSE,
   slot_prior = NULL
 )
@@ -224,8 +224,10 @@ fit.}
 \item{greedy_lbf_cutoff}{Numeric saturation threshold for the
 \code{L_greedy} outer loop. Default is 0.1.}
 
-\item{tol}{tol A small, non-negative number specifying the convergence
-tolerance for the IBSS fitting procedure.}
+\item{tol}{A small, non-negative number specifying the convergence
+tolerance for the IBSS fitting procedure. When \code{NULL}, the
+default is \code{1e-4}; for \code{estimate_residual_method = "NIG"},
+the default is tightened to \code{1e-6}.}
 
 \item{convergence_method}{When \code{converge_method = "elbo"} the fitting
 procedure halts when the difference in the variational lower bound, or

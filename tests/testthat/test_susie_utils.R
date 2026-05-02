@@ -583,12 +583,36 @@ test_that("validate_and_override_params validates and adjusts parameters", {
     refine = FALSE,
     alpha0 = 0.1,
     beta0 = 0.1,
-    n = 100
+    n = 100,
+    L_greedy = NULL,
+    greedy_lbf_cutoff = 0.1
   )
 
   result <- validate_and_override_params(valid_params)
   expect_equal(result$prior_tol, 1e-9)
+  expect_equal(result$tol, 1e-4)
   expect_false(result$use_NIG)
+
+  # Test: NIG uses tighter convergence tolerance only when tol is omitted
+  nig_tol_params <- valid_params
+  nig_tol_params$estimate_residual_method <- "NIG"
+  nig_tol_params$estimate_prior_method <- "EM"
+  nig_tol_params$L <- 1
+  expect_message(
+    result <- validate_and_override_params(nig_tol_params),
+    "tol = 1e-6"
+  )
+  expect_equal(result$tol, 1e-6)
+
+  nig_tol_params$tol <- 1e-4
+  expect_no_message(
+    result <- validate_and_override_params(nig_tol_params)
+  )
+  expect_equal(result$tol, 1e-4)
+
+  # Test: NIG alpha0/beta0 default to 1/sqrt(n)
+  expect_equal(result$alpha0, 1 / sqrt(valid_params$n))
+  expect_equal(result$beta0, 1 / sqrt(valid_params$n))
 
   # Test: invalid prior_tol
   bad_params <- valid_params
@@ -801,14 +825,14 @@ test_that("validate_and_override_params validates and adjusts parameters", {
     "alpha0 > 0 and beta0 > 0"
   )
 
-  # Test: NIG rejects NULL alpha0/beta0 (non-numeric)
+  # Test: NIG fills NULL alpha0/beta0 from n
   nig_null <- valid_params
   nig_null$estimate_residual_method <- "NIG"
   nig_null$alpha0 <- NULL
-  expect_error(
-    validate_and_override_params(nig_null),
-    "alpha0 > 0 and beta0 > 0"
-  )
+  nig_null$beta0 <- NULL
+  result <- validate_and_override_params(nig_null)
+  expect_equal(result$alpha0, 1 / sqrt(valid_params$n))
+  expect_equal(result$beta0, 1 / sqrt(valid_params$n))
 
   # Test: non-NIG path does NOT validate alpha0/beta0
   # (the NIG prior is unused, so invalid values must be silently ignored)
@@ -946,7 +970,9 @@ test_that("validate_and_override_params rejects wrong-length scaled_prior_varian
     scaled_prior_variance = c(0.1, 0.2, 0.3),
     L = 5,
     unmappable_effects = "none",
-    slot_prior = NULL
+    slot_prior = NULL,
+    L_greedy = NULL,
+    greedy_lbf_cutoff = 0.1
   )
   expect_error(
     validate_and_override_params(base_params),
