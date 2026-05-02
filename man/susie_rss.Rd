@@ -288,10 +288,10 @@ per-variable quality metrics.}
 component on top of the finite-reference correction; recommended
 whenever \code{R} comes from a different cohort than the GWAS.
 \code{"map_qc"} is \code{"map"} plus a QC score (\code{Q_art}) that
-warns when the fitted residual carries energy in directions where
-the supplied \code{R} indicates signal should be weak. For
-allele-coding / strand-flip checks, see the kriging diagnostic in
-\code{susie_rss}'s companion utilities.
+extends the Zou et al. (2022) column-space check from the input
+summary vector to the fitted residual after \code{R_mismatch}
+correction. It warns when that residual still projects onto
+near-null directions of the supplied \code{R}.
 Requires \code{R_finite}; auto-disables \code{estimate_residual_variance}
 with a warning.}
 

@@ -316,6 +316,23 @@ check_semi_pd <- function(A, tol) {
   ))
 }
 
+# Fraction of b projected onto eigenvectors with eigenvalues below a threshold.
+#' @keywords internal
+low_eigen_projection_fraction <- function(eigen_A, b, eigen_tol,
+                                          norm_floor = 0) {
+  d <- eigen_A$values
+  V <- eigen_A$vectors
+  low <- which(d <= eigen_tol)
+  b_norm <- sum(b^2)
+  if (length(low) == 0L || b_norm <= norm_floor) {
+    return(list(fraction = 0, evaluable = FALSE,
+                low_eigen_count = length(low), eigen_tol = eigen_tol))
+  }
+  coeff <- as.numeric(crossprod(V[, low, drop = FALSE], b))
+  list(fraction = sum(coeff^2) / b_norm, evaluable = TRUE,
+       low_eigen_count = length(low), eigen_tol = eigen_tol)
+}
+
 # Check whether b is in space spanned by the non-zero eigenvectors of A
 #' @keywords internal
 check_projection <- function(A, b) {
