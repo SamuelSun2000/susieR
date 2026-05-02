@@ -55,6 +55,69 @@ single_effect_regression <- function(data, params, model, l) {
     model
   }
 
+#' Gaussian single-effect log Bayes factors
+#'
+#' Plain helper, not S3: once a backend has reduced its residual problem to
+#' `betahat`, `shat2`, and scalar prior variance `V`, the Gaussian ABF is common.
+#' The Wakefield form is algebraically equivalent to the normal-density ratio
+#' for positive `shat2`, and avoids Inf - Inf in degenerate null-weight columns.
+#'
+#' @keywords internal
+#' @noRd
+gaussian_ser_lbf <- function(betahat, shat2, V) {
+  shat2_safe <- pmax(shat2, .Machine$double.eps)
+  lbf <- -0.5 * log(1 + V / shat2_safe) +
+    0.5 * betahat^2 * V / (shat2_safe * (V + shat2_safe))
+  lbf[!is.finite(betahat) | !is.finite(shat2)] <- 0
+  lbf
+}
+
+#' Apply single-effect log Bayes factors to a model
+#'
+#' Shared writeback for scalar-prior SER methods. If `l` is NULL, returns only
+#' the model-level log Bayes factor for prior-variance optimization.
+#'
+#' @keywords internal
+#' @noRd
+apply_ser_lbf <- function(model, lbf, shat2, l = NULL) {
+  stable_res  <- lbf_stabilization(lbf, model$pi, shat2)
+  weights_res <- compute_posterior_weights(stable_res$lpo)
+
+  if (is.null(l))
+    return(list(model = model, lbf_model = weights_res$lbf_model,
+                weights = weights_res, stable = stable_res))
+
+  model$alpha[l, ]        <- weights_res$alpha
+  model$lbf[l]            <- weights_res$lbf_model
+  model$lbf_variable[l, ] <- stable_res$lbf
+  list(model = model, lbf_model = weights_res$lbf_model,
+       weights = weights_res, stable = stable_res)
+}
+
+#' Gaussian posterior moments for one SER
+#'
+#' Plain helper for the common conjugate normal update.
+#'
+#' @keywords internal
+#' @noRd
+gaussian_ser_moments <- function(betahat, shat2, V) {
+  post_var  <- V * shat2 / (V + shat2)
+  post_mean <- post_var / shat2 * betahat
+  no_info <- !is.finite(betahat) | !is.finite(shat2)
+  post_var[no_info] <- 0
+  post_mean[no_info] <- 0
+  list(post_mean = post_mean, post_mean2 = post_var + post_mean^2)
+}
+
+#' Store SER posterior moments for effect l
+#' @keywords internal
+#' @noRd
+store_ser_moments <- function(model, l, moments) {
+  model$mu[l, ]  <- moments$post_mean
+  model$mu2[l, ] <- moments$post_mean2
+  model
+}
+
 #' Pre-loglik prior-update hook
 #'
 #' S3 generic, called between SER stats and `loglik`. Default

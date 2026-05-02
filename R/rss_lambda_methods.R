@@ -132,18 +132,12 @@ SER_posterior_e_loglik.rss_lambda <- function(data, params, model, l) {
 #' @keywords internal
 calculate_posterior_moments.rss_lambda <- function(data, params, model, V, l, ...) {
   shat2 <- 1 / model$RjSinvRj
-
-  post_var  <- V * shat2 / (V + shat2)
   signal    <- as.vector(crossprod(model$SinvRj, model$residuals))
   betahat   <- signal * (1 / model$RjSinvRj)
-  post_mean <- post_var / shat2 * betahat
-  post_mean2 <- post_var + post_mean^2
+  moments   <- gaussian_ser_moments(betahat, shat2, V)
 
   # Store posterior moments in model
-  model$mu[l, ] <- post_mean
-  model$mu2[l, ] <- post_mean2
-
-  return(model)
+  store_ser_moments(model, l, moments)
 }
 
 # Calculate KL divergence
@@ -207,24 +201,14 @@ Eloglik.rss_lambda <- function(data, model) {
 #' @keywords internal
 loglik.rss_lambda <- function(data, params, model, V, ser_stats, l = NULL, ...) {
   # Wakefield ABF using betahat/shat2 from ser_stats.
-  shat2 <- pmax(ser_stats$shat2, .Machine$double.eps)
-  lbf   <- -0.5 * log(1 + V / shat2) +
-    0.5 * ser_stats$betahat^2 * V / (shat2 * (V + shat2))
-
-  # Stabilize logged Bayes Factor
-  stable_res <- lbf_stabilization(lbf, model$pi, ser_stats$shat2)
-
-  # Compute posterior weights
-  weights_res <- compute_posterior_weights(stable_res$lpo)
+  lbf <- gaussian_ser_lbf(ser_stats$betahat, ser_stats$shat2, V)
+  ser_res <- apply_ser_lbf(model, lbf, ser_stats$shat2, l)
 
   # Store in model if l is provided, otherwise return lbf_model for prior variance optimization
   if (!is.null(l)) {
-    model$alpha[l, ] <- weights_res$alpha
-    model$lbf[l] <- weights_res$lbf_model
-    model$lbf_variable[l, ] <- stable_res$lbf
-    return(model)
+    return(ser_res$model)
   } else {
-    return(weights_res$lbf_model)
+    return(ser_res$lbf_model)
   }
 }
 

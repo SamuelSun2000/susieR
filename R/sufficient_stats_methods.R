@@ -266,22 +266,19 @@ calculate_posterior_moments.ss <- function(data, params, model, V, l, ...) {
       post_mean2 <- moments$post_mean2
       model$rv[l] <- sum(model$alpha[l, ] * moments$rv)
     }
+    moments <- list(post_mean = post_mean, post_mean2 = post_mean2)
   } else {
     # Standard Gaussian posterior calculations
     shat2 <- model$residual_variance / model$predictor_weights
     if (!is.null(model$shat2_inflation))
       shat2 <- shat2 * model$shat2_inflation
 
-    post_var   <- V * shat2 / (V + shat2)
-    post_mean  <- V * (model$residuals / model$predictor_weights) / (V + shat2)
-    post_mean2 <- post_var + post_mean^2
+    betahat <- model$residuals / model$predictor_weights
+    moments <- gaussian_ser_moments(betahat, shat2, V)
   }
 
   # Store posterior moments in model
-  model$mu[l, ] <- post_mean
-  model$mu2[l, ] <- post_mean2
-
-  return(model)
+  store_ser_moments(model, l, moments)
 }
 
 # Calculate KL divergence
@@ -378,31 +375,24 @@ loglik.ss <- function(data, params, model, V, ser_stats, l = NULL, ...) {
                             V, params$alpha0, params$beta0, nig_ss$tau)
   } else {
     # Standard Gaussian prior log Bayes factors
-    lbf <- dnorm(ser_stats$betahat, 0, sqrt(V + ser_stats$shat2), log = TRUE) -
-      dnorm(ser_stats$betahat, 0, sqrt(ser_stats$shat2), log = TRUE)
+    lbf <- gaussian_ser_lbf(ser_stats$betahat, ser_stats$shat2, V)
   }
 
-  # Stabilize logged Bayes Factor
-  stable_res  <- lbf_stabilization(lbf, model$pi, ser_stats$shat2)
-
-  # Compute posterior weights
-  weights_res <- compute_posterior_weights(stable_res$lpo)
+  ser_res <- apply_ser_lbf(model, lbf, ser_stats$shat2, l)
 
   # Store in model if l is provided, otherwise return lbf_model for prior variance optimization
   if (!is.null(l)) {
-    model$alpha[l, ] <- weights_res$alpha
-    model$lbf[l] <- weights_res$lbf_model
-    model$lbf_variable[l, ] <- stable_res$lbf
+    model <- ser_res$model
 
     # Compute and store marginal log-likelihood for NIG prior
     if (params$use_NIG) {
-      model$marginal_loglik[l] <- compute_marginal_loglik(weights_res$lbf_model, data$n,
+      model$marginal_loglik[l] <- compute_marginal_loglik(ser_res$lbf_model, data$n,
                                                            nig_ss$yy, params$alpha0, params$beta0,
                                                            TRUE)
     }
     return(model)
   } else {
-    return(weights_res$lbf_model)
+    return(ser_res$lbf_model)
   }
 }
 
