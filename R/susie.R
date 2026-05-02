@@ -633,6 +633,12 @@ susie_ss <- function(XtX, Xty, yty, n,
 #'   onto near-null directions of the supplied \code{R}, and auto-disable
 #'   \code{estimate_residual_variance} with a warning.
 #'
+#' @param R_mismatch_method Estimator for the region-level
+#'   \code{lambda_bias} variance component when \code{R_mismatch != "none"}.
+#'   \code{"bounded_mle"} (default) maximizes the working Gaussian likelihood
+#'   subject to \eqn{B_\mathrm{eff} = 1/(1/B + \lambda_\mathrm{bias}) \ge 1}.
+#'   \code{"map"} uses a half-Cauchy MAP estimator.
+#'
 #' @param eig_delta_rel,eig_delta_abs Cutoffs for "low-eigenvalue"
 #'   directions of \code{R} used by the QC diagnostic when
 #'   \code{R_mismatch != "none"}. Default \code{eig_delta_rel = 1e-3},
@@ -720,6 +726,7 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
                       refine = FALSE,
                       R_finite = NULL,
                       R_mismatch = c("none", "eb", "eb_force_init", "eb_no_init"),
+                      R_mismatch_method = c("bounded_mle", "map"),
                       eig_delta_rel = 1e-3,
                       eig_delta_abs = 0,
                       artifact_threshold = 0.1,
@@ -737,6 +744,7 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
                     (is.list(R) && !is.matrix(R))
 
   R_mismatch <- match.arg(R_mismatch)
+  R_mismatch_method <- match.arg(R_mismatch_method)
   if (is.null(max_iter)) {
     max_iter <- 50
     warning_message("Setting max_iter = 50 for the SuSiE RSS model because ",
@@ -764,8 +772,8 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
   R_finite <- resolve_R_finite(R_finite, if (!is.null(X)) X else R,
                                is_multi_panel)
   # sigma^2 and lambda_bias both inflate the residual variance and are
-  # only weakly jointly identified; we follow Zou et al. (2022) and fix
-  # sigma^2 when R_mismatch is active.
+  # only weakly jointly identified, so sigma^2 is fixed when R_mismatch is
+  # active.
   if (R_mismatch != "none" && isTRUE(estimate_residual_variance)) {
     warning_message(
       "R_mismatch = '", R_mismatch, "' is incompatible with ",
@@ -917,6 +925,7 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
     n_purity = n_purity, r_tol = r_tol, refine = refine,
     R_finite = if (R_finite_explicit_false) FALSE else R_finite,
     R_mismatch = R_mismatch,
+    R_mismatch_method = R_mismatch_method,
     eig_delta_rel = eig_delta_rel, eig_delta_abs = eig_delta_abs,
     artifact_threshold = artifact_threshold,
     alpha0 = alpha0, beta0 = beta0,

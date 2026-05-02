@@ -58,6 +58,54 @@ test_that("R_mismatch = 'eb' supports the B = Inf limit", {
   expect_true(!is.null(d$Q_art))
 })
 
+test_that("bounded MLE lambda estimator handles zero, interior, and bound fits", {
+  lam_zero <- susieR:::estimate_lambda_bias(
+    r = c(0.2, -0.1), s = c(1, 2), sigma2 = 1,
+    R_finite_B = Inf, method = "eb",
+    R_mismatch_method = "bounded_mle")
+  expect_equal(lam_zero, 0)
+
+  lam_interior <- susieR:::estimate_lambda_bias(
+    r = sqrt(1.25), s = 1, sigma2 = 1,
+    R_finite_B = Inf, method = "eb",
+    R_mismatch_method = "bounded_mle")
+  expect_equal(lam_interior, 0.25, tolerance = 5e-5)
+
+  lam_small <- susieR:::estimate_lambda_bias(
+    r = sqrt(1.01), s = 1, sigma2 = 1,
+    R_finite_B = Inf, method = "eb",
+    R_mismatch_method = "bounded_mle")
+  expect_equal(lam_small, 0)
+
+  lam_bound <- susieR:::estimate_lambda_bias(
+    r = 4, s = 1, sigma2 = 1,
+    R_finite_B = 500, method = "eb",
+    R_mismatch_method = "bounded_mle")
+  expect_equal(lam_bound, 1 - 1 / 500, tolerance = 1e-12)
+  expect_equal(1 / (1 / 500 + lam_bound), 1, tolerance = 1e-12)
+})
+
+test_that("R_mismatch_method controls lambda estimator on SS path only", {
+  rho <- 0.99
+  R <- matrix(c(1, -rho, -rho, 1), 2, 2)
+  z <- c(-8, -8)
+
+  fit_bounded <- suppressWarnings(susie_rss(
+    z = z, R = R, n = 5000, L = 1, R_mismatch = "eb_no_init",
+    R_mismatch_method = "bounded_mle", max_iter = 3, verbose = FALSE))
+  d_bounded <- fit_bounded$R_finite_diagnostics
+  expect_equal(d_bounded$R_mismatch_method, "bounded_mle")
+  expect_true(d_bounded$lambda_bias <= 1)
+  expect_true(d_bounded$B_corrected >= 1)
+
+  fit_map <- suppressWarnings(susie_rss(
+    z = z, R = R, n = 5000, L = 1, R_mismatch = "eb_no_init",
+    R_mismatch_method = "map", max_iter = 3, verbose = FALSE))
+  d_map <- fit_map$R_finite_diagnostics
+  expect_equal(d_map$R_mismatch_method, "map")
+  expect_true(d_map$B_corrected < 1)
+})
+
 test_that("R_mismatch = 'eb' uses SER-protected initialization", {
   set.seed(13)
   p <- 20

@@ -606,6 +606,7 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
                                       refine = FALSE,
                                       R_finite = NULL,
                                       R_mismatch = "none",
+                                      R_mismatch_method = "bounded_mle",
                                       eig_delta_rel = 1e-3,
                                       eig_delta_abs = 0,
                                       artifact_threshold = 0.1,
@@ -642,6 +643,7 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
   is_multipanel <- (is.list(X) && !is.matrix(X)) ||
                    (is.list(R) && !is.matrix(R))
   R_mismatch <- match.arg(R_mismatch, c("none", "eb", "eb_force_init", "eb_no_init"))
+  R_mismatch_method <- match.arg(R_mismatch_method, c("bounded_mle", "map"))
   R_finite_explicit_false <- identical(R_finite, FALSE)
   if (isTRUE(R_finite) && is.null(X))
     stop("R_finite = TRUE requires X input. When using precomputed R, ",
@@ -679,7 +681,8 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
       track_fit = track_fit, check_input = check_input,
       check_prior = check_prior, n_purity = n_purity,
       r_tol = r_tol, refine = refine, R_finite = R_finite,
-      R_mismatch = R_mismatch, eig_delta_rel = eig_delta_rel,
+      R_mismatch = R_mismatch, R_mismatch_method = R_mismatch_method,
+      eig_delta_rel = eig_delta_rel,
       eig_delta_abs = eig_delta_abs, artifact_threshold = artifact_threshold,
       alpha0 = alpha0, beta0 = beta0, slot_prior = slot_prior,
       L_greedy = L_greedy, greedy_lbf_cutoff = greedy_lbf_cutoff
@@ -897,6 +900,7 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
 
   # Attach R-mismatch params consumed by R/rss_mismatch.R.
   result$params$R_mismatch <- R_mismatch
+  result$params$R_mismatch_method <- R_mismatch_method
   result$params$eig_delta_rel <- eig_delta_rel
   result$params$eig_delta_abs <- eig_delta_abs
   result$params$artifact_threshold <- artifact_threshold
@@ -945,6 +949,7 @@ ss_mixture_constructor <- function(z, R = NULL, X = NULL, n,
                                    refine = FALSE,
                                    R_finite = NULL,
                                    R_mismatch = "none",
+                                   R_mismatch_method = "bounded_mle",
                                    eig_delta_rel = 1e-3,
                                    eig_delta_abs = 0,
                                    artifact_threshold = 0.1,
@@ -955,6 +960,8 @@ ss_mixture_constructor <- function(z, R = NULL, X = NULL, n,
                                    greedy_lbf_cutoff = 0.1) {
   if (is.null(n) || !is.numeric(n) || length(n) != 1 || n <= 1)
     stop("Sample size 'n' is required for multi-panel mode.")
+  R_mismatch <- match.arg(R_mismatch, c("none", "eb", "eb_force_init", "eb_no_init"))
+  R_mismatch_method <- match.arg(R_mismatch_method, c("bounded_mle", "map"))
   if (is.null(z))
     stop("Multi-panel mode requires z-scores.")
   if (!is.null(R) && !is.null(X))
@@ -1095,6 +1102,7 @@ ss_mixture_constructor <- function(z, R = NULL, X = NULL, n,
     L_greedy = L_greedy,
     greedy_lbf_cutoff = greedy_lbf_cutoff,
     R_mismatch = R_mismatch,
+    R_mismatch_method = R_mismatch_method,
     eig_delta_rel = eig_delta_rel,
     eig_delta_abs = eig_delta_abs,
     artifact_threshold = artifact_threshold

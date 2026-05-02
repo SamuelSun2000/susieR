@@ -6,11 +6,11 @@
 # NOT use any of this (entry-level errors block lambda > 0 with
 # R_finite or R_mismatch != "none").
 #
-#   * 1-D MAP optimizer for the variance component lambda_bias
+#   * 1-D estimator for the variance component lambda_bias
 #     (estimate_lambda_bias)
 #   * per-variable inflation factor used inside the SER step
 #     (compute_shat2_inflation)
-#   * model-state storage helper for per-slot inflation diagnostics
+#   * model-state storage helper for per-variable inflation
 #     (apply_inflation_state)
 #   * SER-protected initialization for the recommended EB path
 #     (initialize_R_mismatch)
@@ -66,7 +66,7 @@ resolve_R_finite <- function(R_finite, X = NULL, is_multi_panel = FALSE) {
 
 # Compute finite-reference R diagnostics (debiased Frobenius norm,
 # effective rank, r/B ratio, per-variant diagonal deviation from 1).
-# Used by both summary_stats_constructor and rss_lambda_constructor.
+# Used by the summary-statistics constructors.
 #
 # @param X Factor matrix (B x p), or NULL.
 # @param R Precomputed R matrix (p x p), or NULL.
@@ -113,7 +113,7 @@ compute_R_finite_diagnostics <- function(X = NULL, R = NULL, B, p,
 }
 
 # =============================================================================
-# 1-D MAP OPTIMIZER FOR lambda_bias
+# 1-D ESTIMATOR FOR lambda_bias
 # =============================================================================
 
 # Estimate R-bias variance beyond any supplied finite-reference uncertainty.
@@ -121,16 +121,23 @@ compute_R_finite_diagnostics <- function(X = NULL, R = NULL, B, p,
 # total continuous R-mismatch variance component.
 # Likelihood on the z-score residual scale,
 #   tau_j^2 = sigma2 + (1/R_finite_B + lambda_bias) * s_j,
-# with a half-Cauchy(prior_scale) prior on u = sqrt(lambda_bias).
+# either by bounded MLE or by MAP with a half-Cauchy prior on
+# u = sqrt(lambda_bias). The bounded MLE constrains
+#   1 / (1/R_finite_B + lambda_bias) >= 1,
+# so the combined R-uncertainty term never implies B_eff below one sample.
 # The Fisher-information boundary SE,
-#   SE_0 = sqrt(2) * sigma2 / sqrt(sum(s^2)),
+#   SE_0 = sqrt(1 / {0.5 * sum((s_j / tau_j0)^2)}),
+#   tau_j0 = sigma2 + s_j / R_finite_B,
 # defines a data-driven floor: estimates below 0.1 * SE_0 are zeroed.
 # This both suppresses Brent boundary noise and replaces ad-hoc display
 # thresholds with one rule; "none" short-circuits before optimization.
 #' @keywords internal
-estimate_lambda_bias <- function(r, s, sigma2, R_finite_B, method) {
+estimate_lambda_bias <- function(r, s, sigma2, R_finite_B, method,
+                                 R_mismatch_method = "bounded_mle") {
   if (is.null(method) || method == "none")
     return(0)
+  R_mismatch_method <- match.arg(R_mismatch_method,
+                                 c("bounded_mle", "map"))
   keep <- is.finite(r) & is.finite(s) & s > .Machine$double.eps
   if (!any(keep) || !is.finite(sigma2) || sigma2 <= .Machine$double.eps)
     return(0)
@@ -139,6 +146,25 @@ estimate_lambda_bias <- function(r, s, sigma2, R_finite_B, method) {
   cache$base <- sigma2 + cache$s / R_finite_B
   pos <- (cache$r2 - cache$base) / cache$s
   pos <- pos[is.finite(pos) & pos > 0]
+  fisher_info0 <- 0.5 * sum((cache$s / cache$base)^2)
+  se_boundary <- if (fisher_info0 > 0) sqrt(1 / fisher_info0) else Inf
+
+  if (R_mismatch_method == "bounded_mle") {
+    upper_lambda <- max(0, 1 - 1 / R_finite_B)
+    if (upper_lambda <= .Machine$double.eps)
+      return(0)
+    nll <- function(lambda_bias) {
+      tau <- cache$base + lambda_bias * cache$s
+      0.5 * sum(log(tau) + cache$r2 / tau)
+    }
+    opt <- optimize(nll, interval = c(0, upper_lambda))
+    if (nll(0) <= opt$objective)
+      return(0)
+    if (nll(upper_lambda) <= opt$objective)
+      return(upper_lambda)
+    return(if (opt$minimum < 0.1 * se_boundary) 0 else opt$minimum)
+  }
+
   prior_scale <- sqrt(max(1 / R_finite_B, 1 / 10000))
   upper_lambda <- max(c(1, 100 / R_finite_B, 100 * prior_scale^2,
                         10 * pos), na.rm = TRUE)
@@ -151,9 +177,6 @@ estimate_lambda_bias <- function(r, s, sigma2, R_finite_B, method) {
   }
   lambda_hat <- optimize(nll, interval = c(0, upper_u))$minimum^2
 
-  ss2 <- sum(cache$s^2)
-  if (ss2 <= 0) return(0)
-  se_boundary <- sqrt(2) * sigma2 / sqrt(ss2)
   if (lambda_hat < 0.1 * se_boundary) 0 else lambda_hat
 }
 
@@ -166,16 +189,9 @@ estimate_lambda_bias <- function(r, s, sigma2, R_finite_B, method) {
 #   eta_j^2 = XtXr_without_l[j]^2 / (n-1)   (z-score scale)
 #   v_g     = sum(b_minus_l * XtXr_without_l).
 # Reads the region-level scalar lambda_bias from model (set once per
-# sweep by fit_R_mismatch). Per-slot lambda_bias re-fitting was removed:
-# the previous design re-estimated lambda_bias inside every SER step
-# from the leave-one-effect residual, which intentionally contains the
-# lth sparse signal and so confounded signal with R-bias. The fix is
-# the per-sweep fit_R_mismatch hook in ibss_fit; this function only
-# applies the scalar to the slot-specific xi_l.
+# sweep by fit_R_mismatch) and applies it to the slot-specific xi_l.
 # Returns NULL when no inflation applies, otherwise a list with the
-# inflation vector and lambda_bias / B_corrected = NULL so that
-# apply_inflation_state does not write per-slot diagnostics on the SS
-# path (those are scalars on the model, set by fit_R_mismatch).
+# per-variable inflation vector.
 #' @keywords internal
 compute_shat2_inflation <- function(data, model, XtXr_without_l, b_minus_l, r) {
   R_finite_B <- if (!is.null(model$R_finite_B)) model$R_finite_B else data$R_finite_B
@@ -188,40 +204,22 @@ compute_shat2_inflation <- function(data, model, XtXr_without_l, b_minus_l, r) {
   s <- eta2 + v_g
   lambda_bias <- if (is.null(model$lambda_bias)) 0 else model$lambda_bias
   infl <- 1 + (1 / R_finite_B + lambda_bias) * s / model$sigma2
-  list(infl = infl, lambda_bias = NULL, B_corrected = NULL)
+  list(infl = infl)
 }
 
 # =============================================================================
-# MODEL-STATE STORAGE FOR PER-SLOT INFLATION DIAGNOSTICS
+# MODEL-STATE STORAGE FOR PER-VARIABLE INFLATION
 # =============================================================================
 
 # Unpack the inflation list from compute_shat2_inflation into the model.
-# Sets model$shat2_inflation to the per-variant inflation vector. The
-# per-slot writes to model$lambda_bias[l] / model$B_corrected[l] gated
-# below are dormant in the current code: SS / ss_mixture callers always
-# pass infl_state$lambda_bias = NULL (the scalar lambda_bias is set
-# once per sweep by fit_R_mismatch), and the rss_lambda path no longer
-# calls this function. The per-slot machinery is retained as inert
-# back-compat shim and will be removed when the next constructor pass
-# converges on a single storage shape.
+# Sets model$shat2_inflation to the per-variant inflation vector.
 #' @keywords internal
-apply_inflation_state <- function(model, infl_state, l) {
+apply_inflation_state <- function(model, infl_state) {
   if (is.null(infl_state)) {
     model$shat2_inflation <- NULL
     return(model)
   }
   model$shat2_inflation <- infl_state$infl
-  L <- nrow(model$alpha)
-  if (!is.null(infl_state$lambda_bias)) {
-    if (is.null(model$lambda_bias) || length(model$lambda_bias) != L)
-      model$lambda_bias <- rep(0, L)
-    model$lambda_bias[l] <- infl_state$lambda_bias
-  }
-  if (!is.null(infl_state$B_corrected)) {
-    if (is.null(model$B_corrected) || length(model$B_corrected) != L)
-      model$B_corrected <- rep(NA_real_, L)
-    model$B_corrected[l] <- infl_state$B_corrected
-  }
   model
 }
 
@@ -238,14 +236,9 @@ apply_inflation_state <- function(model, infl_state, l) {
 #'   eta_fit_j^2 = XtXr_full[j]^2 / (n-1)                   (z-scale per-variant signal)
 #'   v_g_fit     = sum(beta_bar * XtXr_full)                (= beta_bar_z' R beta_bar_z)
 #'   xi_fit_j    = eta_fit_j^2 + v_g_fit
-#' MAP for lambda_bias on the working likelihood
+#' Estimate lambda_bias on the working likelihood
 #'   r_fit_j ~ N(0, sigma2 + (1/B + lambda) * xi_fit_j)
-#' with half-Cauchy(scale = sqrt(max(1/B, 1e-4))) prior on sqrt(lambda).
-#' Fisher SE zero-mask applied (see estimate_lambda_bias).
-#'
-#' Replaces the per-slot re-fit that used to live inside
-#' compute_shat2_inflation, which estimated lambda_bias from the
-#' intra-sweep r_full_z that drifts as the slot loop progresses.
+#' using the estimator selected by R_mismatch_method.
 #'
 #' The same lambda_bias fit is followed by the Q_art residual artifact
 #' diagnostic; see compute_Q_art. The artifact diagnostic emits an R
@@ -276,9 +269,13 @@ compute_R_mismatch_state <- function(data, params, model, phase = "sweep") {
   v_g_full <- max(sum(b_full * XtXr_full), 0)
   s_full   <- XtXr_full^2 / nm1 + v_g_full
 
+  R_mismatch_method <- if (!is.null(params$R_mismatch_method))
+                         params$R_mismatch_method else "bounded_mle"
   model$lambda_bias <- estimate_lambda_bias(r_fit_z, s_full, model$sigma2,
-                                            R_finite_B, R_mismatch)
+                                            R_finite_B, R_mismatch,
+                                            R_mismatch_method)
   model$B_corrected <- 1 / (1 / R_finite_B + model$lambda_bias)
+  model$R_mismatch_method <- R_mismatch_method
 
   eigen_R <- get_R_mismatch_eigen(data, model)
   if (is.null(eigen_R))
@@ -325,6 +322,7 @@ compute_R_mismatch_state <- function(data, params, model, phase = "sweep") {
                 length(model$R_mismatch_trace) + 1L,
       phase = phase,
       R_mismatch = R_mismatch,
+      R_mismatch_method = R_mismatch_method,
       lambda_bias = model$lambda_bias,
       B_corrected = model$B_corrected,
       B = R_finite_B,

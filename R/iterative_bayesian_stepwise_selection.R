@@ -233,9 +233,7 @@ ibss_fit <- function(data, params, model) {
   }
 
   # Region-level R-mismatch fit at the end of the sweep, before validate.
-  # No-op when R_mismatch = "none" or on the rss_lambda dispatch. Reuses the
-  # existing estimate_lambda_bias optimizer; only the cadence and storage shape
-  # differ from the old per-slot fit.
+  # No-op when R_mismatch = "none" or on the rss_lambda dispatch.
   if (inherits(data, c("ss", "ss_mixture"))) {
     old_lambda_bias <- model$lambda_bias
     model <- fit_R_mismatch(data, params, model)
@@ -401,7 +399,7 @@ ibss_finalize <- function(data, params, model, elbo = NULL, iter = NA_integer_,
     # (set by fit_R_mismatch). Copy whichever exist.
     for (fld in c("Q_art", "artifact_flag", "artifact_evaluable",
                   "low_eigen_count", "low_eigen_fraction", "eig_delta",
-                  "mode_label"))
+                  "mode_label", "R_mismatch_method"))
       if (!is.null(model[[fld]]))
         model$R_finite_diagnostics[[fld]] <- model[[fld]]
     if (!is.null(model$R_mismatch_trace))

@@ -152,7 +152,7 @@ compute_residuals.ss <- function(data, params, model, l, ...) {
     r <- data$Xty - XtXr_without_l
     infl_state <- compute_shat2_inflation(data, model, XtXr_without_l,
                                           b_minus_l, r)
-    model <- apply_inflation_state(model, infl_state, l)
+    model <- apply_inflation_state(model, infl_state)
     return(model)
   }
 
@@ -194,7 +194,7 @@ compute_residuals.ss <- function(data, params, model, l, ...) {
   }
   infl_state <- compute_shat2_inflation(data, model, XtXr_for_infl,
                                         b_for_infl, model$residuals)
-  model <- apply_inflation_state(model, infl_state, l)
+  model <- apply_inflation_state(model, infl_state)
 
   return(model)
 }

@@ -50,6 +50,7 @@ susie_rss(
   refine = FALSE,
   R_finite = NULL,
   R_mismatch = c("none", "eb", "eb_force_init", "eb_no_init"),
+  R_mismatch_method = c("bounded_mle", "map"),
   eig_delta_rel = 0.001,
   eig_delta_abs = 0,
   artifact_threshold = 0.1,
@@ -304,6 +305,12 @@ EB modes report a QC score (\code{Q_art}) that extends the Zou et al.
 residual after correction. They warn when that residual still projects
 onto near-null directions of the supplied \code{R}, and auto-disable
 \code{estimate_residual_variance} with a warning.}
+
+\item{R_mismatch_method}{Estimator for the region-level
+\code{lambda_bias} variance component when \code{R_mismatch != "none"}.
+\code{"bounded_mle"} (default) maximizes the working Gaussian likelihood
+subject to \eqn{B_\mathrm{eff} = 1/(1/B + \lambda_\mathrm{bias}) \ge 1}.
+\code{"map"} uses a half-Cauchy MAP estimator.}
 
 \item{eig_delta_rel, eig_delta_abs}{Cutoffs for "low-eigenvalue"
 directions of \code{R} used by the QC diagnostic when
