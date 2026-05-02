@@ -785,6 +785,23 @@ test_that("susie_rss_lambda only exposes MLE residual variance estimation", {
   )
 })
 
+test_that("R_finite = FALSE silences in-sample R residual variance warning", {
+  z <- c(2, -1, 0.5)
+  R <- diag(3)
+
+  expect_message(
+    susie_rss(z = z, R = R, n = 100, L = 1,
+              estimate_residual_variance = TRUE, init_only = TRUE),
+    "not recommended unless R is the"
+  )
+
+  expect_no_message(
+    susie_rss(z = z, R = R, n = 100, L = 1,
+              estimate_residual_variance = TRUE, R_finite = FALSE,
+              init_only = TRUE)
+  )
+})
+
 test_that("susie_rss_lambda does not expose bhat/shat", {
   set.seed(52)
   setup <- setup_rss_lambda_data(n = 500, p = 50, k = 3, lambda = 1e-5, seed = NULL)

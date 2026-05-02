@@ -592,14 +592,20 @@ susie_ss <- function(XtX, Xty, yty, n,
 #'   \code{estimate_residual_variance = TRUE}.
 #'
 #' @param R_finite Controls variance inflation to account
-#'   for estimating the R matrix from a finite reference panel. Accepts three
+#'   for estimating the R matrix from a finite reference panel. Accepts four
 #'   types of input:
 #'   \describe{
 #'     \item{\code{NULL} (default)}{The R matrix is treated as trusted, and no
-#'       finite-reference variance inflation is applied.}
+#'       finite-reference variance inflation is applied. With
+#'       \code{estimate_residual_variance = TRUE}, this keeps the in-sample
+#'       R warning active.}
+#'     \item{\code{FALSE}}{No finite-reference variance inflation is applied,
+#'       and the in-sample R warning for
+#'       \code{estimate_residual_variance = TRUE} is silenced. Use this only
+#'       when \code{R} is the in-sample correlation matrix.}
 #'     \item{\code{TRUE}}{Infer the reference sample size B from the input
 #'       \code{X}. Sets \code{B = nrow(X)} for single-panel input,
-#'       or \code{B = min(nrow(X_k))} across panels for multi-panel
+#'       or one B per panel for multi-panel
 #'       input. Requires \code{X} to be provided (errors if only
 #'       \code{R} is given, since B cannot be inferred).}
 #'     \item{Number}{Explicit reference sample size B.}
@@ -739,6 +745,7 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
     stop("artifact_threshold must be a single numeric in [0, 1].")
 
   # Resolve R_finite BEFORE any X -> R conversion.
+  R_finite_explicit_false <- identical(R_finite, FALSE)
   if (isTRUE(R_finite) && is.null(X))
     stop("R_finite = TRUE requires X input. When using precomputed R, ",
          "provide the reference sample size explicitly.")
@@ -898,7 +905,8 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
     verbose = verbose, track_fit = track_fit, check_input = check_input,
     check_prior = check_prior,
     n_purity = n_purity, r_tol = r_tol, refine = refine,
-    R_finite = R_finite, R_mismatch = R_mismatch,
+    R_finite = if (R_finite_explicit_false) FALSE else R_finite,
+    R_mismatch = R_mismatch,
     eig_delta_rel = eig_delta_rel, eig_delta_abs = eig_delta_abs,
     artifact_threshold = artifact_threshold,
     alpha0 = alpha0, beta0 = beta0,

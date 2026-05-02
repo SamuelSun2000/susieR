@@ -641,6 +641,7 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
   is_multipanel <- (is.list(X) && !is.matrix(X)) ||
                    (is.list(R) && !is.matrix(R))
   R_mismatch <- match.arg(R_mismatch, c("none", "map", "map_qc"))
+  R_finite_explicit_false <- identical(R_finite, FALSE)
   if (isTRUE(R_finite) && is.null(X))
     stop("R_finite = TRUE requires X input. When using precomputed R, ",
          "provide the reference sample size explicitly.")
@@ -684,16 +685,18 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
     ))
   }
 
-  # Issue warning for estimate_residual_variance if TRUE
-  if (estimate_residual_variance) {
-    warning_message("For estimate_residual_variance = TRUE, please check ",
-            "that R is the \"in-sample\" R matrix; that is, the ",
+  # Issue warning for estimate_residual_variance if TRUE, unless the caller
+  # explicitly sets R_finite = FALSE to confirm that finite-reference
+  # correction is not needed.
+  if (estimate_residual_variance && !R_finite_explicit_false) {
+    warning_message("estimate_residual_variance = TRUE is not recommended ",
+            "unless R is the \"in-sample\" R matrix; that is, the ",
             "correlation matrix obtained using the exact same data ",
-            "matrix X that was used for the other summary ",
-            "statistics. Also note, when covariates are included in ",
-            "the univariate regressions that produced the summary ",
-            "statistics, also consider removing these effects from ",
-            "X before computing R.")
+            "matrix X that was used for the other summary statistics. ",
+            "If R is in-sample, set R_finite = FALSE to silence this ",
+            "warning. When covariates are included in the univariate ",
+            "regressions that produced the summary statistics, also ",
+            "consider removing these effects from X before computing R.")
   }
 
 

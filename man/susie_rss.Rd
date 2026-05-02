@@ -264,14 +264,20 @@ iterative refinement procedure is used, after the IBSS algorithm,
 to check and escape from local optima (see details).}
 
 \item{R_finite}{Controls variance inflation to account
-for estimating the R matrix from a finite reference panel. Accepts three
+for estimating the R matrix from a finite reference panel. Accepts four
 types of input:
 \describe{
   \item{\code{NULL} (default)}{The R matrix is treated as trusted, and no
-    finite-reference variance inflation is applied.}
+    finite-reference variance inflation is applied. With
+    \code{estimate_residual_variance = TRUE}, this keeps the in-sample
+    R warning active.}
+  \item{\code{FALSE}}{No finite-reference variance inflation is applied,
+    and the in-sample R warning for
+    \code{estimate_residual_variance = TRUE} is silenced. Use this only
+    when \code{R} is the in-sample correlation matrix.}
   \item{\code{TRUE}}{Infer the reference sample size B from the input
     \code{X}. Sets \code{B = nrow(X)} for single-panel input,
-    or \code{B = min(nrow(X_k))} across panels for multi-panel
+    or one B per panel for multi-panel
     input. Requires \code{X} to be provided (errors if only
     \code{R} is given, since B cannot be inferred).}
   \item{Number}{Explicit reference sample size B.}

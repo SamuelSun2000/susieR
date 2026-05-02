@@ -25,12 +25,15 @@
 # FINITE-REFERENCE SETUP AND DIAGNOSTICS
 # =============================================================================
 
-# Resolve R_finite into an explicit reference sample size B.
-# R_finite = TRUE is only meaningful when the reference factor X is available;
-# for precomputed R, the caller must provide B explicitly.
+# Resolve R_finite into an explicit reference sample size B. FALSE is an
+# explicit "off" setting; NULL means unspecified. R_finite = TRUE is only
+# meaningful when the reference factor X is available; for precomputed R,
+# the caller must provide B explicitly.
 #' @keywords internal
 resolve_R_finite <- function(R_finite, X = NULL, is_multi_panel = FALSE) {
   if (is.null(R_finite))
+    return(NULL)
+  if (identical(R_finite, FALSE))
     return(NULL)
   if (isTRUE(R_finite)) {
     if (is.null(X))
@@ -43,7 +46,7 @@ resolve_R_finite <- function(R_finite, X = NULL, is_multi_panel = FALSE) {
   }
   if (!is.numeric(R_finite) || any(!is.finite(R_finite)) ||
       any(R_finite <= 0)) {
-    stop("R_finite must be NULL, TRUE, or positive numeric value(s).")
+    stop("R_finite must be NULL, FALSE, TRUE, or positive numeric value(s).")
   }
   if (is_multi_panel) {
     K <- if (is.null(X)) length(R_finite) else length(X)
@@ -51,12 +54,12 @@ resolve_R_finite <- function(R_finite, X = NULL, is_multi_panel = FALSE) {
       return(rep(as.numeric(R_finite), K))
     if (length(R_finite) == K)
       return(as.numeric(R_finite))
-    stop("For multi-panel input, R_finite must be TRUE, a single positive ",
-         "number, or one positive number per panel.")
+    stop("For multi-panel input, R_finite must be FALSE, TRUE, a single ",
+         "positive number, or one positive number per panel.")
   }
   if (length(R_finite) == 1)
     return(as.numeric(R_finite))
-  stop("R_finite must be NULL, TRUE, or a single positive number.")
+  stop("R_finite must be NULL, FALSE, TRUE, or a single positive number.")
 }
 
 # Compute finite-reference R diagnostics (debiased Frobenius norm,
