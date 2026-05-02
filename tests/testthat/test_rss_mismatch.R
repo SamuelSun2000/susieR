@@ -231,13 +231,9 @@ test_that("BF attenuation summary flags sensitive credible sets", {
     sets = list(cs = list(L1 = 1L, L2 = 2L), cs_index = c(1L, 2L)),
     R_finite_diagnostics = list(artifact_flag = FALSE)
   )
-  expect_warning(
-    out <- susieR:::summarize_R_bf_attenuation(model, threshold = log(20)),
-    "R-sensitive credible set detected"
-  )
+  out <- susieR:::summarize_R_bf_attenuation(model, threshold = log(20))
   d <- out$R_finite_diagnostics
   expect_true(d$R_sensitivity_flag)
-  expect_true(d$R_reliability_flag)
   expect_equal(d$bf_attenuation$cs_label[["L1"]], "sensitive")
   expect_equal(d$bf_attenuation$cs_label[["L2"]], "stable")
 })
@@ -335,18 +331,25 @@ test_that("eb on well-behaved data yields Q_art near 0 and no flag", {
   expect_equal(d$mode_label, "normal")
 })
 
-test_that("eb emits a true R warning when artifact_flag triggers", {
+test_that("eb emits one final R warning when reliability flag triggers", {
   rho <- 0.9999
   z <- c(-8, -8)
   R <- matrix(c(1, -rho, -rho, 1), 2, 2)
-  expect_warning(
-    fit <- susie_rss(z = z, R = R, n = 5000, L = 1, R_finite = 1e6,
-                     R_mismatch = "eb", max_iter = 5,
-                     estimate_prior_variance = FALSE,
-                     estimate_residual_variance = FALSE, verbose = FALSE),
-    "Residual R-bias artifact detected"
-  )
+  warnings <- character()
+  fit <- withCallingHandlers(
+    susie_rss(z = z, R = R, n = 5000, L = 1, R_finite = 1e6,
+              R_mismatch = "eb", max_iter = 5,
+              estimate_prior_variance = FALSE,
+              estimate_residual_variance = FALSE, verbose = FALSE),
+    warning = function(w) {
+      warnings <<- c(warnings, conditionMessage(w))
+      invokeRestart("muffleWarning")
+    })
+  final_warnings <- grep("Summary statistics and R reference mismatch detected",
+                         warnings, value = TRUE)
+  expect_length(final_warnings, 1)
   expect_true(fit$R_finite_diagnostics$artifact_flag)
+  expect_true(fit$R_finite_diagnostics$R_reliability_flag)
   expect_equal(fit$R_finite_diagnostics$Q_art, 1, tolerance = 1e-6)
 })
 

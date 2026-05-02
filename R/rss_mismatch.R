@@ -110,19 +110,7 @@ summarize_R_bf_attenuation <- function(model, threshold = log(20)) {
     threshold = threshold
   )
   d$R_sensitivity_flag <- flag
-  q_flag <- isTRUE(d$artifact_flag)
-  d$R_reliability_flag <- q_flag || flag
   model$R_finite_diagnostics <- d
-
-  if (flag) {
-    msg <- paste0("R-sensitive credible set detected: at least one CS has ",
-                  "Bayes-factor attenuation >= ",
-                  sprintf("%.3g", threshold),
-                  ". Fine-mapping results may depend strongly on the ",
-                  "R-uncertainty correction.")
-    warning_message(msg)
-    warning(msg, call. = FALSE)
-  }
   model
 }
 
@@ -341,9 +329,8 @@ apply_inflation_state <- function(model, infl_state) {
 #'   r_fit_j ~ N(0, sigma2 + (1/B + lambda) * xi_fit_j)
 #' using the estimator selected by R_mismatch_method.
 #'
-#' The same lambda_bias fit is followed by the Q_art residual artifact
-#' diagnostic; see compute_Q_art. The artifact diagnostic emits an R
-#' warning when flagged; it does not change lambda_bias or the SER
+#' The same lambda_bias fit is followed by the Q_art diagnostic; see
+#' compute_Q_art. The diagnostic does not change lambda_bias or the SER
 #' likelihood.
 #'
 #' @keywords internal
@@ -399,19 +386,7 @@ compute_R_mismatch_state <- function(data, params, model, phase = "sweep") {
                               length(eigen_R$values)
   model$eig_delta          <- art$eig_delta
 
-  if (flagged) {
-    msg <- paste0("Residual R-bias artifact detected (Q_art = ",
-                  sprintf("%.3g", art$Q_art),
-                  " > threshold ", sprintf("%.3g", threshold),
-                  "). Fine-mapping results may be unreliable with ",
-                  "this R reference. Consider allele/QC review, ",
-                  "multi-reference analysis, or conservative fallback.")
-    model$mode_label <- "warning"
-    warning_message(msg)
-    warning(msg, call. = FALSE)
-  } else {
-    model$mode_label <- "normal"
-  }
+  model$mode_label <- if (flagged) "warning" else "normal"
 
   if (isTRUE(params$track_fit)) {
     keep <- is.finite(r_fit_z) & is.finite(s_full) &

@@ -412,6 +412,13 @@ ibss_finalize <- function(data, params, model, elbo = NULL, iter = NA_integer_,
     model$R_finite_diagnostics$R_reliability_flag <-
       isTRUE(model$R_finite_diagnostics$artifact_flag) ||
       isTRUE(model$R_finite_diagnostics$R_sensitivity_flag)
+    if (isTRUE(model$R_finite_diagnostics$R_reliability_flag)) {
+      msg <- paste0("Summary statistics and R reference mismatch detected. ",
+                    "Fine-mapping results may be unreliable; inspect ",
+                    "fit$R_finite_diagnostics for details.")
+      warning_message(msg)
+      warning(msg, call. = FALSE)
+    }
   }
 
   # Multi-panel omega weights
