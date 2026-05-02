@@ -177,6 +177,43 @@ NULL
 #' data(SummaryConsistency)
 NULL
 
+#' @name rss_mismatch_example
+#'
+#' @title Real-data SuSiE-RSS example with R-reference mismatch.
+#'
+#' @description Summary statistics from one real-data gene region,
+#'   together with a reference correlation matrix computed from a
+#'   real-world 1000 Genomes European reference panel with roughly 500
+#'   samples. The data object is name-free and contains a 500-variant
+#'   subset used to illustrate the `R_finite` and `R_mismatch` options
+#'   in `susie_rss`.
+#'
+#' @format \code{rss_mismatch_example} is a list with the following
+#' elements:
+#'
+#' \describe{
+#'
+#'   \item{z}{z-scores.}
+#'
+#'   \item{bhat}{Estimated marginal regression coefficients.}
+#'
+#'   \item{shat}{Standard errors of \code{bhat}.}
+#'
+#'   \item{n}{Reference sample-size estimate used by \code{susie_rss}.}
+#'
+#'   \item{R}{Reference correlation matrix.}}
+#'
+#' @docType data
+#'
+#' @keywords data
+#'
+#' @seealso The \dQuote{Diagnosing and modeling R-reference mismatch in
+#'   SuSiE-RSS} vignette.
+#'
+#' @examples
+#' data(rss_mismatch_example)
+NULL
+
 #' @name data_small
 #'
 #' @title Simulated Small-sample eQTL Data.

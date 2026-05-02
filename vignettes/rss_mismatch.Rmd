@@ -1,0 +1,412 @@
+---
+title: "Diagnosing and modeling R-reference mismatch in SuSiE-RSS"
+author: "Gao Wang"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Diagnosing and modeling R-reference mismatch in SuSiE-RSS}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE,comment = "#",fig.width = 5,
+                      fig.height = 3,fig.align = "center",
+                      fig.cap = "&nbsp;",dpi = 120)
+```
+
+This vignette gives a practical workflow for using `susie_rss` when the
+summary statistics and the supplied correlation matrix `R` may not come
+from exactly the same samples. It complements the
+[summary-statistics vignette](finemapping_summary_statistics.html) and
+the older [RSS diagnostic vignette](susierss_diagnostic.html), and
+focuses on the model-based corrections controlled by `R_finite` and
+`R_mismatch`.
+
+The basic issue is simple. In SuSiE-RSS, each single-effect update
+uses residual summary statistics after subtracting the fitted effects
+through `R`. If the supplied `R` is estimated from a finite reference
+panel, or from a source population that differs from the target GWAS
+population, this subtraction is imperfect. The remaining residual can
+then look like additional sparse signals, leading to too many credible
+sets.
+
+The new RSS mismatch model treats two parts of this problem as
+variance. The finite reference-panel component is specified by
+`R_finite`, and the additional source-target mismatch component is
+estimated by `R_mismatch = "eb"`. A separate diagnostic checks for
+residual artifacts that should not simply be absorbed into the
+variance model.
+
+```{r}
+library(susieR)
+
+count_cs <- function(fit) {
+  if (is.null(fit$sets) || is.null(fit$sets$cs)) return(0L)
+  length(fit$sets$cs)
+}
+```
+
+## Warm-up: an isolated allele-coding artifact
+
+The older RSS diagnostic is most useful when a small number of
+variants have clear allele-coding problems. The package contains a
+small example with one association signal and one deliberately
+misaligned variant.
+
+```{r}
+data(SummaryConsistency, package = "susieR")
+if (!exists("SummaryConsistency"))
+  load(file.path("..", "data", "SummaryConsistency.RData"))
+attach(SummaryConsistency)
+
+zflip <- z
+Rtoy <- ldref
+ntoy <- 10000
+btoy <- numeric(length(zflip))
+btoy[signal_id] <- zflip[signal_id]
+```
+
+With the allele-coding problem present, ordinary `susie_rss` reports
+the true signal and an additional signal at the mismatched variant.
+
+```{r}
+fit_toy_bad <- susie_rss(zflip, Rtoy, n = ntoy)
+susie_plot(fit_toy_bad, y = "PIP", b = btoy, add_legend = TRUE,
+           main = "with allele-coding artifact")
+points(SummaryConsistency$flip_id,
+       fit_toy_bad$pip[flip_id], col = 7, pch = 16)
+```
+
+The kriging diagnostic highlights the discordant variant.
+
+```{r}
+kr_toy <- kriging_rss(zflip, Rtoy, n = ntoy)
+kr_toy$plot
+```
+
+After correcting that allele encoding, the extra credible set
+disappears.
+
+```{r}
+zfix <- zflip
+zfix[flip_id] <- -zfix[flip_id]
+fit_toy_fixed <- susie_rss(zfix, Rtoy, n = ntoy)
+susie_plot(fit_toy_fixed, y = "PIP", b = btoy, add_legend = TRUE,
+           main = "after allele correction")
+detach(SummaryConsistency)
+```
+
+This warm-up is an important baseline: when there is an obvious local
+allele-coding artifact, fix it directly. In this toy example,
+`susie_rss` reports `r count_cs(fit_toy_bad)` credible sets before
+the correction and `r count_cs(fit_toy_fixed)` after the correction,
+and the kriging rule identifies the deliberately misaligned variant.
+The real-data example below shows a different situation where the
+kriging outlier check does not find isolated variants to remove, but
+model-based reference uncertainty still changes the fine-mapping
+result.
+
+## A real-data example
+
+The example data are summary statistics from one real-data gene region.
+The supplied correlation matrix `R` was computed from a real-world 1000
+Genomes European reference panel with roughly 500 samples. To keep the
+vignette small, we use a 500-variant subset from a larger region. In
+the full region, ordinary `susie_rss` reported 29 credible sets,
+whereas setting `R_finite = 500` reduced this to 3 credible sets, and
+adding `R_mismatch = "eb"` reduced it to 1 credible set.
+
+The data object included here is intentionally minimal and name-free:
+it contains only z-scores, regression coefficients, standard errors,
+the reference sample-size estimate, and the reference correlation
+matrix.
+
+```{r}
+data(rss_mismatch_example, package = "susieR")
+if (!exists("rss_mismatch_example"))
+  load(file.path("..", "data", "rss_mismatch_example.RData"))
+attach(rss_mismatch_example)
+str(rss_mismatch_example)
+```
+
+```{r}
+length(z)
+dim(R)
+```
+
+The marginal z-scores show the association pattern before any
+fine-mapping model is fitted.
+
+```{r}
+susie_plot(z, y = "z")
+```
+
+We define a few small helpers for the comparisons below.
+
+```{r}
+diag_scalar <- function(fit, name) {
+  d <- fit$R_finite_diagnostics
+  if (is.null(d) || is.null(d[[name]])) return(NA_real_)
+  as.numeric(d[[name]][1])
+}
+
+diag_flag <- function(fit, name) {
+  d <- fit$R_finite_diagnostics
+  if (is.null(d) || is.null(d[[name]])) return(NA)
+  as.logical(d[[name]][1])
+}
+
+fit_table <- function(fits) {
+  data.frame(
+    method = names(fits),
+    n_cs = vapply(fits, count_cs, integer(1)),
+    niter = vapply(fits, function(x) x$niter, integer(1)),
+    converged = vapply(fits, function(x) isTRUE(x$converged), logical(1)),
+    Q_art = vapply(fits, diag_scalar, numeric(1), name = "Q_art"),
+    R_sensitivity_flag = vapply(fits, diag_flag, logical(1),
+                                name = "R_sensitivity_flag"),
+    R_reliability_flag = vapply(fits, diag_flag, logical(1),
+                                name = "R_reliability_flag")
+  )
+}
+```
+
+## Ordinary SuSiE-RSS
+
+First run `susie_rss` without any reference-mismatch correction.
+
+```{r}
+fit_rss <- susie_rss(bhat = bhat, shat = shat,
+                     R = R, n = n,
+                     L = 40, L_greedy = 10, max_iter = 50)
+count_cs(fit_rss)
+```
+
+```{r}
+susie_plot(fit_rss, y = "PIP", add_legend = TRUE,
+           main = "susie_rss")
+```
+
+In this subset, the ordinary fit reports `r count_cs(fit_rss)`
+credible sets and does not converge within 50 iterations. This is a
+warning sign in a region where the reference panel may not match the
+target summary statistics.
+
+## Kriging diagnostic and outlier removal
+
+The older RSS diagnostic checks whether individual z-scores are
+surprising conditional on the other z-scores and the supplied `R`.
+This is useful for finding isolated allele-coding problems. It is
+described in more detail in the
+[RSS diagnostic vignette](susierss_diagnostic.html).
+
+```{r}
+kr <- kriging_rss(z, R, n = n)
+kr$plot
+```
+
+The built-in rule labels possible allele switches when `logLR > 2` and
+`abs(z) > 2`.
+
+```{r}
+outlier <- which(kr$conditional_dist$logLR > 2 &
+                 abs(kr$conditional_dist$z) > 2)
+length(outlier)
+```
+
+For this example, the kriging diagnostic identifies `r length(outlier)`
+isolated allele-switch outliers. Removing those outliers therefore does
+not change the fit.
+
+```{r}
+keep <- setdiff(seq_along(z), outlier)
+fit_kriging_removed <- susie_rss(bhat = bhat[keep],
+                                 shat = shat[keep],
+                                 R = R[keep, keep],
+                                 n = n,
+                                 L = 40, L_greedy = 10,
+                                 max_iter = 50)
+count_cs(fit_kriging_removed)
+```
+
+The refitted model again reports `r count_cs(fit_kriging_removed)`
+credible sets. This illustrates a common distinction. Kriging is good
+for obvious, localized allele-coding artifacts. It is not designed to
+model the broader finite-reference and source-target mismatch that can
+affect an entire region.
+
+## Finite reference-panel correction
+
+The reference correlation matrix here was computed from about 500
+individuals. Setting `R_finite = 500` tells `susie_rss` to account for
+this finite reference-panel uncertainty in each SER update.
+
+```{r}
+fit_B500 <- susie_rss(bhat = bhat, shat = shat,
+                      R = R, n = n,
+                      L = 40, L_greedy = 10, max_iter = 50,
+                      R_finite = 500)
+count_cs(fit_B500)
+```
+
+```{r}
+susie_plot(fit_B500, y = "PIP", add_legend = TRUE,
+           main = "R_finite = 500")
+```
+
+In this 500-variant subset, the finite-reference correction reduces
+the result from `r count_cs(fit_rss)` credible sets to
+`r count_cs(fit_B500)`. In the original larger region, using the same
+correction reduced the ordinary `susie_rss` result from 29 credible
+sets to 3.
+
+## Empirical-Bayes mismatch correction
+
+Finite-reference uncertainty only accounts for the fact that `R` was
+estimated from a finite panel. It does not account for systematic
+source-target mismatch between the reference population and the GWAS
+population. The option `R_mismatch = "eb"` estimates an additional
+region-level variance component from the fitted residuals and uses it
+in later SER updates.
+
+```{r}
+fit_B500_eb <- susie_rss(bhat = bhat, shat = shat,
+                         R = R, n = n,
+                         L = 40, L_greedy = 10, max_iter = 50,
+                         R_finite = 500, R_mismatch = "eb")
+count_cs(fit_B500_eb)
+```
+
+```{r}
+susie_plot(fit_B500_eb, y = "PIP", add_legend = TRUE,
+           main = "R_finite = 500, R_mismatch = eb")
+```
+
+Here, adding `R_mismatch = "eb"` reduces the result to
+`r count_cs(fit_B500_eb)` credible set and the fit converges.
+
+One can also run the mismatch model without specifying a finite
+reference-panel size. This treats the continuous mismatch variance as
+the only reference-uncertainty component.
+
+```{r}
+fit_Binf_eb <- susie_rss(bhat = bhat, shat = shat,
+                         R = R, n = n,
+                         L = 40, L_greedy = 10, max_iter = 50,
+                         R_mismatch = "eb")
+count_cs(fit_Binf_eb)
+```
+
+```{r}
+susie_plot(fit_Binf_eb, y = "PIP", add_legend = TRUE,
+           main = "R_mismatch = eb")
+```
+
+This fit also reports `r count_cs(fit_Binf_eb)` credible set and
+converges quickly.
+
+## What to check
+
+The most useful output for users is not the exact value of the fitted
+variance component. Instead, check whether the fit converged, how many
+credible sets were reported, and whether the mismatch diagnostics
+raised a reliability flag.
+
+```{r}
+fits <- list(susie_rss = fit_rss,
+             kriging_removed = fit_kriging_removed,
+             R_finite_500 = fit_B500,
+             R_finite_500_eb = fit_B500_eb,
+             R_mismatch_eb = fit_Binf_eb)
+fit_table(fits)
+```
+
+There are two relevant reliability diagnostics. `Q_art` measures
+whether the final residual points into directions where the supplied
+`R` has little support. `R_sensitivity_flag` measures whether reported
+credible sets depend strongly on the reference-uncertainty penalty. If
+either diagnostic is triggered, `R_reliability_flag` is `TRUE`, and
+the fit should be interpreted cautiously.
+
+In this subset, `R_finite = 500` is flagged by the credible-set
+sensitivity diagnostic. The two EB mismatch fits are flagged by the
+residual-space diagnostic, even though they report only one credible
+set. This is why the warning points users to
+`fit$R_finite_diagnostics` rather than treating the corrected fit as
+automatically reliable.
+
+## One-effect diagnostic
+
+When the reliability flag is raised, the fit object may contain a
+one-effect diagnostic model:
+
+```{r}
+ser <- fit_Binf_eb$R_finite_diagnostics$ser_model
+names(ser)
+```
+
+This is a one-effect credible-set model as in Maller et al. (2012).
+For this one-effect model, the single row of `alpha` is the PIP.
+
+```{r}
+identical(as.numeric(ser$alpha[1, ]), as.numeric(ser$pip))
+count_cs(ser)
+```
+
+```{r}
+susie_plot(ser, y = "PIP", add_legend = TRUE,
+           main = "one-effect diagnostic")
+```
+
+The one-effect diagnostic is not a replacement for careful review of
+the summary statistics and reference panel. It is a conservative
+reference point when the multi-effect fit is flagged as unreliable.
+
+## Compact workflow
+
+For routine analyses with an out-of-sample reference panel, the core
+workflow is:
+
+```{r}
+fit <- susie_rss(bhat = bhat, shat = shat,
+                 R = R, n = n,
+                 L = 40, L_greedy = 10,
+                 R_finite = 500,
+                 R_mismatch = "eb")
+
+count_cs(fit)
+fit$converged
+fit$R_finite_diagnostics$R_reliability_flag
+```
+
+If a reliability warning is raised, inspect
+`fit$R_finite_diagnostics`, compare with the one-effect diagnostic
+when available, and consider improving the reference panel or using a
+larger better-matched reference panel. A larger reference panel reduces
+the finite-reference penalty. A better-matched reference panel reduces
+the population-mismatch component that `R_mismatch = "eb"` has to
+absorb.
+
+The older kriging diagnostic remains useful for localized allele
+problems, and is demonstrated in the
+[RSS diagnostic vignette](susierss_diagnostic.html). The model-based
+correction here addresses a different failure mode: residual signal
+created because the fitted effects are subtracted using an imperfect
+reference correlation matrix.
+
+```{r cleanup, include=FALSE}
+detach(rss_mismatch_example)
+```
+
+## Session information
+
+```{r session-info}
+sessionInfo()
+```
+
+## Reference
+
+Maller JB, McVean G, Byrnes J, Vukcevic D, Palin K, Su Z, et al.
+Bayesian refinement of association signals for 14 loci in 3 common
+diseases. Nature Genetics 44, 1294-1301 (2012).
