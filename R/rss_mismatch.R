@@ -157,7 +157,7 @@ estimate_lambda_bias <- function(r, s, sigma2, R_finite_B, method,
            nll(upper_lambda) < nll(upper_lambda / 2)) {
       upper_lambda <- upper_lambda * 10
     }
-    opt <- optimize(nll, interval = c(0, upper_lambda))
+    opt <- optimize(nll, interval = c(0, upper_lambda), tol = 1e-8)
     if (nll(0) <= opt$objective)
       return(0)
     return(if (opt$minimum < 0.1 * se_boundary) 0 else opt$minimum)
@@ -173,7 +173,7 @@ estimate_lambda_bias <- function(r, s, sigma2, R_finite_B, method,
     tau <- cache$base + lambda_bias * cache$s
     0.5 * sum(log(tau) + cache$r2 / tau) + log1p((u / prior_scale)^2)
   }
-  lambda_hat <- optimize(nll, interval = c(0, upper_u))$minimum^2
+  lambda_hat <- optimize(nll, interval = c(0, upper_u), tol = 1e-8)$minimum^2
 
   if (lambda_hat < 0.1 * se_boundary) 0 else lambda_hat
 }
