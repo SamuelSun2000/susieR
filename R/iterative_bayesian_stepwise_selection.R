@@ -186,14 +186,10 @@ ibss_fit <- function(data, params, model) {
   L <- nrow(model$alpha)
   use_c_hat <- !is.null(model$c_hat_state)
 
-  # Per-sweep reset so slots skipped by c_hat do not carry stale
-  # diagnostics from earlier sweeps. The SS path stores lambda_bias /
-  # B_corrected as scalars (set per-sweep by fit_R_bias at sweep end);
-  # only the rss_lambda path keeps the per-slot vector form.
-  if (inherits(data, "rss_lambda")) {
-    if (!is.null(model$lambda_bias)) model$lambda_bias <- rep(0, L)
-    if (!is.null(model$B_corrected)) model$B_corrected <- rep(NA_real_, L)
-  }
+  # SS / ss_mixture: lambda_bias / B_corrected are scalars set per-sweep
+  # by fit_R_bias at the end of the sweep. rss_lambda does not carry
+  # these (lambda > 0 + R_bias != "none" errors at entry). No reset
+  # needed.
 
   if (L > 0) {
     for (l in seq_len(L)) {

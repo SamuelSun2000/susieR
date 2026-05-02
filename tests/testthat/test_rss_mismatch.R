@@ -19,24 +19,6 @@ test_that("R_bias = 'map_qc' runs and returns Q_art diagnostics", {
   expect_true(d$mode_label %in% c("normal", "warning", "conservative"))
 })
 
-test_that("R_bias = 'map_qc' with lambda > 0 errors at the rss_lambda constructor", {
-  set.seed(13)
-  p <- 20
-  n <- 1000
-  X <- matrix(rnorm(n * p), n, p)
-  R <- cor(X)
-  z <- rnorm(p)
-
-  # lambda > 0 routes through rss_lambda_constructor; "map_qc" is rejected
-  # there with a clear message before reaching the susie.R NYI guard.
-  expect_error(
-    susie_rss(z = z, R = R, n = n, L = 3, finite_R = 5000,
-              lambda = 0.1, R_bias = "map_qc",
-              max_iter = 2, verbose = FALSE),
-    "map_qc"
-  )
-})
-
 test_that("Optional artifact args validate ranges", {
   set.seed(17)
   p <- 20

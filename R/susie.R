@@ -748,6 +748,20 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
   is_multi_panel <- is.list(X) && !is.matrix(X)
 
   R_bias <- match.arg(R_bias)
+
+  # Lambda > 0 (rss_lambda eigendecomp path) does not extend cleanly to
+  # multi-panel mixture, finite-reference inflation, or R-bias correction:
+  # Eloglik.rss_lambda is a global eigenvalue-based likelihood, not a
+  # per-variant Gaussian, so per-variant variance augmentation has no
+  # place there. Block the unsupported combinations at entry.
+  if (lambda != 0 && is_multi_panel)
+    stop("Multi-panel mixture is not supported when lambda > 0. ",
+         "Set lambda = 0.")
+  if (lambda != 0 && !is.null(finite_R))
+    stop("finite_R is not available when lambda > 0. Set lambda = 0.")
+  if (lambda != 0 && R_bias != "none")
+    stop("R_bias is not available when lambda > 0. Set lambda = 0.")
+
   if (!is.numeric(eig_delta_rel) || length(eig_delta_rel) != 1L ||
       eig_delta_rel < 0)
     stop("eig_delta_rel must be a single nonnegative numeric.")

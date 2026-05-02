@@ -275,8 +275,7 @@ precompute_rss_lambda_terms <- function(data, model) {
   return(model)
 }
 
-# estimate_lambda_bias, apply_inflation_state, and
-# compute_shat2_inflation_rss moved to R/rss_mismatch.R.
+# estimate_lambda_bias and apply_inflation_state moved to R/rss_mismatch.R.
 
 # =============================================================================
 # MULTI-PANEL LD MIXTURE

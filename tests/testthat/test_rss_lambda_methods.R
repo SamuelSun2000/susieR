@@ -791,32 +791,10 @@ test_that("compute_ser_statistics.rss_lambda returns betahat", {
   expect_true(all(is.finite(ser_stats$betahat)))
 })
 
-test_that("inflation is computed when finite_R_B is set", {
-  dat <- setup_rss_lambda_data(seed = 41)
-
-  # Construct data with finite_R
-  B <- nrow(dat$X)
-  result <- rss_lambda_constructor(
-    z = dat$z, R = dat$R, lambda = dat$lambda, n = dat$n,
-    finite_R = B
-  )
-  data <- result$data
-  params <- result$params
-
-  expect_equal(data$finite_R_B, B)
-
-  var_y <- get_var_y.rss_lambda(data)
-  model <- initialize_susie_model.rss_lambda(data, params, var_y)
-  model$Rz <- as.vector(data$R %*% colSums(model$alpha * model$mu))
-
-  # After computing residuals, shat2_inflation should exist
-  model <- compute_residuals.rss_lambda(data, params, model, l = 1)
-  expect_true(!is.null(model$shat2_inflation))
-  expect_length(model$shat2_inflation, dat$p)
-  expect_true(all(model$shat2_inflation >= 1))
-})
-
-test_that("no inflation without finite_R_B", {
+test_that("compute_residuals.rss_lambda does not set shat2_inflation", {
+  # rss_lambda path no longer carries per-variant inflation; the
+  # entry-level error in susie_rss blocks lambda > 0 + finite_R, so
+  # data$finite_R_B is never set on an rss_lambda data object.
   dat <- setup_rss_lambda_data(seed = 42)
 
   data <- dat$data
@@ -824,106 +802,9 @@ test_that("no inflation without finite_R_B", {
   model <- dat$model
   model$Rz <- as.vector(data$R %*% colSums(model$alpha * model$mu))
 
-  # Without finite_R_B, no inflation
   expect_null(data$finite_R_B)
   model <- compute_residuals.rss_lambda(data, params, model, l = 1)
   expect_null(model$shat2_inflation)
-})
-
-test_that("inflation widens shat2 in ser_stats", {
-  dat <- setup_rss_lambda_data(seed = 43)
-
-  # Run once without inflation
-  data_no_infl <- dat$data
-  params <- dat$params
-  model_no <- dat$model
-  model_no$Rz <- as.vector(data_no_infl$R %*% colSums(model_no$alpha * model_no$mu))
-  model_no <- compute_residuals.rss_lambda(data_no_infl, params, model_no, l = 1)
-  stats_no <- compute_ser_statistics.rss_lambda(data_no_infl, params, model_no, l = 1)
-
-  # Run with inflation
-  B <- nrow(dat$X)
-  result <- rss_lambda_constructor(
-    z = dat$z, R = dat$R, lambda = dat$lambda, n = dat$n,
-    finite_R = B
-  )
-  data_infl <- result$data
-  var_y <- get_var_y.rss_lambda(data_infl)
-  model_infl <- initialize_susie_model.rss_lambda(data_infl, result$params, var_y)
-  model_infl$Rz <- as.vector(data_infl$R %*% colSums(model_infl$alpha * model_infl$mu))
-  model_infl <- compute_residuals.rss_lambda(data_infl, result$params, model_infl, l = 1)
-  stats_infl <- compute_ser_statistics.rss_lambda(data_infl, result$params, model_infl, l = 1)
-
-  # betahat should be identical (inflation doesn't affect betahat)
-  expect_equal(stats_infl$betahat, stats_no$betahat, tolerance = 1e-10)
-
-  # shat2 should be inflated (>= original)
-  expect_true(all(stats_infl$shat2 >= stats_no$shat2 - 1e-15))
-})
-
-test_that("inflation approximately 1 under global null", {
-  set.seed(44)
-  p <- 50
-  n <- 500
-  X <- matrix(rnorm(n * p), n, p)
-  X <- scale(X, center = TRUE, scale = TRUE)
-  y <- rnorm(n)  # no signal
-  input_ss <- compute_suff_stat(X, y, standardize = TRUE)
-  R <- cov2cor(input_ss$XtX)
-  R <- (R + t(R)) / 2
-  ss <- univariate_regression(X, y)
-  z <- ss$betahat / ss$sebetahat
-
-  result <- rss_lambda_constructor(
-    z = z, R = R, lambda = 0.1, n = n,
-    finite_R = n
-  )
-  data <- result$data
-  params <- result$params
-  var_y <- get_var_y.rss_lambda(data)
-  model <- initialize_susie_model.rss_lambda(data, params, var_y)
-  model$Rz <- as.vector(R %*% colSums(model$alpha * model$mu))
-  model <- compute_residuals.rss_lambda(data, params, model, l = 1)
-
-  # Under global null with uniform alpha, inflation should be close to 1
-  # (Rz_without_l ~ 0 since all mu ~ 0)
-  expect_true(all(model$shat2_inflation < 1.05))
-})
-
-test_that("posterior moments use inflated shat2 consistently", {
-  dat <- setup_rss_lambda_data(seed = 45)
-
-  B <- nrow(dat$X)
-  result <- rss_lambda_constructor(
-    z = dat$z, R = dat$R, lambda = dat$lambda, n = dat$n,
-    finite_R = B
-  )
-  data <- result$data
-  params <- result$params
-  var_y <- get_var_y.rss_lambda(data)
-  model <- initialize_susie_model.rss_lambda(data, params, var_y)
-  model$Rz <- as.vector(data$R %*% colSums(model$alpha * model$mu))
-  model <- compute_residuals.rss_lambda(data, params, model, l = 1)
-
-  V <- 0.2
-  model <- calculate_posterior_moments.rss_lambda(data, params, model, V, l = 1)
-
-  # Posterior variance should be positive and well-behaved
-  post_var <- model$mu2[1, ] - model$mu[1, ]^2
-  expect_true(all(post_var > -1e-10))
-  expect_true(all(is.finite(model$mu[1, ])))
-  expect_true(all(is.finite(model$mu2[1, ])))
-
-  # With inflated shat2, posterior variance should be larger than
-  # uninflated (more conservative)
-  model_no <- dat$model
-  model_no$Rz <- as.vector(dat$data$R %*% colSums(model_no$alpha * model_no$mu))
-  model_no <- compute_residuals.rss_lambda(dat$data, params, model_no, l = 1)
-  model_no <- calculate_posterior_moments.rss_lambda(dat$data, params, model_no, V, l = 1)
-  post_var_no <- model_no$mu2[1, ] - model_no$mu[1, ]^2
-
-  # Inflated posterior variance >= uninflated (within numerical tolerance)
-  expect_true(all(post_var >= post_var_no - 1e-10))
 })
 
 # =============================================================================
@@ -984,7 +865,7 @@ test_that("R and X input paths produce numerically identical results", {
 # END-TO-END susie_rss WITH INFLATION
 # =============================================================================
 
-test_that("susie_rss with lambda and finite_R runs successfully", {
+test_that("susie_rss with lambda > 0 (no augmented variance) runs", {
   set.seed(51)
   p <- 50
   n <- 2000
@@ -1000,29 +881,41 @@ test_that("susie_rss with lambda and finite_R runs successfully", {
   ss <- univariate_regression(X, y)
   z <- ss$betahat / ss$sebetahat
 
-  # Without inflation
-  fit_no <- susie_rss(z = z, R = R, lambda = 0.1, n = n, L = 5,
-                      max_iter = 50, verbose = FALSE)
+  fit <- susie_rss(z = z, R = R, lambda = 0.1, n = n, L = 5,
+                   max_iter = 50, verbose = FALSE)
+  expect_true(fit$converged)
+  expect_true(is.finite(fit$elbo[length(fit$elbo)]))
+  expect_true(fit$pip[1] > 0.5)
+})
 
-  # With inflation
-  fit_infl <- susie_rss(z = z, R = R, lambda = 0.1, n = n, L = 5,
-                        finite_R = n, max_iter = 50, verbose = FALSE)
+test_that("lambda > 0 blocks finite_R, R_bias, and multi-panel at entry", {
+  set.seed(511)
+  p <- 20
+  n <- 1000
+  X <- matrix(rnorm(n * p), n, p)
+  R <- cor(X)
+  z <- rnorm(p)
 
-  # Both should converge
-  expect_true(fit_no$converged)
-  expect_true(fit_infl$converged)
-
-  # ELBO with inflation should be slightly lower (wider posterior = looser bound)
-  # but still reasonable
-  expect_true(is.finite(fit_infl$elbo[length(fit_infl$elbo)]))
-  expect_true(is.finite(fit_no$elbo[length(fit_no$elbo)]))
-
-  # finite_R_diagnostics should be stored
-  expect_true(!is.null(fit_infl$finite_R_diagnostics))
-
-  # Causal variables should still have high PIP
-  expect_true(fit_no$pip[1] > 0.5)
-  expect_true(fit_infl$pip[1] > 0.3)  # slightly less confident with inflation
+  expect_error(
+    susie_rss(z = z, R = R, n = n, L = 3, lambda = 0.1, finite_R = 5000,
+              max_iter = 2, verbose = FALSE),
+    "finite_R is not available when lambda > 0"
+  )
+  expect_error(
+    susie_rss(z = z, R = R, n = n, L = 3, lambda = 0.1, R_bias = "map",
+              max_iter = 2, verbose = FALSE),
+    "R_bias is not available when lambda > 0"
+  )
+  expect_error(
+    susie_rss(z = z, R = R, n = n, L = 3, lambda = 0.1, R_bias = "map_qc",
+              max_iter = 2, verbose = FALSE),
+    "R_bias is not available when lambda > 0"
+  )
+  expect_error(
+    susie_rss(z = z, X = list(X, X), n = n, L = 3, lambda = 0.1,
+              max_iter = 2, verbose = FALSE),
+    "Multi-panel mixture is not supported when lambda > 0"
+  )
 })
 
 test_that("R_bias requires finite_R and stores lambda_bias and B_corrected", {
@@ -1181,29 +1074,6 @@ test_that("R_bias = 'mle' is rejected at all entry points", {
   )
 })
 
-test_that("Multi-panel single-panel limit (K=1) matches single-panel", {
-  # Spec multi-panel section: with K=1 panels and omega=1, the
-  # multi-panel formula collapses to the single-panel one.  Use X-input
-  # multi-panel route (the documented public API per susie_rss docs).
-  set.seed(99)
-  p <- 25; n <- 2000
-  X <- matrix(rnorm(n * p), n, p)
-  X_std <- scale(X, center = TRUE, scale = TRUE)
-  z <- rnorm(p); z[5] <- 4
-  fit_single <- susie_rss(z = z, X = X_std, n = n, L = 3, lambda = 0.1,
-                          finite_R = 5000, R_bias = "map",
-                          max_iter = 5, verbose = FALSE)
-  fit_K1 <- susie_rss(z = z, X = list(X_std), n = n, L = 3, lambda = 0.1,
-                      finite_R = 5000, R_bias = "map",
-                      max_iter = 5, verbose = FALSE)
-  # finite_R_B on the model gets recomputed by the omega update;
-  # check the per-effect lambda_bias agrees.
-  expect_equal(fit_single$finite_R_diagnostics$lambda_bias,
-               fit_K1$finite_R_diagnostics$lambda_bias,
-               tolerance = 1e-6)
-  expect_equal(fit_single$pip, fit_K1$pip, tolerance = 1e-6)
-})
-
 test_that("Large finite_R limit reduces to pure-drift estimator", {
   # When 1/finite_R is negligible, B_corrected ~ 1/lambda_bias and the
   # finite-reference contribution to tau^2 vanishes.
@@ -1234,30 +1104,6 @@ test_that("tau_j^2 is monotone non-decreasing in lambda_bias", {
   expect_true(all(tau2(0.05) >= tau2(0)))
   expect_true(all(tau2(0.5)  >= tau2(0.05)))
   expect_true(all(tau2(0)[s == 0] == sigma2))
-})
-
-test_that("susie_rss with X input and lambda and inflation works", {
-  set.seed(52)
-  p <- 30
-  n <- 2000
-  X <- matrix(rnorm(n * p), n, p)
-  X <- scale(X, center = TRUE, scale = TRUE)
-  beta <- rep(0, p)
-  beta[1] <- 0.5
-  y <- drop(X %*% beta + rnorm(n))
-  input_ss <- compute_suff_stat(X, y, standardize = TRUE)
-  R <- cov2cor(input_ss$XtX)
-  R <- (R + t(R)) / 2
-  ss <- univariate_regression(X, y)
-  z <- ss$betahat / ss$sebetahat
-
-  # susie_rss with X input (lambda > 0 triggers rss_lambda path)
-  fit_X <- susie_rss(z = z, R = R, lambda = 0.1, n = n, L = 5,
-                     finite_R = n, max_iter = 50, verbose = FALSE)
-
-  expect_true(fit_X$converged)
-  expect_true(is.finite(fit_X$elbo[length(fit_X$elbo)]))
-  expect_true(fit_X$pip[1] > 0.3)
 })
 
 test_that("loglik.rss_lambda Wakefield ABF agrees with old signal-based form", {
@@ -1319,37 +1165,6 @@ test_that("SS and RSS-lambda paths agree with small lambda (no inflation)", {
   # Alpha matrices should be essentially identical
   expect_equal(fit_ss$alpha, fit_rss$alpha, tolerance = 1e-4)
   # PIPs should match
-  expect_equal(fit_ss$pip, fit_rss$pip, tolerance = 1e-4)
-})
-
-test_that("SS and RSS-lambda paths agree with inflation", {
-  set.seed(201)
-  p <- 50; n <- 5000
-  X <- matrix(rnorm(n * p), n, p)
-  X <- scale(X, center = TRUE, scale = TRUE)
-  beta <- rep(0, p)
-  beta[1] <- 0.5; beta[10] <- -0.3
-  y <- drop(X %*% beta + rnorm(n))
-
-  input_ss <- compute_suff_stat(X, y, standardize = TRUE)
-  R <- cov2cor(input_ss$XtX); R <- (R + t(R)) / 2
-  ss <- univariate_regression(X, y)
-  z <- ss$betahat / ss$sebetahat
-
-  B_R <- 2000
-  # SS path with inflation
-  fit_ss <- susie_rss(z = z, R = R, n = n, L = 5, lambda = 0,
-                      finite_R = B_R,
-                      max_iter = 100, verbose = FALSE)
-  # RSS-lambda path with inflation
-  fit_rss <- susie_rss(z = z, R = R, n = n, L = 5, lambda = 1e-6,
-                       finite_R = B_R,
-                       max_iter = 100, verbose = FALSE)
-
-  expect_true(fit_ss$converged)
-  expect_true(fit_rss$converged)
-  # Alpha and PIPs should match closely despite different inflation formulas
-  expect_equal(fit_ss$alpha, fit_rss$alpha, tolerance = 1e-4)
   expect_equal(fit_ss$pip, fit_rss$pip, tolerance = 1e-4)
 })
 
@@ -1454,106 +1269,6 @@ test_that("eval_omega_eloglik is concave in omega", {
   }
 })
 
-test_that("rss_lambda_constructor accepts list X", {
-  set.seed(46)
-  p <- 30
-  B1 <- 200
-  B2 <- 150
-  beta <- rep(0, p)
-  beta[1:2] <- 0.5
-
-  X1 <- matrix(rnorm(B1 * p), B1, p)
-  X2 <- matrix(rnorm(B2 * p), B2, p)
-  z <- rnorm(p) + crossprod(X1, X1 %*% beta)[, 1] / (B1 * sqrt(p))
-
-  result <- rss_lambda_constructor(z = z, X = list(X1, X2), lambda = 0.1)
-
-  data <- result$data
-  expect_s3_class(data, "rss_lambda")
-  expect_equal(data$K, 2)
-  expect_equal(length(data$X_list), 2)
-  expect_equal(data$B_list, c(B1, B2))
-  expect_true(!is.null(data$eigen_R))
-  expect_true(!is.null(data$Vtz))
-  # Inflation is opt-in: without finite_R, B is not set
-  expect_null(data$finite_R_B)
-})
-
-test_that("K=1 list X gives same results as single matrix X", {
-  set.seed(47)
-  p <- 20
-  B <- 100
-  X <- matrix(rnorm(B * p), B, p)
-  z <- rnorm(p)
-
-  # Single matrix
-  result_single <- rss_lambda_constructor(z = z, X = X, lambda = 0.1)
-  # List with one element
-  result_list <- rss_lambda_constructor(z = z, X = list(X), lambda = 0.1)
-
-  # Eigenvalues should match (both represent R from same X)
-  expect_equal(result_single$data$eigen_R$values,
-               result_list$data$eigen_R$values,
-               tolerance = 1e-8)
-  # Vtz should match
-  expect_equal(abs(result_single$data$Vtz),
-               abs(result_list$data$Vtz),
-               tolerance = 1e-8)
-})
-
-test_that("K=2 with identical panels: omega sums to 1 and fit converges", {
-  set.seed(48)
-  p <- 20
-  B <- 200
-  X <- matrix(rnorm(B * p), B, p)
-  beta <- rep(0, p)
-  beta[1:3] <- c(0.5, -0.3, 0.4)
-
-  # Compute z-scores
-  R <- cov2cor(crossprod(X))
-  z <- as.vector(R %*% beta) + rnorm(p, sd = 0.1)
-
-  fit <- susie_rss(z = z, X = list(X, X), lambda = 0.1,
-                   estimate_residual_variance = TRUE,
-                   max_iter = 50)
-
-  # With identical panels, any omega on the simplex is equally good
-  # Just check weights are valid
-  expect_equal(sum(fit$omega_weights), 1, tolerance = 1e-10)
-  expect_true(all(fit$omega_weights >= -1e-10))
-  # Model should still converge
-  expect_true(fit$converged || fit$niter <= 50)
-})
-
-test_that("K=2 end-to-end susie_rss converges", {
-  set.seed(49)
-  p <- 30
-  B1 <- 300
-  B2 <- 200
-  beta <- rep(0, p)
-  beta[1:2] <- c(0.5, -0.4)
-
-  # Two panels sampling from same distribution
-  X1 <- matrix(rnorm(B1 * p), B1, p)
-  X2 <- matrix(rnorm(B2 * p), B2, p)
-
-  # R from pooled
-  R_pool <- cov2cor((crossprod(X1) + crossprod(X2)) / (B1 + B2))
-  z <- as.vector(R_pool %*% beta) + rnorm(p, sd = 0.1)
-
-  fit <- susie_rss(z = z, X = list(X1, X2), lambda = 0.1,
-                   estimate_residual_variance = TRUE,
-                   max_iter = 100)
-
-  # Should converge
-  expect_true(fit$converged || fit$niter <= 100)
-  # Should have omega weights
-  expect_equal(length(fit$omega_weights), 2)
-  expect_equal(sum(fit$omega_weights), 1, tolerance = 1e-10)
-  # Should have PIPs
-  expect_equal(length(fit$pip), p)
-})
-
 test_that("accessor helpers fall through for single panel", {
   dat <- setup_rss_lambda_data(seed = 50)
   model <- dat$model
@@ -1574,59 +1289,6 @@ test_that("accessor helpers fall through for single panel", {
 # RANK BOUND FALLBACK
 # =============================================================================
 
-test_that("K=2 works when sum(B_k) > p (rank bound fallback)", {
-  set.seed(51)
-  p <- 20
-  B1 <- 15; B2 <- 15  # sum = 30 > p = 20
-  X1 <- matrix(rnorm(B1 * p), B1, p)
-  X2 <- matrix(rnorm(B2 * p), B2, p)
-  beta <- rep(0, p)
-  beta[1:2] <- c(0.5, -0.3)
-  R_pool <- cov2cor((crossprod(X1) + crossprod(X2)) / (B1 + B2))
-  z <- as.vector(R_pool %*% beta) + rnorm(p, sd = 0.1)
-
-  # Should not error: falls back to direct panel_R path
-  fit <- susie_rss(z = z, X = list(X1, X2), lambda = 0.1,
-                   max_iter = 50, verbose = FALSE)
-
-  expect_equal(length(fit$pip), p)
-  expect_equal(length(fit$omega_weights), 2)
-  expect_equal(sum(fit$omega_weights), 1, tolerance = 1e-10)
-  expect_true(all(fit$omega_weights >= -1e-10))
-})
-
-# =============================================================================
-# AUTO-PIP CONVERGENCE
-# =============================================================================
-
-test_that("multi-panel auto-switches to PIP convergence with message", {
-  set.seed(52)
-  p <- 20; B <- 100
-  X1 <- matrix(rnorm(B * p), B, p)
-  X2 <- matrix(rnorm(B * p), B, p)
-  z <- rnorm(p)
-
-  expect_message(
-    susie_rss(z = z, X = list(X1, X2), lambda = 0.1,
-              convergence_method = "elbo", max_iter = 10, verbose = FALSE),
-    "Switching to PIP-based convergence for multi-panel"
-  )
-})
-
-test_that("finite_R auto-switches to PIP convergence with message", {
-  set.seed(53)
-  p <- 20; B <- 1000
-  X <- matrix(rnorm(B * p), B, p)
-  z <- rnorm(p)
-
-  expect_message(
-    susie_rss(z = z, X = X, lambda = 0.1,
-              finite_R = TRUE,
-              convergence_method = "elbo", max_iter = 10, verbose = FALSE),
-    "Switching to PIP-based convergence because finite-reference R inflation"
-  )
-})
-
 # =============================================================================
 # TOLERANCE CONSTANTS
 # =============================================================================
@@ -1643,24 +1305,6 @@ test_that(".omega_tol has expected fields", {
   expect_true(tol$grid_spacing > 0 && tol$grid_spacing < 1)
   expect_true(tol$fw_stop > 0)
   expect_true(tol$fw_max_iter >= 1L)
-})
-
-# =============================================================================
-# INFLATION OPT-IN
-# =============================================================================
-
-test_that("multi-panel without finite_R has no inflation", {
-  set.seed(54)
-  p <- 20; B <- 100
-  X1 <- matrix(rnorm(B * p), B, p)
-  X2 <- matrix(rnorm(B * p), B, p)
-  z <- rnorm(p)
-
-  fit <- susie_rss(z = z, X = list(X1, X2), lambda = 0.1,
-                   max_iter = 10, verbose = FALSE)
-
-  # No inflation: finite_R_B should not be set in the fit
-  expect_null(fit$finite_R_B)
 })
 
 # =============================================================================
@@ -1693,27 +1337,6 @@ test_that("eigen_from_reduced recovers full eigendecomposition", {
   overlap <- abs(crossprod(eig_reduced$vectors[, 1:r], eig_direct$vectors[, 1:r]))
   # Each reduced eigenvector should align with exactly one direct eigenvector
   expect_true(all(apply(overlap, 1, max) > 1 - 1e-8))
-})
-
-# =============================================================================
-# K > 2 MULTI-PANEL TEST (Issue 20)
-# =============================================================================
-
-test_that("K=3 multi-panel mixture runs and produces valid omega", {
-  set.seed(56)
-  p <- 20; B <- 80
-  X1 <- matrix(rnorm(B * p), B, p)
-  X2 <- matrix(rnorm(B * p), B, p)
-  X3 <- matrix(rnorm(B * p), B, p)
-  z <- rnorm(p)
-
-  fit <- susie_rss(z = z, X = list(X1, X2, X3), lambda = 0.1,
-                   max_iter = 20, verbose = FALSE)
-
-  expect_equal(length(fit$omega_weights), 3)
-  expect_equal(sum(fit$omega_weights), 1, tolerance = 1e-10)
-  expect_true(all(fit$omega_weights >= -1e-10))
-  expect_equal(length(fit$pip), p)
 })
 
 # =============================================================================
@@ -1750,121 +1373,3 @@ test_that("optimize_omega handles vertex optimum (one panel irrelevant)", {
   expect_true(all(result$omega >= -1e-10))
 })
 
-# =============================================================================
-# UPDATE_DERIVED_QUANTITIES CORRECTNESS (Issue 24)
-# =============================================================================
-
-test_that("update_derived_quantities produces correct SinvRj after omega update", {
-  set.seed(58)
-  p <- 20; B <- 80
-  X1 <- matrix(rnorm(B * p), B, p)
-  X2 <- matrix(rnorm(B * p), B, p)
-  z <- rnorm(p)
-
-  # Run a few iterations to get an omega update
-  fit <- susie_rss(z = z, X = list(X1, X2), lambda = 0.1,
-                   max_iter = 5, verbose = FALSE)
-
-  # Verify omega weights exist and are valid
-  expect_true(!is.null(fit$omega_weights))
-  expect_equal(sum(fit$omega_weights), 1, tolerance = 1e-10)
-
-  # Verify the fit produced PIPs
-  expect_equal(length(fit$pip), p)
-  expect_true(all(fit$pip >= 0 & fit$pip <= 1))
-})
-
-test_that("multi-panel ELBO does not degrade below single-panel after omega update", {
-  # Regression test: before the Rz fix, stale model$Rz after omega update
-  # could cause the mixture ELBO to be worse than any single panel.
-  set.seed(70)
-  p <- 30; B <- 100
-  X1 <- matrix(rnorm(B * p), B, p)
-  X2 <- matrix(rnorm(B * p), B, p)
-  beta <- rep(0, p); beta[1:3] <- c(0.5, -0.3, 0.4)
-  R_true <- cov2cor(crossprod(X1))
-  z <- as.vector(R_true %*% beta) + rnorm(p, sd = 0.1)
-
-  # Single-panel fits
-  fit1 <- susie_rss(z = z, X = X1, lambda = 0.1, max_iter = 50, verbose = FALSE)
-  fit2 <- susie_rss(z = z, X = X2, lambda = 0.1, max_iter = 50, verbose = FALSE)
-  best_single <- max(tail(fit1$elbo, 1), tail(fit2$elbo, 1))
-
-  # Mixture fit
-  fit_mix <- susie_rss(z = z, X = list(X1, X2), lambda = 0.1,
-                       max_iter = 50, verbose = FALSE)
-  mix_elbo <- tail(fit_mix$elbo, 1)
-
-  # Mixture ELBO should not be substantially worse than best single panel
-  expect_true(mix_elbo >= best_single - 0.5,
-              info = sprintf("mixture ELBO %.2f < best single %.2f",
-                             mix_elbo, best_single))
-})
-
-test_that("multi-panel ELBO >= best single-panel ELBO", {
-  set.seed(71)
-  p <- 30; B1 <- 200; B2 <- 150
-  X1 <- matrix(rnorm(B1 * p), B1, p)
-  X2 <- matrix(rnorm(B2 * p), B2, p)
-  beta <- rep(0, p); beta[1:2] <- c(0.6, -0.4)
-
-  # Generate z from panel 1 (the "correct" panel)
-  R1 <- cov2cor(crossprod(X1))
-  z <- as.vector(R1 %*% beta) + rnorm(p, sd = 0.1)
-
-  # Single-panel fits
-  fit1 <- susie_rss(z = z, X = X1, lambda = 0.1, max_iter = 50)
-  fit2 <- susie_rss(z = z, X = X2, lambda = 0.1, max_iter = 50)
-  best_single_elbo <- max(tail(fit1$elbo, 1), tail(fit2$elbo, 1))
-
-  # Mixture fit
-  fit_mix <- susie_rss(z = z, X = list(X1, X2), lambda = 0.1, max_iter = 50)
-  mix_elbo <- tail(fit_mix$elbo, 1)
-
-  # Mixture should be at least as good as best single panel
-  # (omega at a simplex vertex recovers single-panel)
-  expect_true(mix_elbo >= best_single_elbo - 1e-2,
-              info = sprintf("mixture ELBO %.2f < best single %.2f",
-                             mix_elbo, best_single_elbo))
-})
-
-test_that("multi-panel first-iter ELBO >= best single-panel first-iter ELBO", {
-  # With vertex initialization, the first E-step uses a single panel's R,
-  # so the mixture first-iter ELBO should match the best single panel.
-  # (Softmax init caused rank inflation when B < p, making it much worse.)
-  set.seed(72)
-  p <- 100; B <- 80
-  X_true <- matrix(rnorm(2000 * p), 2000, p)
-  for (b in 1:(p %/% 5)) {
-    idx <- ((b-1)*5+1):(b*5)
-    X_true[, idx] <- 0.4*X_true[, idx] + 0.6*rnorm(2000)
-  }
-  X_true <- scale(X_true)
-  R_true <- cov2cor(crossprod(X_true))
-
-  # Two noisy panels (both wrong)
-  X1 <- matrix(rnorm(B * p), B, p)
-  X2 <- matrix(rnorm(B * p), B, p)
-  for (b in 1:(p %/% 5)) {
-    idx <- ((b-1)*5+1):(b*5)
-    X1[, idx] <- 0.4*X1[, idx] + 0.6*rnorm(B)
-    X2[, idx] <- 0.4*X2[, idx] + 0.6*rnorm(B)
-  }
-  X1 <- scale(X1); X2 <- scale(X2)
-
-  beta <- rep(0, p); beta[c(3, 15, 28)] <- c(1.0, -0.8, 0.7)
-  z <- as.vector(R_true %*% beta) + rnorm(p, sd = 0.1)
-
-  f1 <- susie_rss(z = z, X = X1, lambda = 0.1, max_iter = 1, verbose = FALSE)
-  f2 <- susie_rss(z = z, X = X2, lambda = 0.1, max_iter = 1, verbose = FALSE)
-  fm <- susie_rss(z = z, X = list(X1, X2), lambda = 0.1, max_iter = 1,
-                  verbose = FALSE)
-
-  best_sp_first <- max(f1$elbo[1], f2$elbo[1])
-  mix_first <- fm$elbo[1]
-
-  # With vertex init, mixture first-iter should be within 1 unit of best SP
-  expect_true(mix_first >= best_sp_first - 1,
-              info = sprintf("mix first=%.2f, best_sp first=%.2f, diff=%.2f",
-                             mix_first, best_sp_first, mix_first - best_sp_first))
-})

@@ -1,29 +1,25 @@
 # RSS R-reference mismatch handling.
 #
 # Single home for code that targets the discrepancy between the
-# supplied R reference and the target population:
+# supplied R reference and the target population. Active on the SS
+# / ss_mixture dispatches; the rss_lambda dispatch (lambda > 0) does
+# NOT use any of this (entry-level errors block lambda > 0 with
+# finite_R or R_bias != "none").
 #
 #   * 1-D MAP optimizer for the variance component lambda_bias
 #     (estimate_lambda_bias)
 #   * per-variable inflation factor used inside the SER step
-#     (compute_shat2_inflation, compute_shat2_inflation_rss)
+#     (compute_shat2_inflation)
 #   * model-state storage helper for per-slot inflation diagnostics
 #     (apply_inflation_state)
-#   * per-sweep region-level fit (fit_R_bias) -- the new piece
-#   * residual R-mismatch QC diagnostic Q_art
+#   * per-sweep region-level fit (fit_R_bias)
+#   * residual R-mismatch QC diagnostic Q_art (R_bias = "map_qc")
 #
 # Storage convention on the model:
-#   model$lambda_bias    SS / ss_mixture: scalar (set once per sweep
-#                        by fit_R_bias).
-#                        rss_lambda:      length-L vector (legacy
-#                        per-slot path).
-#   model$B_corrected    same shape as model$lambda_bias.
+#   model$lambda_bias    scalar set once per sweep by fit_R_bias
+#   model$B_corrected    1 / (1/B + lambda_bias)
 #   model$shat2_inflation per-variable inflation vector of length p,
 #                        consumed by the SER step.
-#
-# The dispatch files (sufficient_stats_methods.R, ss_mixture_methods.R,
-# rss_lambda_methods.R, iterative_bayesian_stepwise_selection.R) only
-# call into this module; the bodies live here.
 
 # =============================================================================
 # FINITE-REFERENCE SETUP AND DIAGNOSTICS
@@ -172,56 +168,6 @@ compute_shat2_inflation <- function(data, model, XtXr_without_l, b_minus_l, r) {
   lambda_bias <- if (is.null(model$lambda_bias)) 0 else model$lambda_bias
   infl <- 1 + (1 / finite_R_B + lambda_bias) * s / model$sigma2
   list(infl = infl, lambda_bias = NULL, B_corrected = NULL)
-}
-
-# rss_lambda counterpart of compute_shat2_inflation: z-score scale,
-#   eta_j^2 = Rz_without_l[j]^2 (no n-1 division on z-scale),
-#   v_g = max(b_minus_l' Rz_without_l, 0).
-# In multi-panel the model-level finite_R_B is the omega-weighted
-# (sum_k omega_k^2 / B_k)^{-1}.
-# This function preserves the legacy per-slot lambda_bias re-fit (using
-# the post-sweep fitted residual r_full = z - Rz_full) because the
-# rss_lambda dispatch is out of scope of this redesign and will be
-# retired by a separate change.
-#' @keywords internal
-compute_shat2_inflation_rss <- function(data, model, Rz_without_l, b_minus_l) {
-  # Use model-level finite_R_B (updated by omega) if available, else data-level.
-  finite_R_B <- if (!is.null(model$finite_R_B)) model$finite_R_B else data$finite_R_B
-  if (is.null(finite_R_B) || model$sigma2 <= .Machine$double.eps) return(NULL)
-  v_g  <- max(sum(b_minus_l * Rz_without_l), 0)
-  eta2 <- Rz_without_l^2   # z-score scale: no (n-1) division needed
-  s <- eta2 + v_g
-  R_bias <- if (!is.null(data$R_bias)) data$R_bias else "none"
-  if (R_bias == "none") {
-    lambda_bias <- 0
-  } else {
-    # Generative-model target: lambda_bias is local R-mismatch variance
-    # estimated from the residual after all currently active effects
-    # have been explained. Do not estimate it from the leave-one-effect
-    # residual, which intentionally contains the lth sparse signal
-    # during the SER update.
-    b_full <- if (!is.null(model$zbar)) model$zbar else {
-      sw <- if (!is.null(model$slot_weights)) model$slot_weights else
-              rep(1, nrow(model$alpha))
-      colSums(sw * model$alpha * model$mu)
-    }
-    Rz_full <- if (!is.null(model$Rz))
-                 model$Rz
-               else as.vector(compute_Rv(data, b_full, model$X_meta))
-    r_full <- data$z - Rz_full
-    v_g_full <- max(sum(b_full * Rz_full), 0)
-    s_full <- Rz_full^2 + v_g_full
-    lambda_bias <- estimate_lambda_bias(r_full, s_full, model$sigma2,
-                                        finite_R_B, R_bias)
-  }
-  infl <- 1 + (1 / finite_R_B + lambda_bias) * s / model$sigma2
-  if (R_bias == "none") {
-    list(infl = infl, lambda_bias = NULL, B_corrected = NULL)
-  } else {
-    list(infl = infl,
-         lambda_bias = lambda_bias,
-         B_corrected    = 1 / (1 / finite_R_B + lambda_bias))
-  }
 }
 
 # =============================================================================
