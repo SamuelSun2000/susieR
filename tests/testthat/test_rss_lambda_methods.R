@@ -865,6 +865,28 @@ test_that("R and X input paths produce numerically identical results", {
 # END-TO-END susie_rss_lambda
 # =============================================================================
 
+test_that("susie_rss_lambda defaults max_iter to 50 with a hint", {
+  set.seed(510)
+  p <- 10
+  n <- 200
+  X <- matrix(rnorm(n * p), n, p)
+  R <- cor(X)
+  z <- rnorm(p)
+
+  expect_message(
+    obj <- susie_rss_lambda(z = z, R = R, n = n, L = 2,
+                            lambda = 0.1, init_only = TRUE,
+                            verbose = FALSE),
+    "Setting max_iter = 50 for the SuSiE RSS-lambda model"
+  )
+  expect_equal(obj$params$max_iter, 50)
+
+  obj2 <- susie_rss_lambda(z = z, R = R, n = n, L = 2,
+                           lambda = 0.1, max_iter = 7,
+                           init_only = TRUE, verbose = FALSE)
+  expect_equal(obj2$params$max_iter, 7)
+})
+
 test_that("susie_rss_lambda with lambda > 0 runs", {
   set.seed(51)
   p <- 50

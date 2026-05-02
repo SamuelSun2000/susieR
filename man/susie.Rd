@@ -178,7 +178,9 @@ variable.}
 
 \item{na.rm}{Drop any missing values in y from both X and y.}
 
-\item{max_iter}{Maximum number of IBSS iterations to perform.}
+\item{max_iter}{Maximum number of IBSS iterations to perform. For
+\code{susie_rss()} and \code{susie_rss_lambda()}, \code{NULL} uses
+\code{50} with a hint; other interfaces use \code{100}.}
 
 \item{L_greedy}{Integer or \code{NULL}. When non-\code{NULL}, run a
 greedy outer loop that grows the number of effects from

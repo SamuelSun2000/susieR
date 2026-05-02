@@ -30,7 +30,7 @@ susie_rss_lambda(
   model_init = NULL,
   coverage = 0.95,
   min_abs_corr = 0.5,
-  max_iter = 100,
+  max_iter = NULL,
   L_greedy = NULL,
   greedy_lbf_cutoff = 0.1,
   tol = NULL,
@@ -154,7 +154,9 @@ returned here may be a subset of the one produced by calling
 \code{X} or \code{Xcorr} (in which case the purity filter is
 skipped).}
 
-\item{max_iter}{Maximum number of IBSS iterations to perform.}
+\item{max_iter}{Maximum number of IBSS iterations to perform. For
+\code{susie_rss()} and \code{susie_rss_lambda()}, \code{NULL} uses
+\code{50} with a hint; other interfaces use \code{100}.}
 
 \item{L_greedy}{Integer or \code{NULL}. When non-\code{NULL}, run a
 greedy outer loop that grows the number of effects from

@@ -206,7 +206,9 @@
 #'
 #' @param na.rm Drop any missing values in y from both X and y.
 #'
-#' @param max_iter Maximum number of IBSS iterations to perform.
+#' @param max_iter Maximum number of IBSS iterations to perform. For
+#'   \code{susie_rss()} and \code{susie_rss_lambda()}, \code{NULL} uses
+#'   \code{50} with a hint; other interfaces use \code{100}.
 #'
 #' @param L_greedy Integer or \code{NULL}. When non-\code{NULL}, run a
 #'   greedy outer loop that grows the number of effects from
@@ -704,7 +706,7 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
                       s_init = NULL,
                       coverage = 0.95,
                       min_abs_corr = 0.5,
-                      max_iter = 100,
+                      max_iter = NULL,
                       L_greedy = NULL,
                       greedy_lbf_cutoff = 0.1,
                       tol = NULL,
@@ -735,6 +737,14 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
                     (is.list(R) && !is.matrix(R))
 
   R_mismatch <- match.arg(R_mismatch)
+  if (is.null(max_iter)) {
+    max_iter <- 50
+    warning_message("Setting max_iter = 50 for the SuSiE RSS model because ",
+                    "slow convergence is often a sign of unstable summary-statistics ",
+                    "fitting. To disable this message, explicitly set max_iter = 50 ",
+                    "or another value in the susie_rss() call.",
+                    style = "hint")
+  }
 
   if (!is.numeric(eig_delta_rel) || length(eig_delta_rel) != 1L ||
       eig_delta_rel < 0)
@@ -1013,7 +1023,7 @@ susie_rss_lambda <- function(z = NULL, R = NULL, n = NULL,
                              model_init = NULL,
                              coverage = 0.95,
                              min_abs_corr = 0.5,
-                             max_iter = 100,
+                             max_iter = NULL,
                              L_greedy = NULL,
                              greedy_lbf_cutoff = 0.1,
                              tol = NULL,
@@ -1040,6 +1050,14 @@ susie_rss_lambda <- function(z = NULL, R = NULL, n = NULL,
     stop("susie_rss_lambda() accepts only a single X matrix.")
   if (!identical(estimate_residual_method, "MLE"))
     stop("susie_rss_lambda() supports estimate_residual_method = \"MLE\" only.")
+  if (is.null(max_iter)) {
+    max_iter <- 50
+    warning_message("Setting max_iter = 50 for the SuSiE RSS-lambda model because ",
+                    "slow convergence is often a sign of unstable summary-statistics ",
+                    "fitting. To disable this message, explicitly set max_iter = 50 ",
+                    "or another value in the susie_rss_lambda() call.",
+                    style = "hint")
+  }
 
   convergence_method       <- match.arg(convergence_method)
   mp <- resolve_mixture_prior(estimate_prior_method, estimate_prior_variance,

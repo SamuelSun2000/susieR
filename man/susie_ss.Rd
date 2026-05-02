@@ -188,7 +188,9 @@ estimated value to \code{prior_tol} at the end of the computation,
 and exclude a single effect from PIP computation if the estimated
 prior variance is smaller than this tolerance value.}
 
-\item{max_iter}{Maximum number of IBSS iterations to perform.}
+\item{max_iter}{Maximum number of IBSS iterations to perform. For
+\code{susie_rss()} and \code{susie_rss_lambda()}, \code{NULL} uses
+\code{50} with a hint; other interfaces use \code{100}.}
 
 \item{L_greedy}{Integer or \code{NULL}. When non-\code{NULL}, run a
 greedy outer loop that grows the number of effects from

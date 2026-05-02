@@ -2,6 +2,26 @@ context("RSS R-reference mismatch (R_mismatch correction)")
 
 # ---- API surface guards ----
 
+test_that("susie_rss defaults max_iter to 50 with a hint", {
+  set.seed(10)
+  p <- 10
+  n <- 200
+  X <- matrix(rnorm(n * p), n, p)
+  R <- cor(X)
+  z <- rnorm(p)
+
+  expect_message(
+    obj <- susie_rss(z = z, R = R, n = n, L = 2,
+                     init_only = TRUE, verbose = FALSE),
+    "Setting max_iter = 50 for the SuSiE RSS model"
+  )
+  expect_equal(obj$params$max_iter, 50)
+
+  obj2 <- susie_rss(z = z, R = R, n = n, L = 2, max_iter = 7,
+                    init_only = TRUE, verbose = FALSE)
+  expect_equal(obj2$params$max_iter, 7)
+})
+
 test_that("R_mismatch = 'eb' runs and returns Q_art diagnostics", {
   set.seed(11)
   p <- 20
