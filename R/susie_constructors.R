@@ -610,6 +610,7 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
                                       eig_delta_rel = 1e-3,
                                       eig_delta_abs = 0,
                                       artifact_threshold = 0.1,
+                                      R_sensitivity_threshold = log(20),
                                       alpha0 = NULL,
                                       beta0 = NULL,
                                       slot_prior = NULL,
@@ -644,6 +645,11 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
                    (is.list(R) && !is.matrix(R))
   R_mismatch <- match.arg(R_mismatch, c("none", "eb", "eb_force_init", "eb_no_init"))
   R_mismatch_method <- match.arg(R_mismatch_method, c("mle", "map"))
+  if (!is.numeric(R_sensitivity_threshold) ||
+      length(R_sensitivity_threshold) != 1L ||
+      !is.finite(R_sensitivity_threshold) ||
+      R_sensitivity_threshold < 0)
+    stop("R_sensitivity_threshold must be a single nonnegative finite numeric.")
   R_finite_explicit_false <- identical(R_finite, FALSE)
   if (isTRUE(R_finite) && is.null(X))
     stop("R_finite = TRUE requires X input. When using precomputed R, ",
@@ -684,6 +690,7 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
       R_mismatch = R_mismatch, R_mismatch_method = R_mismatch_method,
       eig_delta_rel = eig_delta_rel,
       eig_delta_abs = eig_delta_abs, artifact_threshold = artifact_threshold,
+      R_sensitivity_threshold = R_sensitivity_threshold,
       alpha0 = alpha0, beta0 = beta0, slot_prior = slot_prior,
       L_greedy = L_greedy, greedy_lbf_cutoff = greedy_lbf_cutoff
     ))
@@ -904,6 +911,7 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
   result$params$eig_delta_rel <- eig_delta_rel
   result$params$eig_delta_abs <- eig_delta_abs
   result$params$artifact_threshold <- artifact_threshold
+  result$params$R_sensitivity_threshold <- R_sensitivity_threshold
 
   return(result)
 }
@@ -953,6 +961,7 @@ ss_mixture_constructor <- function(z, R = NULL, X = NULL, n,
                                    eig_delta_rel = 1e-3,
                                    eig_delta_abs = 0,
                                    artifact_threshold = 0.1,
+                                   R_sensitivity_threshold = log(20),
                                    alpha0 = NULL,
                                    beta0 = NULL,
                                    slot_prior = NULL,
@@ -962,6 +971,11 @@ ss_mixture_constructor <- function(z, R = NULL, X = NULL, n,
     stop("Sample size 'n' is required for multi-panel mode.")
   R_mismatch <- match.arg(R_mismatch, c("none", "eb", "eb_force_init", "eb_no_init"))
   R_mismatch_method <- match.arg(R_mismatch_method, c("mle", "map"))
+  if (!is.numeric(R_sensitivity_threshold) ||
+      length(R_sensitivity_threshold) != 1L ||
+      !is.finite(R_sensitivity_threshold) ||
+      R_sensitivity_threshold < 0)
+    stop("R_sensitivity_threshold must be a single nonnegative finite numeric.")
   if (is.null(z))
     stop("Multi-panel mode requires z-scores.")
   if (!is.null(R) && !is.null(X))
@@ -1105,7 +1119,8 @@ ss_mixture_constructor <- function(z, R = NULL, X = NULL, n,
     R_mismatch_method = R_mismatch_method,
     eig_delta_rel = eig_delta_rel,
     eig_delta_abs = eig_delta_abs,
-    artifact_threshold = artifact_threshold
+    artifact_threshold = artifact_threshold,
+    R_sensitivity_threshold = R_sensitivity_threshold
   )
   params_object <- validate_and_override_params(params_object)
 

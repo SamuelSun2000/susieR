@@ -199,6 +199,47 @@ test_that("Optional artifact args validate ranges", {
               max_iter = 2, verbose = FALSE),
     "eig_delta_rel"
   )
+  expect_error(
+    susie_rss(z = z, R = R, n = n, L = 3, R_finite = 5000,
+              R_mismatch = "eb_no_init", R_sensitivity_threshold = -1,
+              max_iter = 2, verbose = FALSE),
+    "R_sensitivity_threshold"
+  )
+})
+
+test_that("BF attenuation diagnostic stores nonnegative BF loss", {
+  model <- list(
+    alpha = matrix(c(0.8, 0.2), nrow = 1),
+    pi = c(0.5, 0.5),
+    shat2_inflation = c(4, 1)
+  )
+  ser_stats <- list(betahat = c(5, 0), shat2 = c(4, 1))
+  lbf_adjusted <- susieR:::gaussian_ser_lbf(ser_stats$betahat,
+                                            ser_stats$shat2, V = 1)
+  out <- susieR:::record_R_bf_attenuation(model, ser_stats,
+                                          lbf_adjusted, V = 1, l = 1)
+  expect_equal(dim(out$R_bf_attenuation), c(1, 2))
+  expect_true(out$R_bf_attenuation[1, 1] > 0)
+  expect_true(out$R_bf_attenuation[1, 2] >= 0)
+})
+
+test_that("BF attenuation summary flags sensitive credible sets", {
+  model <- list(
+    alpha = matrix(c(0.9, 0.1, 0.2, 0.8), nrow = 2, byrow = TRUE),
+    R_bf_attenuation = matrix(c(log(25), 0, 0, log(2)),
+                              nrow = 2, byrow = TRUE),
+    sets = list(cs = list(L1 = 1L, L2 = 2L), cs_index = c(1L, 2L)),
+    R_finite_diagnostics = list(artifact_flag = FALSE)
+  )
+  expect_warning(
+    out <- susieR:::summarize_R_bf_attenuation(model, threshold = log(20)),
+    "R-sensitive credible set detected"
+  )
+  d <- out$R_finite_diagnostics
+  expect_true(d$R_sensitivity_flag)
+  expect_true(d$R_reliability_flag)
+  expect_equal(d$bf_attenuation$cs_label[["L1"]], "sensitive")
+  expect_equal(d$bf_attenuation$cs_label[["L2"]], "stable")
 })
 
 # ---- Region-level scalar lambda_bias on the SS path ----

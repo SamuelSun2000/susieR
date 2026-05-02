@@ -54,6 +54,7 @@ susie_rss(
   eig_delta_rel = 0.001,
   eig_delta_abs = 0,
   artifact_threshold = 0.1,
+  R_sensitivity_threshold = log(20),
   alpha0 = NULL,
   beta0 = NULL,
   init_only = FALSE,
@@ -321,6 +322,11 @@ directions of \code{R} used by the QC diagnostic when
 \item{artifact_threshold}{Flag threshold on the QC score \code{Q_art}
 (a fraction in [0, 1]). Default \code{0.1}; flag fires when
 \code{Q_art > artifact_threshold}. Heuristic, not a calibrated test.}
+
+\item{R_sensitivity_threshold}{Flag threshold for the credible-set
+Bayes-factor attenuation diagnostic. Default \code{log(20)}; flag fires
+when a credible set contains a variable whose nominal log BF exceeds its
+R-adjusted log BF by at least this amount.}
 
 \item{alpha0}{Numerical parameter for the NIG prior when using
 \code{estimate_residual_method = "NIG"}. Defaults to

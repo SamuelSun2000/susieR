@@ -649,6 +649,11 @@ susie_ss <- function(XtX, Xty, yty, n,
 #'   (a fraction in [0, 1]). Default \code{0.1}; flag fires when
 #'   \code{Q_art > artifact_threshold}. Heuristic, not a calibrated test.
 #'
+#' @param R_sensitivity_threshold Flag threshold for the credible-set
+#'   Bayes-factor attenuation diagnostic. Default \code{log(20)}; flag fires
+#'   when a credible set contains a variable whose nominal log BF exceeds its
+#'   R-adjusted log BF by at least this amount.
+#'
 #' @param init_only Logical. If \code{TRUE}, return a list with
 #'   \code{data} and \code{params} objects without running the IBSS
 #'   algorithm. Default is \code{FALSE}.
@@ -729,6 +734,7 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
                       eig_delta_rel = 1e-3,
                       eig_delta_abs = 0,
                       artifact_threshold = 0.1,
+                      R_sensitivity_threshold = log(20),
                       alpha0 = NULL,
                       beta0 = NULL,
                       init_only = FALSE,
@@ -762,6 +768,11 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
   if (!is.numeric(artifact_threshold) || length(artifact_threshold) != 1L ||
       artifact_threshold < 0 || artifact_threshold > 1)
     stop("artifact_threshold must be a single numeric in [0, 1].")
+  if (!is.numeric(R_sensitivity_threshold) ||
+      length(R_sensitivity_threshold) != 1L ||
+      !is.finite(R_sensitivity_threshold) ||
+      R_sensitivity_threshold < 0)
+    stop("R_sensitivity_threshold must be a single nonnegative finite numeric.")
 
   # Resolve R_finite BEFORE any X -> R conversion.
   R_finite_explicit_false <- identical(R_finite, FALSE)
@@ -927,6 +938,7 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
     R_mismatch_method = R_mismatch_method,
     eig_delta_rel = eig_delta_rel, eig_delta_abs = eig_delta_abs,
     artifact_threshold = artifact_threshold,
+    R_sensitivity_threshold = R_sensitivity_threshold,
     alpha0 = alpha0, beta0 = beta0,
     slot_prior = slot_prior, L_greedy = L_greedy,
     greedy_lbf_cutoff = greedy_lbf_cutoff

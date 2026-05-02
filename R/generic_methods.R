@@ -432,7 +432,7 @@ cleanup_model.default <- function(data, params, model, ...) {
   temp_fields <- c("null_weight", "predictor_weights", "runtime",
                    "prev_elbo", "prev_alpha",
                    "residuals", "fitted_without_l", "residual_variance",
-                   "shat2_inflation",
+                   "shat2_inflation", "R_bf_attenuation",
                    cleanup_extra_fields(data))
 
   for (field in temp_fields) {

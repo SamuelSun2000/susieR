@@ -383,6 +383,8 @@ loglik.ss <- function(data, params, model, V, ser_stats, l = NULL, ...) {
   # Store in model if l is provided, otherwise return lbf_model for prior variance optimization
   if (!is.null(l)) {
     model <- ser_res$model
+    if (!params$use_NIG)
+      model <- record_R_bf_attenuation(model, ser_stats, lbf, V, l)
 
     # Compute and store marginal log-likelihood for NIG prior
     if (params$use_NIG) {

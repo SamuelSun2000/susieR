@@ -406,6 +406,12 @@ ibss_finalize <- function(data, params, model, elbo = NULL, iter = NA_integer_,
       model$R_finite_diagnostics$R_mismatch_trace <- model$R_mismatch_trace
     if (!is.null(model$R_mismatch_init))
       model$R_finite_diagnostics$R_mismatch_init <- model$R_mismatch_init
+    threshold <- if (!is.null(params$R_sensitivity_threshold))
+                   params$R_sensitivity_threshold else log(20)
+    model <- summarize_R_bf_attenuation(model, threshold)
+    model$R_finite_diagnostics$R_reliability_flag <-
+      isTRUE(model$R_finite_diagnostics$artifact_flag) ||
+      isTRUE(model$R_finite_diagnostics$R_sensitivity_flag)
   }
 
   # Multi-panel omega weights

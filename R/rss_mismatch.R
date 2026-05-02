@@ -16,12 +16,115 @@
 #     (initialize_R_mismatch)
 #   * per-sweep region-level fit (fit_R_mismatch)
 #   * residual R-mismatch QC diagnostic Q_art (always with R_mismatch)
+#   * Bayes-factor attenuation diagnostic for CS reliability
 #
 # Storage convention on the model:
 #   model$lambda_bias    scalar set once per sweep by fit_R_mismatch
 #   model$B_corrected    1 / (1/B + lambda_bias)
 #   model$shat2_inflation per-variable inflation vector of length p,
 #                        consumed by the SER step.
+
+# =============================================================================
+# BAYES-FACTOR ATTENUATION DIAGNOSTIC
+# =============================================================================
+
+# Store the log-BF attenuation caused by the current R-uncertainty inflation.
+# The adjusted log BF is the one used by the SER update; the nominal log BF
+# recomputes the same SER with the uninflated standard errors.
+#' @keywords internal
+record_R_bf_attenuation <- function(model, ser_stats, lbf_adjusted, V, l) {
+  if (is.null(l) || is.null(model$shat2_inflation))
+    return(model)
+  infl <- model$shat2_inflation
+  if (length(infl) != length(ser_stats$shat2) ||
+      !any(is.finite(infl) & infl > 1))
+    return(model)
+
+  shat2_nominal <- ser_stats$shat2 / infl
+  lbf_nominal <- gaussian_ser_lbf(ser_stats$betahat, shat2_nominal, V)
+  delta <- lbf_nominal - lbf_adjusted
+  atten <- pmax(delta, 0)
+  atten[!is.finite(atten)] <- NA_real_
+
+  if (is.null(model$R_bf_attenuation)) {
+    model$R_bf_attenuation <- matrix(NA_real_, nrow(model$alpha),
+                                     length(atten))
+  }
+  model$R_bf_attenuation[l, ] <- atten
+  model
+}
+
+# Summarize final BF attenuation after credible sets are available.
+#' @keywords internal
+summarize_R_bf_attenuation <- function(model, threshold = log(20)) {
+  D <- model$R_bf_attenuation
+  if (is.null(D) || is.null(model$R_finite_diagnostics))
+    return(model)
+
+  label_atten <- function(x) {
+    out <- rep(NA_character_, length(x))
+    out[is.finite(x) & x < log(3)] <- "stable"
+    out[is.finite(x) & x >= log(3) & x < log(20)] <- "mildly_sensitive"
+    out[is.finite(x) & x >= log(20) & x < log(150)] <- "sensitive"
+    out[is.finite(x) & x >= log(150)] <- "highly_sensitive"
+    out
+  }
+
+  variant_max <- apply(D, 2, function(x) {
+    if (all(is.na(x))) NA_real_ else max(x, na.rm = TRUE)
+  })
+  variant_component <- apply(D, 2, function(x) {
+    if (all(is.na(x))) NA_integer_ else which.max(replace(x, is.na(x), -Inf))
+  })
+
+  cs_max <- cs_weighted <- numeric(0)
+  cs_label <- character(0)
+  if (!is.null(model$sets$cs) && length(model$sets$cs) > 0) {
+    cs_index <- model$sets$cs_index
+    if (is.null(cs_index))
+      cs_index <- as.integer(sub("^L", "", names(model$sets$cs)))
+    cs_max <- cs_weighted <- rep(NA_real_, length(model$sets$cs))
+    for (i in seq_along(model$sets$cs)) {
+      l <- cs_index[i]
+      vars <- model$sets$cs[[i]]
+      if (!is.na(l) && l >= 1 && l <= nrow(D) && length(vars) > 0) {
+        vals <- D[l, vars]
+        cs_max[i] <- if (all(is.na(vals))) NA_real_ else max(vals, na.rm = TRUE)
+        cs_weighted[i] <- sum(model$alpha[l, vars] * vals, na.rm = TRUE)
+      }
+    }
+    cs_label <- label_atten(cs_max)
+    names(cs_max) <- names(cs_weighted) <- names(cs_label) <- names(model$sets$cs)
+  }
+
+  flag <- any(is.finite(cs_max) & cs_max >= threshold)
+
+  d <- model$R_finite_diagnostics
+  d$bf_attenuation <- list(
+    variant_max = variant_max,
+    variant_component = variant_component,
+    variant_label = label_atten(variant_max),
+    cs_max = cs_max,
+    cs_weighted = cs_weighted,
+    cs_label = cs_label,
+    threshold = threshold
+  )
+  d$R_sensitivity_flag <- flag
+  q_flag <- isTRUE(d$artifact_flag)
+  d$R_reliability_flag <- q_flag || flag
+  model$R_finite_diagnostics <- d
+
+  if (flag) {
+    msg <- paste0("R-sensitive credible set detected: at least one CS has ",
+                  "Bayes-factor attenuation >= ",
+                  sprintf("%.3g", threshold),
+                  ". Fine-mapping results may depend strongly on the ",
+                  "R-uncertainty correction.")
+    warning_message(msg)
+    warning(msg, call. = FALSE)
+  }
+  model
+}
 
 # =============================================================================
 # FINITE-REFERENCE SETUP AND DIAGNOSTICS
