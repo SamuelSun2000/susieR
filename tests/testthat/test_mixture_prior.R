@@ -211,13 +211,13 @@ test_that("Standard susie_rss without mixture prior is unchanged", {
 test_that("K=1 mixture matches scalar V with lambda regularization", {
   L <- 3
   lam <- 0.1
-  fit_scalar <- susie_rss(z = z, R = R, n = n, L = L, lambda = lam,
+  fit_scalar <- susie_rss_lambda(z = z, R = R, n = n, L = L, lambda = lam,
                           estimate_prior_variance = FALSE,
                           estimate_residual_variance = FALSE,
                           max_iter = 10)
   V_eff <- fit_scalar$V[1]
 
-  fit_mixture <- susie_rss(z = z, R = R, n = n, L = L, lambda = lam,
+  fit_mixture <- susie_rss_lambda(z = z, R = R, n = n, L = L, lambda = lam,
                            prior_variance_grid = c(V_eff),
                            mixture_weights = c(1),
                            estimate_residual_variance = FALSE,

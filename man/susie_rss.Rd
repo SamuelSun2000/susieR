@@ -12,19 +12,15 @@ susie_rss(
   bhat = NULL,
   shat = NULL,
   var_y = NULL,
-  L = min(10, if (!is.null(R)) ncol(R) else if (is.list(X) && !is.matrix(X)) ncol(X[[1]])
-    else ncol(X)),
-  lambda = 0,
+  L = min(10, if (is.list(R) && !is.matrix(R)) ncol(R[[1]]) else if (!is.null(R)) ncol(R)
+    else if (is.list(X) && !is.matrix(X)) ncol(X[[1]]) else ncol(X)),
   maf = NULL,
   maf_thresh = 0,
-  z_ld_weight = 0,
-  prior_variance = 50,
   scaled_prior_variance = 0.2,
   residual_variance = NULL,
   prior_weights = NULL,
   null_weight = 0,
   standardize = TRUE,
-  intercept_value = 0,
   estimate_residual_variance = FALSE,
   estimate_residual_method = c("MoM", "MLE", "NIG"),
   estimate_prior_variance = TRUE,
@@ -49,8 +45,6 @@ susie_rss(
   track_fit = FALSE,
   check_input = FALSE,
   check_prior = TRUE,
-  check_R = TRUE,
-  check_z = FALSE,
   n_purity = 100,
   r_tol = 1e-08,
   refine = FALSE,
@@ -80,9 +74,7 @@ formed explicitly and the standard path is used. When
 \code{nrow(X) < ncol(X)}, a low-rank path is used that avoids
 forming the p x p matrix, reducing per-iteration cost from
 O(Lp^2) to O(LBp). Columns of \code{X} are standardized
-internally. If \code{z_ld_weight > 0} or \code{var_y} with
-\code{shat} are provided, the full correlation matrix is formed
-from \code{X} and the standard path is used.}
+internally.}
 
 \item{bhat}{Alternative summary data giving the estimated effects
 (a vector of length p). This, together with \code{shat}, may be
@@ -100,28 +92,10 @@ When the sample variance is not provided, the coefficients
 \item{L}{Maximum number of non-zero effects in the model. If L is larger than
 the number of covariates, p, L is set to p.}
 
-\item{lambda}{Regularization parameter for R matrix (default 0).
-When \code{lambda} > 0, eigenvalues of R are regularized as
-\code{sigma2 * D + lambda}, which can shrink credible sets.
-For multi-panel mixture (\code{R} is a list), lambda = 0 is
-recommended (no regularization). When \code{lambda} > 0, you
-cannot use \code{unmappable_effects} methods.}
-
 \item{maf}{A p-vector of minor allele frequencies; to be used along with
 \code{maf_thresh} to filter input summary statistics.}
 
 \item{maf_thresh}{Variants with MAF smaller than this threshold are not used.}
-
-\item{z_ld_weight}{This parameter is included for backwards
-compatibility with previous versions of the function, but it is no
-longer recommended to set this to a non-zero value. When
-\code{z_ld_weight > 0}, the matrix \code{R} is adjusted to be
-\code{cov2cor((1-w)*R + w*tcrossprod(z))}, where \code{w =
-z_ld_weight}.}
-
-\item{prior_variance}{This specifies the prior variance parameter
-for the SuSiE-RSS variant with the \dQuote{regularized} R matrix.
-This is ignored when \code{lambda = 0}.}
 
 \item{scaled_prior_variance}{The prior variance, divided by
 \code{var(y)} (or by \code{(1/(n-1))yty} for
@@ -157,9 +131,6 @@ carefully about specifying \code{scaled_prior_variance}. Whatever
 your choice, the coefficients returned by \code{coef} are given for
 \code{X} on the original input scale. Any column of \code{X} that
 has zero variance is not standardized.}
-
-\item{intercept_value}{Real number specifying the intercept. This
-is ignored when \code{lambda = 0}.}
 
 \item{estimate_residual_variance}{The default is FALSE, the
 residual variance is fixed to 1 or variance of y. If the in-sample
@@ -227,6 +198,8 @@ residual variance. It is only relevant when
 
 \item{model_init}{A previous susie fit with which to initialize.}
 
+\item{s_init}{Deprecated alias for \code{model_init}.}
+
 \item{coverage}{A number between 0 and 1 specifying the
 \dQuote{coverage} of the estimated confidence sets.}
 
@@ -278,10 +251,6 @@ additional checks on \code{XtX} and \code{Xty}. The checks are:
 estimated prior variance becomes unreasonably large (comparing with
 10 * max(abs(z))^2).}
 
-\item{check_R}{If TRUE, check that R is positive semidefinite.}
-
-\item{check_z}{If TRUE, check that z lies in column space of R.}
-
 \item{n_purity}{Passed as argument \code{n_purity} to
 \code{\link{susie_get_cs}}.}
 
@@ -322,7 +291,7 @@ the supplied \code{R} indicates signal should be weak. For
 allele-coding / strand-flip checks, see the kriging diagnostic in
 \code{susie_rss}'s companion utilities.
 Requires \code{finite_R}; auto-disables \code{estimate_residual_variance}
-with a warning. \code{"map_qc"} works only with \code{lambda = 0}.}
+with a warning.}
 
 \item{eig_delta_rel, eig_delta_abs}{Cutoffs for "low-eigenvalue"
 directions of \code{R} used by the QC diagnostic
@@ -346,6 +315,10 @@ validation errors.}
 \code{1/sqrt(n)}, where \code{n} is the sample size. When calling
 \code{susie_rss} with NIG, \code{n} must be supplied; otherwise
 validation errors.}
+
+\item{init_only}{Logical. If \code{TRUE}, return a list with
+\code{data} and \code{params} objects without running the IBSS
+algorithm. Default is \code{FALSE}.}
 
 \item{slot_prior}{Optional slot activity prior created by
 \code{\link{slot_prior_betabinom}} or \code{\link{slot_prior_poisson}}.
@@ -389,5 +362,7 @@ In addition to the standard \code{"susie"} output (see
 }
 \description{
 Performs SuSiE regression using z-scores and correlation matrix.
-Supports both standard RSS (lambda = 0) and RSS with regularized R matrix (lambda > 0).
+This is the sufficient-statistics RSS interface. For the specialized
+regularized eigendecomposition likelihood with \code{lambda > 0}, use
+\code{\link{susie_rss_lambda}}.
 }

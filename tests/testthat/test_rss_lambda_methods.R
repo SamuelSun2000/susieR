@@ -862,10 +862,10 @@ test_that("R and X input paths produce numerically identical results", {
 })
 
 # =============================================================================
-# END-TO-END susie_rss WITH INFLATION
+# END-TO-END susie_rss_lambda
 # =============================================================================
 
-test_that("susie_rss with lambda > 0 (no augmented variance) runs", {
+test_that("susie_rss_lambda with lambda > 0 runs", {
   set.seed(51)
   p <- 50
   n <- 2000
@@ -881,14 +881,14 @@ test_that("susie_rss with lambda > 0 (no augmented variance) runs", {
   ss <- univariate_regression(X, y)
   z <- ss$betahat / ss$sebetahat
 
-  fit <- susie_rss(z = z, R = R, lambda = 0.1, n = n, L = 5,
-                   max_iter = 50, verbose = FALSE)
+  fit <- susie_rss_lambda(z = z, R = R, lambda = 0.1, n = n, L = 5,
+                          max_iter = 50, verbose = FALSE)
   expect_true(fit$converged)
   expect_true(is.finite(fit$elbo[length(fit$elbo)]))
   expect_true(fit$pip[1] > 0.5)
 })
 
-test_that("lambda > 0 blocks finite_R, R_bias, and multi-panel at entry", {
+test_that("susie_rss_lambda excludes finite_R, R_bias, and multi-panel", {
   set.seed(511)
   p <- 20
   n <- 1000
@@ -897,24 +897,24 @@ test_that("lambda > 0 blocks finite_R, R_bias, and multi-panel at entry", {
   z <- rnorm(p)
 
   expect_error(
-    susie_rss(z = z, R = R, n = n, L = 3, lambda = 0.1, finite_R = 5000,
-              max_iter = 2, verbose = FALSE),
-    "finite_R is not available when lambda > 0"
+    susie_rss_lambda(z = z, R = R, n = n, L = 3, lambda = 0.1,
+                     finite_R = 5000, max_iter = 2, verbose = FALSE),
+    "unused argument"
   )
   expect_error(
-    susie_rss(z = z, R = R, n = n, L = 3, lambda = 0.1, R_bias = "map",
-              max_iter = 2, verbose = FALSE),
-    "R_bias is not available when lambda > 0"
+    susie_rss_lambda(z = z, R = R, n = n, L = 3, lambda = 0.1,
+                     R_bias = "map", max_iter = 2, verbose = FALSE),
+    "unused argument"
   )
   expect_error(
-    susie_rss(z = z, R = R, n = n, L = 3, lambda = 0.1, R_bias = "map_qc",
-              max_iter = 2, verbose = FALSE),
-    "R_bias is not available when lambda > 0"
+    susie_rss_lambda(z = z, R = R, n = n, L = 3, lambda = 0.1,
+                     R_bias = "map_qc", max_iter = 2, verbose = FALSE),
+    "unused argument"
   )
   expect_error(
-    susie_rss(z = z, X = list(X, X), n = n, L = 3, lambda = 0.1,
-              max_iter = 2, verbose = FALSE),
-    "Multi-panel mixture is not supported when lambda > 0"
+    susie_rss_lambda(z = z, X = list(X, X), n = n, L = 3, lambda = 0.1,
+                     max_iter = 2, verbose = FALSE),
+    "single X matrix"
   )
 })
 
@@ -1041,8 +1041,7 @@ test_that("In-sample LD with multiple sparse signals does not inflate lambda_bia
   z <- calc_z(X, y, center = TRUE, scale = FALSE)
 
   fit <- susie_rss(z = z, X = X, n = n, L = 6, finite_R = TRUE,
-                   R_bias = "map", max_iter = 50, check_R = FALSE,
-                   verbose = FALSE)
+                   R_bias = "map", max_iter = 50, verbose = FALSE)
 
   expect_true(max(fit$finite_R_diagnostics$lambda_bias) < 0.01,
               info = "In-sample LD should not estimate large population mismatch")
@@ -1065,11 +1064,6 @@ test_that("R_bias = 'mle' is rejected at all entry points", {
   expect_error(
     summary_stats_constructor(z = z, R = R, n = n, L = 3, finite_R = 10000,
                               R_bias = "mle"),
-    "should be one of"
-  )
-  expect_error(
-    rss_lambda_constructor(z = z, R = R, n = n, L = 3, finite_R = 10000,
-                           lambda = 0.1, R_bias = "mle"),
     "should be one of"
   )
 })
@@ -1154,11 +1148,11 @@ test_that("SS and RSS-lambda paths agree with small lambda (no inflation)", {
   z <- ss$betahat / ss$sebetahat
 
   # SS path (lambda = 0)
-  fit_ss <- susie_rss(z = z, R = R, n = n, L = 5, lambda = 0,
+  fit_ss <- susie_rss(z = z, R = R, n = n, L = 5,
                       max_iter = 100, verbose = FALSE)
   # RSS-lambda path (tiny lambda ~= 0)
-  fit_rss <- susie_rss(z = z, R = R, n = n, L = 5, lambda = 1e-6,
-                       max_iter = 100, verbose = FALSE)
+  fit_rss <- susie_rss_lambda(z = z, R = R, n = n, L = 5, lambda = 1e-6,
+                              max_iter = 100, verbose = FALSE)
 
   expect_true(fit_ss$converged)
   expect_true(fit_rss$converged)
@@ -1372,4 +1366,3 @@ test_that("optimize_omega handles vertex optimum (one panel irrelevant)", {
   expect_equal(sum(result$omega), 1, tolerance = 1e-10)
   expect_true(all(result$omega >= -1e-10))
 })
-

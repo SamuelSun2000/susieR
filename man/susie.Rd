@@ -157,6 +157,8 @@ residual variance. It is only relevant when
 
 \item{model_init}{A previous susie fit with which to initialize.}
 
+\item{s_init}{Deprecated alias for \code{model_init}.}
+
 \item{coverage}{A number between 0 and 1 specifying the
 \dQuote{coverage} of the estimated confidence sets.}
 

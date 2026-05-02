@@ -4,18 +4,18 @@ source(file.path("..", "helper_reference.R"), local = TRUE)
 context("susie_rss with lambda reference comparison")
 
 # =============================================================================
-# REFERENCE TESTS FOR susie_rss() with lambda > 0
+# REFERENCE TESTS FOR susie_rss_lambda() with lambda > 0
 # =============================================================================
 #
-# These tests compare susie_rss(lambda > 0) against susie_rss_lambda()
-# from stephenslab/susieR@1f9166c
+# These tests compare susie_rss_lambda(lambda > 0) against the historical
+# susie_rss(lambda > 0) implementation from stephenslab/susieR@1f9166c.
 #
 
 # =============================================================================
 # Part 1: Different lambda values
 # =============================================================================
 
-test_that("susie_rss() matches reference with lambda=1e-5 - optim", {
+test_that("susie_rss_lambda() matches reference with lambda=1e-5 - optim", {
   skip_if_no_reference()
 
   set.seed(1)
@@ -33,10 +33,10 @@ test_that("susie_rss() matches reference with lambda=1e-5 - optim", {
   z <- with(ss, betahat / sebetahat)
 
   args <- list(z = z, R = R, L = 10, lambda = 1e-5, estimate_prior_method = "optim", estimate_residual_variance = TRUE)
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
-test_that("susie_rss() matches reference with lambda=1e-5 - EM", {
+test_that("susie_rss_lambda() matches reference with lambda=1e-5 - EM", {
   skip_if_no_reference()
 
   set.seed(1)
@@ -54,10 +54,10 @@ test_that("susie_rss() matches reference with lambda=1e-5 - EM", {
   z <- with(ss, betahat / sebetahat)
 
   args <- list(z = z, R = R, L = 10, lambda = 1e-5, estimate_prior_method = "EM", estimate_residual_variance = TRUE)
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
-test_that("susie_rss() matches reference with lambda=1e-5 - simple", {
+test_that("susie_rss_lambda() matches reference with lambda=1e-5 - simple", {
   skip_if_no_reference()
 
   set.seed(1)
@@ -75,10 +75,10 @@ test_that("susie_rss() matches reference with lambda=1e-5 - simple", {
   z <- with(ss, betahat / sebetahat)
 
   args <- list(z = z, R = R, L = 10, lambda = 1e-5, estimate_prior_method = "simple", estimate_residual_variance = TRUE)
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
-test_that("susie_rss() matches reference with lambda=0.1 - optim", {
+test_that("susie_rss_lambda() matches reference with lambda=0.1 - optim", {
   skip_if_no_reference()
 
   set.seed(2)
@@ -96,10 +96,10 @@ test_that("susie_rss() matches reference with lambda=0.1 - optim", {
   z <- with(ss, betahat / sebetahat)
 
   args <- list(z = z, R = R, L = 10, lambda = 0.1, estimate_prior_method = "optim", estimate_residual_variance = TRUE)
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
-test_that("susie_rss() matches reference with lambda=0.1 - EM", {
+test_that("susie_rss_lambda() matches reference with lambda=0.1 - EM", {
   skip_if_no_reference()
 
   set.seed(2)
@@ -117,10 +117,10 @@ test_that("susie_rss() matches reference with lambda=0.1 - EM", {
   z <- with(ss, betahat / sebetahat)
 
   args <- list(z = z, R = R, L = 10, lambda = 0.1, estimate_prior_method = "EM", estimate_residual_variance = TRUE)
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
-test_that("susie_rss() matches reference with lambda=0.1 - simple", {
+test_that("susie_rss_lambda() matches reference with lambda=0.1 - simple", {
   skip_if_no_reference()
 
   set.seed(2)
@@ -138,10 +138,10 @@ test_that("susie_rss() matches reference with lambda=0.1 - simple", {
   z <- with(ss, betahat / sebetahat)
 
   args <- list(z = z, R = R, L = 10, lambda = 0.1, estimate_prior_method = "simple", estimate_residual_variance = TRUE)
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
-test_that("susie_rss() matches reference with lambda=0.5 - optim", {
+test_that("susie_rss_lambda() matches reference with lambda=0.5 - optim", {
   skip_if_no_reference()
 
   set.seed(3)
@@ -159,10 +159,10 @@ test_that("susie_rss() matches reference with lambda=0.5 - optim", {
   z <- with(ss, betahat / sebetahat)
 
   args <- list(z = z, R = R, L = 10, lambda = 0.5, estimate_prior_method = "optim", estimate_residual_variance = TRUE)
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
-test_that("susie_rss() matches reference with lambda=0.5 - EM", {
+test_that("susie_rss_lambda() matches reference with lambda=0.5 - EM", {
   skip_if_no_reference()
 
   set.seed(3)
@@ -180,10 +180,10 @@ test_that("susie_rss() matches reference with lambda=0.5 - EM", {
   z <- with(ss, betahat / sebetahat)
 
   args <- list(z = z, R = R, L = 10, lambda = 0.5, estimate_prior_method = "EM", estimate_residual_variance = TRUE)
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
-test_that("susie_rss() matches reference with lambda=0.5 - simple", {
+test_that("susie_rss_lambda() matches reference with lambda=0.5 - simple", {
   skip_if_no_reference()
 
   set.seed(3)
@@ -201,14 +201,14 @@ test_that("susie_rss() matches reference with lambda=0.5 - simple", {
   z <- with(ss, betahat / sebetahat)
 
   args <- list(z = z, R = R, L = 10, lambda = 0.5, estimate_prior_method = "simple", estimate_residual_variance = TRUE)
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
 # =============================================================================
 # Part 2: Different L values
 # =============================================================================
 
-test_that("susie_rss() matches reference with different L values - optim", {
+test_that("susie_rss_lambda() matches reference with different L values - optim", {
   skip_if_no_reference()
 
   set.seed(4)
@@ -227,18 +227,18 @@ test_that("susie_rss() matches reference with different L values - optim", {
 
   # Test L=1
   args1 <- list(z = z, R = R, L = 1, lambda = 1e-5, estimate_prior_method = "optim", estimate_residual_variance = TRUE)
-  compare_to_reference("susie_rss", args1, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args1, tolerance = 1e-5, ref_func_name = "susie_rss")
 
   # Test L=5
   args5 <- list(z = z, R = R, L = 5, lambda = 1e-5, estimate_prior_method = "optim", estimate_residual_variance = TRUE)
-  compare_to_reference("susie_rss", args5, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args5, tolerance = 1e-5, ref_func_name = "susie_rss")
 
   # Test L=20
   args20 <- list(z = z, R = R, L = 20, lambda = 1e-5, estimate_prior_method = "optim", estimate_residual_variance = TRUE)
-  compare_to_reference("susie_rss", args20, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args20, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
-test_that("susie_rss() matches reference with different L values - EM", {
+test_that("susie_rss_lambda() matches reference with different L values - EM", {
   skip_if_no_reference()
 
   set.seed(4)
@@ -257,18 +257,18 @@ test_that("susie_rss() matches reference with different L values - EM", {
 
   # Test L=1
   args1 <- list(z = z, R = R, L = 1, lambda = 1e-5, estimate_prior_method = "EM", estimate_residual_variance = TRUE)
-  compare_to_reference("susie_rss", args1, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args1, tolerance = 1e-5, ref_func_name = "susie_rss")
 
   # Test L=5
   args5 <- list(z = z, R = R, L = 5, lambda = 1e-5, estimate_prior_method = "EM", estimate_residual_variance = TRUE)
-  compare_to_reference("susie_rss", args5, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args5, tolerance = 1e-5, ref_func_name = "susie_rss")
 
   # Test L=20
   args20 <- list(z = z, R = R, L = 20, lambda = 1e-5, estimate_prior_method = "EM", estimate_residual_variance = TRUE)
-  compare_to_reference("susie_rss", args20, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args20, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
-test_that("susie_rss() matches reference with different L values - simple", {
+test_that("susie_rss_lambda() matches reference with different L values - simple", {
   skip_if_no_reference()
 
   set.seed(4)
@@ -287,22 +287,22 @@ test_that("susie_rss() matches reference with different L values - simple", {
 
   # Test L=1
   args1 <- list(z = z, R = R, L = 1, lambda = 1e-5, estimate_prior_method = "simple", estimate_residual_variance = TRUE)
-  compare_to_reference("susie_rss", args1, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args1, tolerance = 1e-5, ref_func_name = "susie_rss")
 
   # Test L=5
   args5 <- list(z = z, R = R, L = 5, lambda = 1e-5, estimate_prior_method = "simple", estimate_residual_variance = TRUE)
-  compare_to_reference("susie_rss", args5, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args5, tolerance = 1e-5, ref_func_name = "susie_rss")
 
   # Test L=20
   args20 <- list(z = z, R = R, L = 20, lambda = 1e-5, estimate_prior_method = "simple", estimate_residual_variance = TRUE)
-  compare_to_reference("susie_rss", args20, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args20, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
 # =============================================================================
 # Part 3: estimate_prior_variance parameter
 # =============================================================================
 
-test_that("susie_rss() matches reference with estimate_prior_variance=FALSE - optim", {
+test_that("susie_rss_lambda() matches reference with estimate_prior_variance=FALSE - optim", {
   skip_if_no_reference()
 
   set.seed(5)
@@ -325,10 +325,10 @@ test_that("susie_rss() matches reference with estimate_prior_variance=FALSE - op
     estimate_residual_variance = TRUE,
     estimate_prior_method = "optim"
   )
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
-test_that("susie_rss() matches reference with estimate_prior_variance=FALSE - EM", {
+test_that("susie_rss_lambda() matches reference with estimate_prior_variance=FALSE - EM", {
   skip_if_no_reference()
 
   set.seed(5)
@@ -351,10 +351,10 @@ test_that("susie_rss() matches reference with estimate_prior_variance=FALSE - EM
     estimate_residual_variance = TRUE,
     estimate_prior_method = "EM"
   )
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
-test_that("susie_rss() matches reference with estimate_prior_variance=FALSE - simple", {
+test_that("susie_rss_lambda() matches reference with estimate_prior_variance=FALSE - simple", {
   skip_if_no_reference()
 
   set.seed(5)
@@ -377,14 +377,14 @@ test_that("susie_rss() matches reference with estimate_prior_variance=FALSE - si
     estimate_residual_variance = TRUE,
     estimate_prior_method = "simple"
   )
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
 # =============================================================================
 # Part 4: estimate_residual_variance parameter
 # =============================================================================
 
-test_that("susie_rss() matches reference with estimate_residual_variance=FALSE - optim", {
+test_that("susie_rss_lambda() matches reference with estimate_residual_variance=FALSE - optim", {
   skip_if_no_reference()
 
   set.seed(6)
@@ -406,10 +406,10 @@ test_that("susie_rss() matches reference with estimate_residual_variance=FALSE -
     estimate_residual_variance = FALSE,
     estimate_prior_method = "optim"
   )
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
-test_that("susie_rss() matches reference with estimate_residual_variance=FALSE - EM", {
+test_that("susie_rss_lambda() matches reference with estimate_residual_variance=FALSE - EM", {
   skip_if_no_reference()
 
   set.seed(6)
@@ -431,10 +431,10 @@ test_that("susie_rss() matches reference with estimate_residual_variance=FALSE -
     estimate_residual_variance = FALSE,
     estimate_prior_method = "EM"
   )
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
-test_that("susie_rss() matches reference with estimate_residual_variance=FALSE - simple", {
+test_that("susie_rss_lambda() matches reference with estimate_residual_variance=FALSE - simple", {
   skip_if_no_reference()
 
   set.seed(6)
@@ -456,10 +456,10 @@ test_that("susie_rss() matches reference with estimate_residual_variance=FALSE -
     estimate_residual_variance = FALSE,
     estimate_prior_method = "simple"
   )
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
-test_that("susie_rss() matches reference with residual_variance fixed - optim", {
+test_that("susie_rss_lambda() matches reference with residual_variance fixed - optim", {
   skip_if_no_reference()
 
   set.seed(7)
@@ -482,10 +482,10 @@ test_that("susie_rss() matches reference with residual_variance fixed - optim", 
     residual_variance = 1.0,
     estimate_prior_method = "optim"
   )
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
-test_that("susie_rss() matches reference with residual_variance fixed - EM", {
+test_that("susie_rss_lambda() matches reference with residual_variance fixed - EM", {
   skip_if_no_reference()
 
   set.seed(7)
@@ -508,10 +508,10 @@ test_that("susie_rss() matches reference with residual_variance fixed - EM", {
     residual_variance = 1.0,
     estimate_prior_method = "EM"
   )
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
-test_that("susie_rss() matches reference with residual_variance fixed - simple", {
+test_that("susie_rss_lambda() matches reference with residual_variance fixed - simple", {
   skip_if_no_reference()
 
   set.seed(7)
@@ -534,14 +534,14 @@ test_that("susie_rss() matches reference with residual_variance fixed - simple",
     residual_variance = 1.0,
     estimate_prior_method = "simple"
   )
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
 # =============================================================================
 # Part 5: prior_variance parameter
 # =============================================================================
 
-test_that("susie_rss() matches reference with prior_variance=100 - optim", {
+test_that("susie_rss_lambda() matches reference with prior_variance=100 - optim", {
   skip_if_no_reference()
 
   set.seed(8)
@@ -559,10 +559,10 @@ test_that("susie_rss() matches reference with prior_variance=100 - optim", {
   z <- with(ss, betahat / sebetahat)
 
   args <- list(z = z, R = R, L = 10, lambda = 1e-5, prior_variance = 100, estimate_prior_method = "optim", estimate_residual_variance = TRUE)
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
-test_that("susie_rss() matches reference with prior_variance=100 - EM", {
+test_that("susie_rss_lambda() matches reference with prior_variance=100 - EM", {
   skip_if_no_reference()
 
   set.seed(8)
@@ -580,10 +580,10 @@ test_that("susie_rss() matches reference with prior_variance=100 - EM", {
   z <- with(ss, betahat / sebetahat)
 
   args <- list(z = z, R = R, L = 10, lambda = 1e-5, prior_variance = 100, estimate_prior_method = "EM", estimate_residual_variance = TRUE)
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
-test_that("susie_rss() matches reference with prior_variance=100 - simple", {
+test_that("susie_rss_lambda() matches reference with prior_variance=100 - simple", {
   skip_if_no_reference()
 
   set.seed(8)
@@ -601,14 +601,14 @@ test_that("susie_rss() matches reference with prior_variance=100 - simple", {
   z <- with(ss, betahat / sebetahat)
 
   args <- list(z = z, R = R, L = 10, lambda = 1e-5, prior_variance = 100, estimate_prior_method = "simple", estimate_residual_variance = TRUE)
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
 # =============================================================================
 # Part 6: prior_weights
 # =============================================================================
 
-test_that("susie_rss() matches reference with prior_weights - optim", {
+test_that("susie_rss_lambda() matches reference with prior_weights - optim", {
   skip_if_no_reference()
 
   set.seed(9)
@@ -629,10 +629,10 @@ test_that("susie_rss() matches reference with prior_weights - optim", {
   prior_weights <- runif(p)
   prior_weights <- prior_weights / sum(prior_weights)
   args <- list(z = z, R = R, L = 10, lambda = 1e-5, prior_weights = prior_weights, estimate_prior_method = "optim", estimate_residual_variance = TRUE)
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
-test_that("susie_rss() matches reference with prior_weights - EM", {
+test_that("susie_rss_lambda() matches reference with prior_weights - EM", {
   skip_if_no_reference()
 
   set.seed(9)
@@ -653,10 +653,10 @@ test_that("susie_rss() matches reference with prior_weights - EM", {
   prior_weights <- runif(p)
   prior_weights <- prior_weights / sum(prior_weights)
   args <- list(z = z, R = R, L = 10, lambda = 1e-5, prior_weights = prior_weights, estimate_prior_method = "EM", estimate_residual_variance = TRUE)
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
-test_that("susie_rss() matches reference with prior_weights - simple", {
+test_that("susie_rss_lambda() matches reference with prior_weights - simple", {
   skip_if_no_reference()
 
   set.seed(9)
@@ -677,14 +677,14 @@ test_that("susie_rss() matches reference with prior_weights - simple", {
   prior_weights <- runif(p)
   prior_weights <- prior_weights / sum(prior_weights)
   args <- list(z = z, R = R, L = 10, lambda = 1e-5, prior_weights = prior_weights, estimate_prior_method = "simple", estimate_residual_variance = TRUE)
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
 # =============================================================================
 # Part 7: maf filtering
 # =============================================================================
 
-test_that("susie_rss() matches reference with maf filtering - optim", {
+test_that("susie_rss_lambda() matches reference with maf filtering - optim", {
   skip_if_no_reference()
 
   set.seed(10)
@@ -710,10 +710,10 @@ test_that("susie_rss() matches reference with maf filtering - optim", {
     estimate_prior_method = "optim",
     estimate_residual_variance = TRUE
   )
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
-test_that("susie_rss() matches reference with maf filtering - EM", {
+test_that("susie_rss_lambda() matches reference with maf filtering - EM", {
   skip_if_no_reference()
 
   set.seed(10)
@@ -739,10 +739,10 @@ test_that("susie_rss() matches reference with maf filtering - EM", {
     estimate_prior_method = "EM",
     estimate_residual_variance = TRUE
   )
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
-test_that("susie_rss() matches reference with maf filtering - simple", {
+test_that("susie_rss_lambda() matches reference with maf filtering - simple", {
   skip_if_no_reference()
 
   set.seed(10)
@@ -768,14 +768,14 @@ test_that("susie_rss() matches reference with maf filtering - simple", {
     estimate_prior_method = "simple",
     estimate_residual_variance = TRUE
   )
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
 # =============================================================================
 # Part 8: coverage and min_abs_corr
 # =============================================================================
 
-test_that("susie_rss() matches reference with coverage=0.99 - optim", {
+test_that("susie_rss_lambda() matches reference with coverage=0.99 - optim", {
   skip_if_no_reference()
 
   set.seed(11)
@@ -793,10 +793,10 @@ test_that("susie_rss() matches reference with coverage=0.99 - optim", {
   z <- with(ss, betahat / sebetahat)
 
   args <- list(z = z, R = R, L = 10, lambda = 1e-5, coverage = 0.99, estimate_prior_method = "optim", estimate_residual_variance = TRUE)
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
-test_that("susie_rss() matches reference with coverage=0.99 - EM", {
+test_that("susie_rss_lambda() matches reference with coverage=0.99 - EM", {
   skip_if_no_reference()
 
   set.seed(11)
@@ -814,10 +814,10 @@ test_that("susie_rss() matches reference with coverage=0.99 - EM", {
   z <- with(ss, betahat / sebetahat)
 
   args <- list(z = z, R = R, L = 10, lambda = 1e-5, coverage = 0.99, estimate_prior_method = "EM", estimate_residual_variance = TRUE)
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
-test_that("susie_rss() matches reference with coverage=0.99 - simple", {
+test_that("susie_rss_lambda() matches reference with coverage=0.99 - simple", {
   skip_if_no_reference()
 
   set.seed(11)
@@ -835,10 +835,10 @@ test_that("susie_rss() matches reference with coverage=0.99 - simple", {
   z <- with(ss, betahat / sebetahat)
 
   args <- list(z = z, R = R, L = 10, lambda = 1e-5, coverage = 0.99, estimate_prior_method = "simple", estimate_residual_variance = TRUE)
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
-test_that("susie_rss() matches reference with min_abs_corr=0.7 - optim", {
+test_that("susie_rss_lambda() matches reference with min_abs_corr=0.7 - optim", {
   skip_if_no_reference()
 
   set.seed(12)
@@ -856,10 +856,10 @@ test_that("susie_rss() matches reference with min_abs_corr=0.7 - optim", {
   z <- with(ss, betahat / sebetahat)
 
   args <- list(z = z, R = R, L = 10, lambda = 1e-5, min_abs_corr = 0.7, estimate_prior_method = "optim", estimate_residual_variance = TRUE)
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
-test_that("susie_rss() matches reference with min_abs_corr=0.7 - EM", {
+test_that("susie_rss_lambda() matches reference with min_abs_corr=0.7 - EM", {
   skip_if_no_reference()
 
   set.seed(12)
@@ -877,10 +877,10 @@ test_that("susie_rss() matches reference with min_abs_corr=0.7 - EM", {
   z <- with(ss, betahat / sebetahat)
 
   args <- list(z = z, R = R, L = 10, lambda = 1e-5, min_abs_corr = 0.7, estimate_prior_method = "EM", estimate_residual_variance = TRUE)
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
-test_that("susie_rss() matches reference with min_abs_corr=0.7 - simple", {
+test_that("susie_rss_lambda() matches reference with min_abs_corr=0.7 - simple", {
   skip_if_no_reference()
 
   set.seed(12)
@@ -898,14 +898,14 @@ test_that("susie_rss() matches reference with min_abs_corr=0.7 - simple", {
   z <- with(ss, betahat / sebetahat)
 
   args <- list(z = z, R = R, L = 10, lambda = 1e-5, min_abs_corr = 0.7, estimate_prior_method = "simple", estimate_residual_variance = TRUE)
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
 # =============================================================================
 # Part 9: prior_tol parameter
 # =============================================================================
 
-test_that("susie_rss() matches reference with prior_tol=1e-5 - optim", {
+test_that("susie_rss_lambda() matches reference with prior_tol=1e-5 - optim", {
   skip_if_no_reference()
 
   set.seed(13)
@@ -929,10 +929,10 @@ test_that("susie_rss() matches reference with prior_tol=1e-5 - optim", {
     estimate_prior_method = "optim",
     estimate_residual_variance = TRUE
   )
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
-test_that("susie_rss() matches reference with prior_tol=1e-5 - EM", {
+test_that("susie_rss_lambda() matches reference with prior_tol=1e-5 - EM", {
   skip_if_no_reference()
 
   set.seed(13)
@@ -955,10 +955,10 @@ test_that("susie_rss() matches reference with prior_tol=1e-5 - EM", {
     estimate_prior_method = "EM",
     estimate_residual_variance = TRUE
   )
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
-test_that("susie_rss() matches reference with prior_tol=1e-5 - simple", {
+test_that("susie_rss_lambda() matches reference with prior_tol=1e-5 - simple", {
   skip_if_no_reference()
 
   set.seed(13)
@@ -981,14 +981,14 @@ test_that("susie_rss() matches reference with prior_tol=1e-5 - simple", {
     estimate_prior_method = "simple",
     estimate_residual_variance = TRUE
   )
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
 # =============================================================================
 # Part 10: check_null_threshold parameter
 # =============================================================================
 
-test_that("susie_rss() matches reference with check_null_threshold=0.1 - optim", {
+test_that("susie_rss_lambda() matches reference with check_null_threshold=0.1 - optim", {
   skip_if_no_reference()
 
   set.seed(14)
@@ -1011,10 +1011,10 @@ test_that("susie_rss() matches reference with check_null_threshold=0.1 - optim",
     estimate_prior_method = "optim",
     estimate_residual_variance = TRUE
   )
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
-test_that("susie_rss() matches reference with check_null_threshold=0.1 - EM", {
+test_that("susie_rss_lambda() matches reference with check_null_threshold=0.1 - EM", {
   skip("Not a bug: susieR2.0 intentionally skips the check_null_threshold V-zeroing step for EM (see R/single_effect_regression.R:169 and stephenslab/mvsusieR#26). The check would zero V without recomputing the posterior, creating an inconsistent (q, V) pair that can decrease the ELBO. Since dev ignores check_null_threshold for EM, this test cannot match a reference that always applies the check.")
   skip_if_no_reference()
 
@@ -1038,10 +1038,10 @@ test_that("susie_rss() matches reference with check_null_threshold=0.1 - EM", {
     estimate_prior_method = "EM",
     estimate_residual_variance = TRUE
   )
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
-test_that("susie_rss() matches reference with check_null_threshold=0.1 - simple", {
+test_that("susie_rss_lambda() matches reference with check_null_threshold=0.1 - simple", {
   skip_if_no_reference()
 
   set.seed(14)
@@ -1064,14 +1064,14 @@ test_that("susie_rss() matches reference with check_null_threshold=0.1 - simple"
     estimate_prior_method = "simple",
     estimate_residual_variance = TRUE
   )
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
 # =============================================================================
 # Part 11: intercept_value parameter
 # =============================================================================
 
-test_that("susie_rss() matches reference with intercept_value=0.5 - optim", {
+test_that("susie_rss_lambda() matches reference with intercept_value=0.5 - optim", {
   skip_if_no_reference()
 
   set.seed(15)
@@ -1089,10 +1089,10 @@ test_that("susie_rss() matches reference with intercept_value=0.5 - optim", {
   z <- with(ss, betahat / sebetahat)
 
   args <- list(z = z, R = R, L = 10, lambda = 1e-5, intercept_value = 0.5, estimate_prior_method = "optim", estimate_residual_variance = TRUE)
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
-test_that("susie_rss() matches reference with intercept_value=0.5 - EM", {
+test_that("susie_rss_lambda() matches reference with intercept_value=0.5 - EM", {
   skip_if_no_reference()
 
   set.seed(15)
@@ -1110,10 +1110,10 @@ test_that("susie_rss() matches reference with intercept_value=0.5 - EM", {
   z <- with(ss, betahat / sebetahat)
 
   args <- list(z = z, R = R, L = 10, lambda = 1e-5, intercept_value = 0.5, estimate_prior_method = "EM", estimate_residual_variance = TRUE)
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
-test_that("susie_rss() matches reference with intercept_value=0.5 - simple", {
+test_that("susie_rss_lambda() matches reference with intercept_value=0.5 - simple", {
   skip_if_no_reference()
 
   set.seed(15)
@@ -1131,14 +1131,14 @@ test_that("susie_rss() matches reference with intercept_value=0.5 - simple", {
   z <- with(ss, betahat / sebetahat)
 
   args <- list(z = z, R = R, L = 10, lambda = 1e-5, intercept_value = 0.5, estimate_prior_method = "simple", estimate_residual_variance = TRUE)
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
 # =============================================================================
 # Part 12: Combined parameter tests
 # =============================================================================
 
-test_that("susie_rss() matches reference with combined params - optim", {
+test_that("susie_rss_lambda() matches reference with combined params - optim", {
   skip_if_no_reference()
 
   set.seed(16)
@@ -1163,10 +1163,10 @@ test_that("susie_rss() matches reference with combined params - optim", {
     residual_variance = 1.0,
     estimate_prior_method = "optim"
   )
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
-test_that("susie_rss() matches reference with combined params - EM", {
+test_that("susie_rss_lambda() matches reference with combined params - EM", {
   skip_if_no_reference()
 
   set.seed(16)
@@ -1190,10 +1190,10 @@ test_that("susie_rss() matches reference with combined params - EM", {
     residual_variance = 1.0,
     estimate_prior_method = "EM"
   )
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })
 
-test_that("susie_rss() matches reference with combined params - simple", {
+test_that("susie_rss_lambda() matches reference with combined params - simple", {
   skip_if_no_reference()
 
   set.seed(16)
@@ -1217,5 +1217,5 @@ test_that("susie_rss() matches reference with combined params - simple", {
     residual_variance = 1.0,
     estimate_prior_method = "simple"
   )
-  compare_to_reference("susie_rss", args, tolerance = 1e-5, ref_func_name = "susie_rss_lambda")
+  compare_to_reference("susie_rss_lambda", args, tolerance = 1e-5, ref_func_name = "susie_rss")
 })

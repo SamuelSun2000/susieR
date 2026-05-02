@@ -147,9 +147,8 @@ test_that("map_qc emits a true R warning when artifact_flag triggers", {
   expect_warning(
     fit <- susie_rss(z = z, R = R, n = 5000, L = 1, finite_R = 1e6,
                      R_bias = "map_qc", max_iter = 5,
-                     prior_variance = 50, estimate_prior_variance = FALSE,
-                     estimate_residual_variance = FALSE, verbose = FALSE,
-                     check_R = FALSE),
+                     estimate_prior_variance = FALSE,
+                     estimate_residual_variance = FALSE, verbose = FALSE),
     "Residual R-bias artifact detected"
   )
   expect_true(fit$finite_R_diagnostics$artifact_flag)

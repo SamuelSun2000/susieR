@@ -102,19 +102,19 @@ run_scenario <- function(scenario, n_reps = 50) {
     z <- as.vector(R_true %*% beta) + rnorm(p, sd = sqrt(lambda))
 
     # Single-panel fits
-    fit1 <- susie_rss(z = z, X = X1, lambda = lambda, L = L,
-                      max_iter = max_iter,
-                      estimate_residual_variance = TRUE, verbose = FALSE)
-    fit2 <- susie_rss(z = z, X = X2, lambda = lambda, L = L,
-                      max_iter = max_iter,
-                      estimate_residual_variance = TRUE, verbose = FALSE)
+    fit1 <- susie_rss(z = z, X = X1, L = L,
+	                      max_iter = max_iter,
+	                      estimate_residual_variance = TRUE, verbose = FALSE)
+    fit2 <- susie_rss(z = z, X = X2, L = L,
+	                      max_iter = max_iter,
+	                      estimate_residual_variance = TRUE, verbose = FALSE)
     best_sp_elbo <- max(tail(fit1$elbo, 1), tail(fit2$elbo, 1))
     best_sp_fit <- if (tail(fit1$elbo, 1) >= tail(fit2$elbo, 1)) fit1 else fit2
 
     # Mixture fit (with all fixes + safeguard)
-    fit_mix <- susie_rss(z = z, X = list(X1, X2), lambda = lambda, L = L,
-                         max_iter = max_iter,
-                         estimate_residual_variance = TRUE, verbose = FALSE,
+    fit_mix <- susie_rss(z = z, X = list(X1, X2), L = L,
+	                         max_iter = max_iter,
+	                         estimate_residual_variance = TRUE, verbose = FALSE,
                          check_prior = FALSE)
     mix_elbo <- tail(fit_mix$elbo, 1)
 

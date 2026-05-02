@@ -96,8 +96,8 @@ test_that("Low-rank X with lambda: raw and centered give same results", {
   z <- rnorm(p)
   z[c(10, 80)] <- c(5, -4)
 
-  fit_raw  <- susie_rss(z = z, X = X_raw, lambda = 0.1, L = 5, max_iter = 30)
-  fit_cent <- susie_rss(z = z, X = X_centered, lambda = 0.1, L = 5, max_iter = 30)
+  fit_raw  <- susie_rss_lambda(z = z, X = X_raw, lambda = 0.1, L = 5, max_iter = 30)
+  fit_cent <- susie_rss_lambda(z = z, X = X_centered, lambda = 0.1, L = 5, max_iter = 30)
 
   expect_equal(fit_raw$elbo, fit_cent$elbo, tolerance = 1e-10)
   expect_equal(fit_raw$pip, fit_cent$pip, tolerance = 1e-10)

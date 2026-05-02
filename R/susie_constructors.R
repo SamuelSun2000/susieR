@@ -560,8 +560,8 @@ sufficient_stats_constructor <- function(Xty, yty, n,
 # =============================================================================
 # SUMMARY STATISTICS (RSS) DATA CONSTRUCTOR
 #
-# Constructs data and params objects for SuSiE from summary statistics (z-scores, R matrix).
-# Routes to appropriate constructor based on lambda parameter (RSS vs RSS-lambda).
+# Constructs data and params objects for SuSiE from summary statistics
+# (z-scores, R matrix, or multi-panel R/X reference).
 # =============================================================================
 #'
 #' @return A list containing:
@@ -578,7 +578,6 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
                                       lambda = 0,
                                       maf = NULL,
                                       maf_thresh = 0,
-                                      z_ld_weight = 0,
                                       prior_variance = 50,
                                       scaled_prior_variance = 0.2,
                                       residual_variance = NULL,
@@ -608,8 +607,6 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
                                       track_fit = FALSE,
                                       check_input = FALSE,
                                       check_prior = TRUE,
-                                      check_R = TRUE,
-                                      check_z = FALSE,
                                       n_purity = 100,
                                       r_tol = 1e-8,
                                       refine = FALSE,
@@ -655,37 +652,31 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
     pve_adjusted <- TRUE
   }
 
-  # Check if this should use RSS-lambda (eigendecomposition) path.
-  # Route here when lambda > 0 OR multi-panel (list of X/R matrices).
-  is_multipanel <- is.list(X) && !is.matrix(X)
-  finite_R <- resolve_finite_R(finite_R, X, is_multipanel)
-  if (lambda != 0 || is_multipanel) {
-    # Parameter validation for RSS-lambda / multi-panel path
+  is_multipanel <- (is.list(X) && !is.matrix(X)) ||
+                   (is.list(R) && !is.matrix(R))
+  R_bias <- match.arg(R_bias, c("none", "map", "map_qc"))
+  if (isTRUE(finite_R) && is.null(X))
+    stop("finite_R = TRUE requires X input. When using precomputed R, ",
+         "provide the reference sample size explicitly.")
+  finite_R <- resolve_finite_R(finite_R, if (!is.null(X)) X else R,
+                               is_multipanel)
+  if (is_multipanel) {
+    if (lambda != 0)
+      stop("Multi-panel mixture is available only on the sufficient-statistics path.")
     if (!is.null(bhat) || !is.null(shat)) {
       stop("Parameters 'bhat' and 'shat' are not supported in the ",
-           "eigendecomposition path (lambda != 0 or multi-panel). ",
+           "multi-panel summary-statistics path. ",
            "Please provide z-scores directly.")
     }
-
-    if (!is.null(var_y)) {
-      stop("Parameter 'var_y' is not supported in the ",
-           "eigendecomposition path (lambda != 0 or multi-panel).")
-    }
-
-    if (z_ld_weight != 0) {
-      stop("Parameter 'z_ld_weight' is not supported in the ",
-           "eigendecomposition path (lambda != 0 or multi-panel).")
-    }
-
-    # Delegate to rss_lambda_constructor with ALL parameters
-    return(rss_lambda_constructor(
-      z = z, R = R, X = X, n = n, bhat = bhat, shat = shat, var_y = var_y,
-      L = L, lambda = lambda, maf = maf, maf_thresh = maf_thresh,
-      z_ld_weight = z_ld_weight, prior_variance = prior_variance,
+    if (!is.null(var_y))
+      stop("Parameter 'var_y' is not supported in the multi-panel path.")
+    return(ss_mixture_constructor(
+      z = z, R = R, X = X, n = n, L = L,
+      maf = maf, maf_thresh = maf_thresh,
       scaled_prior_variance = scaled_prior_variance,
-      residual_variance = residual_variance, prior_weights = prior_weights,
-      null_weight = null_weight, standardize = standardize,
-      intercept_value = intercept_value,
+      residual_variance = residual_variance,
+      prior_weights = prior_weights, null_weight = null_weight,
+      standardize = standardize,
       estimate_residual_variance = estimate_residual_variance,
       estimate_residual_method = estimate_residual_method,
       estimate_prior_variance = estimate_prior_variance,
@@ -696,14 +687,49 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
       check_null_threshold = check_null_threshold, prior_tol = prior_tol,
       residual_variance_lowerbound = residual_variance_lowerbound,
       residual_variance_upperbound = residual_variance_upperbound,
+      model_init = model_init, coverage = coverage,
+      min_abs_corr = min_abs_corr, max_iter = max_iter, tol = tol,
+      convergence_method = convergence_method, verbose = verbose,
+      track_fit = track_fit, check_input = check_input,
+      check_prior = check_prior, n_purity = n_purity,
+      r_tol = r_tol, refine = refine, finite_R = finite_R,
+      R_bias = R_bias, eig_delta_rel = eig_delta_rel,
+      eig_delta_abs = eig_delta_abs, artifact_threshold = artifact_threshold,
+      alpha0 = alpha0, beta0 = beta0, slot_prior = slot_prior,
+      L_greedy = L_greedy, greedy_lbf_cutoff = greedy_lbf_cutoff
+    ))
+  }
+
+  if (lambda != 0) {
+    if (!is.null(finite_R))
+      stop("finite_R is not available in the RSS-lambda path.")
+    if (R_bias != "none")
+      stop("R_bias is not available in the RSS-lambda path.")
+    if (!is.null(bhat) || !is.null(shat)) {
+      stop("Parameters 'bhat' and 'shat' are not supported in the ",
+           "RSS-lambda path.")
+    }
+    if (!is.null(var_y))
+      stop("Parameter 'var_y' is not supported in the RSS-lambda path.")
+    return(rss_lambda_constructor(
+      z = z, R = R, X = X, n = n,
+      L = L, lambda = lambda, maf = maf, maf_thresh = maf_thresh,
+      prior_variance = prior_variance,
+      residual_variance = residual_variance, prior_weights = prior_weights,
+      null_weight = null_weight, intercept_value = intercept_value,
+      estimate_residual_variance = estimate_residual_variance,
+      estimate_residual_method = estimate_residual_method,
+      estimate_prior_variance = estimate_prior_variance,
+      estimate_prior_method = estimate_prior_method,
+      prior_variance_grid = prior_variance_grid,
+      mixture_weights = mixture_weights,
+      check_null_threshold = check_null_threshold, prior_tol = prior_tol,
+      residual_variance_lowerbound = residual_variance_lowerbound,
       model_init = model_init, coverage = coverage, min_abs_corr = min_abs_corr,
       max_iter = max_iter, tol = tol, convergence_method = convergence_method,
-      verbose = verbose, track_fit = track_fit, check_input = check_input,
-      check_prior = check_prior, check_R = check_R, check_z = check_z,
+      verbose = verbose, track_fit = track_fit,
+      check_prior = check_prior, check_R = TRUE, check_z = FALSE,
       n_purity = n_purity, r_tol = r_tol, refine = refine,
-      finite_R = finite_R, R_bias = R_bias,
-      eig_delta_rel = eig_delta_rel, eig_delta_abs = eig_delta_abs,
-      artifact_threshold = artifact_threshold,
       slot_prior = slot_prior, L_greedy = L_greedy,
       greedy_lbf_cutoff = greedy_lbf_cutoff
     ))
@@ -800,14 +826,6 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
     adj <- (n - 1) / (z^2 + n - 2)
     z <- sqrt(adj) * z
     pve_adjusted <- TRUE
-  }
-
-  # Modify R by z_ld_weight (deprecated but maintained for compatibility)
-  if (z_ld_weight > 0) {
-    warning_message("As of version 0.11.0, use of non-zero z_ld_weight is no longer ",
-            "recommended.")
-    R <- safe_cov2cor((1 - z_ld_weight) * R + z_ld_weight * tcrossprod(z))
-    R <- (R + t(R)) / 2
   }
 
   # MAF filter (after z-scores are computed)
@@ -943,34 +961,20 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
 }
 
 # =============================================================================
-# RSS LAMBDA DATA CONSTRUCTOR
-#
-# Constructs data and params objects for SuSiE from RSS data using eigendecomposition
-# (lambda >= 0, including multi-panel mixture with lambda = 0).
-# Handles eigen decomposition, MAF filtering, and specialized RSS-lambda preprocessing.
+# SS MULTI-PANEL MIXTURE DATA CONSTRUCTOR
 # =============================================================================
-#'
-#' @return A list containing:
-#' \item{data}{A processed list containing z-scores, R matrix, eigen decomposition,
-#' and RSS-lambda specific fields}
-#' \item{params}{Validated params object with all input algorithm parameters}
 #'
 #' @keywords internal
 #' @noRd
-rss_lambda_constructor <- function(z, R = NULL, X = NULL, n = NULL,
-                                   bhat = NULL, shat = NULL, var_y = NULL,
-                                   L = min(10, if (!is.null(R)) ncol(R) else ncol(X)),
-                                   lambda = 0,
-                                   maf = NULL,
-                                   maf_thresh = 0,
-                                   z_ld_weight = 0,
-                                   prior_variance = 50,
+ss_mixture_constructor <- function(z, R = NULL, X = NULL, n,
+                                   L = min(10, if (!is.null(R)) ncol(R[[1]])
+                                           else ncol(X[[1]])),
+                                   maf = NULL, maf_thresh = 0,
                                    scaled_prior_variance = 0.2,
                                    residual_variance = NULL,
                                    prior_weights = NULL,
                                    null_weight = 0,
                                    standardize = TRUE,
-                                   intercept_value = 0,
                                    estimate_residual_variance = FALSE,
                                    estimate_residual_method = "MoM",
                                    estimate_prior_variance = TRUE,
@@ -987,13 +991,11 @@ rss_lambda_constructor <- function(z, R = NULL, X = NULL, n = NULL,
                                    min_abs_corr = 0.5,
                                    max_iter = 100,
                                    tol = 1e-3,
-                                   convergence_method = "elbo",
+                                   convergence_method = "pip",
                                    verbose = FALSE,
                                    track_fit = FALSE,
                                    check_input = FALSE,
                                    check_prior = TRUE,
-                                   check_R = TRUE,
-                                   check_z = FALSE,
                                    n_purity = 100,
                                    r_tol = 1e-8,
                                    refine = FALSE,
@@ -1002,6 +1004,233 @@ rss_lambda_constructor <- function(z, R = NULL, X = NULL, n = NULL,
                                    eig_delta_rel = 1e-3,
                                    eig_delta_abs = 0,
                                    artifact_threshold = 0.1,
+                                   alpha0 = 0.1,
+                                   beta0 = 0.1,
+                                   slot_prior = NULL,
+                                   L_greedy = NULL,
+                                   greedy_lbf_cutoff = 0.1) {
+  if (is.null(n) || !is.numeric(n) || length(n) != 1 || n <= 1)
+    stop("Sample size 'n' is required for multi-panel mode.")
+  if (is.null(z))
+    stop("Multi-panel mode requires z-scores.")
+  if (!is.null(R) && !is.null(X))
+    stop("Please provide either R or X, but not both.")
+
+  use_R <- !is.null(R)
+  panels <- if (use_R) R else X
+  K <- length(panels)
+  if (K < 1)
+    stop("Multi-panel input must contain at least one panel.")
+  p <- length(z)
+
+  if (use_R) {
+    for (k in seq_len(K)) {
+      if (!is.matrix(R[[k]]) || !is.numeric(R[[k]]))
+        stop("Each element of R list must be a numeric matrix.")
+      if (nrow(R[[k]]) != p || ncol(R[[k]]) != p)
+        stop("Each element of R list must have dimension length(z) by length(z).")
+      if (!is_symmetric_matrix(R[[k]]))
+        R[[k]] <- (R[[k]] + t(R[[k]])) / 2
+    }
+    panel_R <- lapply(R, safe_cov2cor)
+    X_list <- NULL
+    B_list <- finite_R
+    init_panel <- attr(R, ".init_panel")
+    omega_cache <- NULL
+  } else {
+    for (k in seq_len(K)) {
+      if (!is.matrix(X[[k]]) || !is.numeric(X[[k]]))
+        stop("Each element of X list must be a numeric matrix.")
+      if (ncol(X[[k]]) != p)
+        stop("Each element of X list must have length(z) columns.")
+    }
+    X_list <- lapply(X, standardize_X)
+    panel_R <- lapply(X_list, function(Xk) cov2cor(crossprod(Xk)))
+    B_list <- if (is.null(finite_R)) NULL else finite_R
+    init_panel <- attr(X, ".init_panel")
+    omega_cache <- if (sum(vapply(X_list, nrow, integer(1))) < p)
+                     precompute_omega_cache(X_list, z) else NULL
+  }
+
+  if (!is.null(maf)) {
+    if (length(maf) != p)
+      stop(paste0("The length of maf does not agree with expected ", p, "."))
+    id <- which(maf > maf_thresh)
+    z <- z[id]
+    panel_R <- lapply(panel_R, function(Rk) Rk[id, id, drop = FALSE])
+    if (!is.null(X_list))
+      X_list <- lapply(X_list, function(Xk) Xk[, id, drop = FALSE])
+    p <- length(z)
+  }
+
+  if (any(is.infinite(z)))
+    stop("z contains infinite values.")
+  if (anyNA(z)) {
+    warning_message("NA values in z-scores are replaced with 0.")
+    z[is.na(z)] <- 0
+  }
+
+  if (is.numeric(null_weight) && null_weight == 0)
+    null_weight <- NULL
+  if (!is.null(null_weight)) {
+    if (!is.numeric(null_weight))
+      stop("Null weight must be numeric.")
+    if (null_weight < 0 || null_weight >= 1)
+      stop("Null weight must be between 0 and 1.")
+    if (is.null(prior_weights)) {
+      prior_weights <- c(rep(1 / p * (1 - null_weight), p), null_weight)
+    } else {
+      prior_weights <- c(prior_weights * (1 - null_weight), null_weight)
+    }
+    panel_R <- lapply(panel_R, function(Rk) cbind(rbind(Rk, 0), 0))
+    if (!is.null(X_list))
+      X_list <- lapply(X_list, function(Xk) cbind(Xk, 0))
+    z <- c(z, 0)
+    p <- p + 1L
+  }
+
+  if (is.null(prior_weights))
+    prior_weights <- rep(1 / p, p)
+
+  k_best <- if (!is.null(init_panel)) init_panel else 1L
+  omega_init <- rep(0, K)
+  omega_init[k_best] <- 1
+  R_init <- Reduce("+", Map(function(w, Rk) w * Rk, omega_init, panel_R))
+  R_init <- 0.5 * (R_init + t(R_init))
+
+  finite_R_B <- NULL
+  finite_R_diagnostics <- NULL
+  if (!is.null(finite_R)) {
+    B_list <- as.numeric(finite_R)
+    finite_R_B <- 1 / sum(omega_init^2 / B_list)
+    finite_R_diagnostics <- compute_finite_R_diagnostics(
+      R = R_init, B = finite_R_B, p = p)
+  }
+
+  nm1 <- n - 1
+  XtX <- nm1 * R_init
+  X_ss <- NULL
+  if (!is.null(X_list)) {
+    X_ss <- form_X_meta(X_list, omega_init) * sqrt(nm1)
+    attr(X_ss, "d") <- rep(nm1, p)
+    attr(X_ss, "scaled:scale") <- rep(1, p)
+    XtX <- NULL
+  }
+
+  params_object <- list(
+    L = L,
+    scaled_prior_variance = scaled_prior_variance,
+    residual_variance = residual_variance,
+    prior_weights = prior_weights,
+    null_weight = null_weight,
+    estimate_residual_variance = estimate_residual_variance,
+    estimate_residual_method = estimate_residual_method,
+    residual_variance_lowerbound = residual_variance_lowerbound,
+    residual_variance_upperbound = residual_variance_upperbound,
+    estimate_prior_variance = estimate_prior_variance,
+    estimate_prior_method = estimate_prior_method,
+    prior_variance_grid = prior_variance_grid,
+    mixture_weights = mixture_weights,
+    unmappable_effects = unmappable_effects,
+    check_null_threshold = check_null_threshold,
+    prior_tol = prior_tol,
+    max_iter = max_iter,
+    tol = tol,
+    convergence_method = convergence_method,
+    coverage = coverage,
+    min_abs_corr = min_abs_corr,
+    compute_univariate_zscore = FALSE,
+    verbose = verbose,
+    track_fit = track_fit,
+    check_prior = check_prior,
+    refine = refine,
+    n_purity = n_purity,
+    alpha0 = alpha0,
+    beta0 = beta0,
+    n = n,
+    use_NIG = estimate_residual_method == "NIG",
+    intercept = FALSE,
+    standardize = standardize,
+    model_init = model_init,
+    slot_prior = slot_prior,
+    L_greedy = L_greedy,
+    greedy_lbf_cutoff = greedy_lbf_cutoff,
+    R_bias = R_bias,
+    eig_delta_rel = eig_delta_rel,
+    eig_delta_abs = eig_delta_abs,
+    artifact_threshold = artifact_threshold
+  )
+  params_object <- validate_and_override_params(params_object)
+
+  data_object <- structure(
+    list(
+      X = X_ss, XtX = XtX,
+      Xty = sqrt(nm1) * z, yty = nm1,
+      n = n, p = p,
+      X_colmeans = rep(0, p), y_mean = 0,
+      nm1 = nm1, z = z, lambda = 0,
+      finite_R_B = finite_R_B,
+      finite_R_diagnostics = finite_R_diagnostics,
+      R_bias = R_bias,
+      X_list_std = X_list, B_list = B_list,
+      K = K, panel_R = panel_R, omega_cache = omega_cache
+    ),
+    class = c("ss_mixture", "ss")
+  )
+  if (R_bias == "map_qc")
+    data_object$eigen_R <- eigen(R_init, symmetric = TRUE)
+
+  list(data = data_object, params = params_object)
+}
+
+# =============================================================================
+# RSS LAMBDA DATA CONSTRUCTOR
+#
+# Constructs data and params objects for SuSiE from RSS data using eigendecomposition
+# (lambda >= 0).
+# Handles eigen decomposition, MAF filtering, and specialized RSS-lambda preprocessing.
+# =============================================================================
+#'
+#' @return A list containing:
+#' \item{data}{A processed list containing z-scores, R matrix, eigen decomposition,
+#' and RSS-lambda specific fields}
+#' \item{params}{Validated params object with all input algorithm parameters}
+#'
+#' @keywords internal
+#' @noRd
+rss_lambda_constructor <- function(z, R = NULL, X = NULL, n = NULL,
+                                   L = min(10, if (!is.null(R)) ncol(R) else ncol(X)),
+                                   lambda = 0,
+                                   maf = NULL,
+                                   maf_thresh = 0,
+                                   prior_variance = 50,
+                                   residual_variance = NULL,
+                                   prior_weights = NULL,
+                                   null_weight = 0,
+                                   intercept_value = 0,
+                                   estimate_residual_variance = FALSE,
+                                   estimate_residual_method = "MoM",
+                                   estimate_prior_variance = TRUE,
+                                   estimate_prior_method = "optim",
+                                   prior_variance_grid = NULL,
+                                   mixture_weights = NULL,
+                                   check_null_threshold = 0,
+                                   prior_tol = 1e-9,
+                                   residual_variance_lowerbound = 0,
+                                   model_init = NULL,
+                                   coverage = 0.95,
+                                   min_abs_corr = 0.5,
+                                   max_iter = 100,
+                                   tol = 1e-3,
+                                   convergence_method = "elbo",
+                                   verbose = FALSE,
+                                   track_fit = FALSE,
+                                   check_prior = TRUE,
+                                   check_R = TRUE,
+                                   check_z = FALSE,
+                                   n_purity = 100,
+                                   r_tol = 1e-8,
+                                   refine = FALSE,
                                    slot_prior = NULL,
                                    L_greedy = NULL,
                                    greedy_lbf_cutoff = 0.1) {
@@ -1018,43 +1247,12 @@ rss_lambda_constructor <- function(z, R = NULL, X = NULL, n = NULL,
     stop("NIG prior on residual variance is not implemented for RSS with lambda > 0. ",
          "Please use estimate_residual_method = 'MLE' instead.")
   }
+  if (is.list(R) && !is.matrix(R))
+    stop("rss_lambda_constructor() accepts only a single R matrix.")
+  if (is.list(X) && !is.matrix(X))
+    stop("rss_lambda_constructor() accepts only a single X matrix.")
 
-  R_bias <- match.arg(R_bias, c("none", "map", "map_qc"))
-  if (R_bias == "map_qc" && lambda != 0)
-    stop("R_bias = 'map_qc' is not supported with lambda > 0; ",
-         "use R_bias = 'map' on the lambda path or run on the SS path with lambda = 0.")
-  if (R_bias != "none" && is.null(finite_R))
-    stop("R_bias requires finite_R because lambda_bias is estimated ",
-         "as extra R bias beyond finite-reference uncertainty.")
-
-  # Detect multi-panel input (list of X matrices)
-  is_multi_panel <- is.list(X) && !is.matrix(X)
-  finite_R <- resolve_finite_R(finite_R, X, is_multi_panel)
-  init_panel <- if (is_multi_panel) attr(X, ".init_panel") else NULL
-  X_list <- NULL
-  B_list <- NULL
-  K_panels <- NULL
-
-  if (is_multi_panel) {
-    K_panels <- length(X)
-    if (K_panels < 1) stop("X list must contain at least one matrix.")
-    for (k in seq_len(K_panels)) {
-      if (!is.matrix(X[[k]]) || !is.numeric(X[[k]]))
-        stop("Each element of X list must be a numeric matrix.")
-      if (ncol(X[[k]]) != length(z))
-        stop(paste0("Panel ", k, " of X has ", ncol(X[[k]]),
-                    " columns but expected ", length(z), "."))
-    }
-    B_list <- vapply(X, nrow, integer(1))
-
-    # Standardize each panel so X_k'X_k = R_k (correlation matrix)
-    X_list <- lapply(X, standardize_X)
-
-    # Clear X; will be set to X_meta after MAF/null_weight processing
-    X <- NULL
-  }
-
-  if (is.null(X) && !is_multi_panel) {
+  if (is.null(X)) {
     # R path: validate R
     if (is.null(R))
       stop("Please provide either R or X for rss_lambda_constructor.")
@@ -1072,7 +1270,7 @@ rss_lambda_constructor <- function(z, R = NULL, X = NULL, n = NULL,
     if (!(is.double(R) & is.matrix(R)) & !inherits(R, "sparseMatrix")) {
       stop("Input R must be a double-precision matrix or a sparse matrix.")
     }
-  } else if (!is.null(X)) {
+  } else {
     # Single-panel X path: validate X
     if (ncol(X) != length(z)) {
       stop(paste0(
@@ -1090,8 +1288,6 @@ rss_lambda_constructor <- function(z, R = NULL, X = NULL, n = NULL,
     id <- which(maf > maf_thresh)
     if (!is.null(R)) R <- R[id, id]
     if (!is.null(X)) X <- X[, id, drop = FALSE]
-    if (!is.null(X_list))
-      X_list <- lapply(X_list, function(Xk) Xk[, id, drop = FALSE])
     z <- z[id]
   }
 
@@ -1121,9 +1317,7 @@ rss_lambda_constructor <- function(z, R = NULL, X = NULL, n = NULL,
     if (null_weight < 0 || null_weight >= 1) {
       stop("Null weight must be between 0 and 1.")
     }
-    p_cur <- if (!is.null(R)) ncol(R)
-             else if (!is.null(X)) ncol(X)
-             else ncol(X_list[[1]])
+    p_cur <- if (!is.null(R)) ncol(R) else ncol(X)
     if (is.null(prior_weights)) {
       prior_weights <- c(rep(1 / p_cur * (1 - null_weight), p_cur), null_weight)
     } else {
@@ -1131,41 +1325,7 @@ rss_lambda_constructor <- function(z, R = NULL, X = NULL, n = NULL,
     }
     if (!is.null(R)) R <- cbind(rbind(R, 0), 0)
     if (!is.null(X)) X <- cbind(X, 0)
-    if (!is.null(X_list))
-      X_list <- lapply(X_list, function(Xk) cbind(Xk, 0))
     z <- c(z, 0)
-  }
-
-  # For multi-panel: precompute reduced basis for fast omega optimization,
-  # initialize omega via softmax of null marginal log-likelihoods
-  panel_R <- NULL
-  omega_cache <- NULL
-  if (is_multi_panel) {
-    B_total <- sum(vapply(X_list, nrow, integer(1)))
-
-    # When sum(B_k) < p, use reduced-basis for O(r^3) omega optimization.
-    # Otherwise fall back to direct O(p^3) via explicit panel_R matrices.
-    if (B_total < length(z)) {
-      omega_cache <- precompute_omega_cache(X_list, z)
-    }
-    # Compute panel_R: cov2cor for accurate R*v products.
-    # Used by ss_mixture for SER and by rss_lambda as omega eval fallback.
-    panel_R <- lapply(X_list, function(Xk) cov2cor(crossprod(Xk)))
-
-    # Initialize omega at the best single-panel vertex. We use 1-iteration
-    # trial ELBO (computed in susie_rss) rather than null marginal log-
-    # likelihoods, which are biased toward low-rank panels due to the
-    # log|S_k| term being smaller when rank(R_k) < p. Starting at a vertex
-    # avoids rank inflation from mixing rank-deficient panels (which would
-    # penalize the first-iteration ELBO via a larger log|S(omega)|), and
-    # guarantees first-iter ELBO matches the best single panel. The M-step
-    # optimizer explores the full simplex via Frank-Wolfe/Brent and moves
-    # to interior mixtures when beneficial.
-    k_best <- if (!is.null(init_panel)) init_panel else 1L
-    omega_init <- rep(0, K_panels)
-    omega_init[k_best] <- 1
-
-    X <- form_X_meta(X_list, omega_init)
   }
 
   # Determine p and set prior weights
@@ -1177,15 +1337,9 @@ rss_lambda_constructor <- function(z, R = NULL, X = NULL, n = NULL,
 
   # Eigen decomposition: from R or SVD of X
   if (!is.null(X)) {
-    if (is_multi_panel) {
-      # Multi-panel: X is already X_meta (standardized panels combined with omega)
-      # X_meta'X_meta = R(omega) = sum_k omega_k R_k
-      eigen_R <- eigen_from_X(X, p)
-    } else {
-      # Single-panel: standardize so X'X = R, then SVD
-      X <- standardize_X(X)
-      eigen_R <- eigen_from_X(X, p)
-    }
+    # Single-panel: standardize so X'X = R, then SVD
+    X <- standardize_X(X)
+    eigen_R <- eigen_from_X(X, p)
   } else {
     eigen_R <- eigen(R, symmetric = TRUE)
   }
@@ -1278,59 +1432,11 @@ rss_lambda_constructor <- function(z, R = NULL, X = NULL, n = NULL,
     check_prior = check_prior,
     slot_prior = slot_prior,
     L_greedy = L_greedy,
-    greedy_lbf_cutoff = greedy_lbf_cutoff,
-    R_bias = R_bias,
-    eig_delta_rel = eig_delta_rel,
-    eig_delta_abs = eig_delta_abs,
-    artifact_threshold = artifact_threshold
+    greedy_lbf_cutoff = greedy_lbf_cutoff
   )
 
   # Validate params
   params_object <- validate_and_override_params(params_object)
-
-  # R diagnostics.
-  # Inflation is opt-in: only applied when finite_R is explicitly provided.
-  # For multi-panel with no finite_R, we assume panels provide sufficiently
-  # accurate R and no variance inflation is needed.
-  # X IS standardized here (standardize_X already called), so x_is_standardized = TRUE.
-  finite_R_diagnostics <- NULL
-  finite_R_B <- NULL
-  if (!is.null(finite_R)) {
-    finite_R_B <- finite_R
-    finite_R_diagnostics <- compute_finite_R_diagnostics(
-      X = X, R = R, B = finite_R, p = length(z),
-      x_is_standardized = TRUE)
-  }
-
-  # Multi-panel with lambda=0 and sample size: use ss_mixture (ss model + omega)
-  if (is_multi_panel && lambda == 0 && !is.null(n) && n > 1) {
-    nm1 <- n - 1
-    # z is already PVE-adjusted (done at top of summary_stats_constructor)
-    X_ss <- X * sqrt(nm1)
-    attr(X_ss, "d") <- rep(nm1, length(z))
-    attr(X_ss, "scaled:scale") <- rep(1, length(z))
-
-    data_object <- structure(
-      list(
-        X = X_ss, XtX = NULL,
-        Xty = sqrt(nm1) * z, yty = nm1,
-        n = n, p = length(z),
-        X_colmeans = rep(0, length(z)), y_mean = 0,
-        nm1 = nm1, z = z, lambda = 0,
-        finite_R_B = finite_R_B,
-        finite_R_diagnostics = finite_R_diagnostics,
-        R_bias = R_bias,
-        X_list_std = X_list, B_list = B_list,
-        K = K_panels, panel_R = panel_R, omega_cache = omega_cache
-      ),
-      class = c("ss_mixture", "ss")
-    )
-
-    # Use ss-scale prior variance
-    params_object$scaled_prior_variance <- scaled_prior_variance
-
-    return(list(data = data_object, params = params_object))
-  }
 
   # Create data object with RSS-lambda specific fields
   data_object <- structure(
@@ -1346,15 +1452,7 @@ rss_lambda_constructor <- function(z, R = NULL, X = NULL, n = NULL,
       prior_variance = prior_variance,
       eigen_R = eigen_R,
       Vtz = Vtz,
-      z_null_norm2 = z_null_norm2,
-      finite_R_B = finite_R_B,
-      finite_R_diagnostics = finite_R_diagnostics,
-      R_bias = R_bias,
-      X_list = X_list,
-      B_list = B_list,
-      K = K_panels,
-      panel_R = panel_R,
-      omega_cache = omega_cache
+      z_null_norm2 = z_null_norm2
     ),
     class = "rss_lambda"
   )

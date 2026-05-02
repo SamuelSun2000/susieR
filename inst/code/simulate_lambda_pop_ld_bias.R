@@ -170,16 +170,13 @@ fit_susie_rss <- function(z, X_ref, n_target, cfg, method, verbose_fit = FALSE) 
     n = n_target,
     L = cfg$L,
     coverage = cfg$coverage,
-    min_abs_corr = cfg$min_abs_corr,
-    max_iter = cfg$max_iter,
-    finite_R = finite_R,
-    R_bias = R_bias,
-    lambda = 0,
-    estimate_residual_variance = FALSE,
-    check_R = FALSE,
-    check_z = FALSE,
-    verbose = isTRUE(verbose_fit)
-  )
+	    min_abs_corr = cfg$min_abs_corr,
+	    max_iter = cfg$max_iter,
+	    finite_R = finite_R,
+	    R_bias = R_bias,
+	    estimate_residual_variance = FALSE,
+	    verbose = isTRUE(verbose_fit)
+	  )
   if (isTRUE(verbose_fit)) {
     return(do.call(susie_rss, args))
   }

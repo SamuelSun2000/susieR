@@ -41,8 +41,20 @@ resolve_finite_R <- function(finite_R, X = NULL, is_multi_panel = FALSE) {
       return(min(vapply(X, nrow, integer(1))))
     return(nrow(X))
   }
-  if (is.numeric(finite_R) && length(finite_R) == 1 &&
-      is.finite(finite_R) && finite_R > 0)
+  if (!is.numeric(finite_R) || any(!is.finite(finite_R)) ||
+      any(finite_R <= 0)) {
+    stop("finite_R must be NULL, TRUE, or positive numeric value(s).")
+  }
+  if (is_multi_panel) {
+    K <- if (is.null(X)) length(finite_R) else length(X)
+    if (length(finite_R) == 1)
+      return(rep(as.numeric(finite_R), K))
+    if (length(finite_R) == K)
+      return(as.numeric(finite_R))
+    stop("For multi-panel input, finite_R must be TRUE, a single positive ",
+         "number, or one positive number per panel.")
+  }
+  if (length(finite_R) == 1)
     return(as.numeric(finite_R))
   stop("finite_R must be NULL, TRUE, or a single positive number.")
 }

@@ -185,6 +185,8 @@
 #'
 #' @param model_init A previous susie fit with which to initialize.
 #'
+#' @param s_init Deprecated alias for \code{model_init}.
+#'
 #' @param coverage A number between 0 and 1 specifying the
 #'   \dQuote{coverage} of the estimated confidence sets.
 #'
@@ -549,7 +551,9 @@ susie_ss <- function(XtX, Xty, yty, n,
 #' @inheritParams susie_ss
 #' 
 #' @description Performs SuSiE regression using z-scores and correlation matrix.
-#' Supports both standard RSS (lambda = 0) and RSS with regularized R matrix (lambda > 0).
+#' This is the sufficient-statistics RSS interface. For the specialized
+#' regularized eigendecomposition likelihood with \code{lambda > 0}, use
+#' \code{\link{susie_rss_lambda}}.
 #'
 #' @param z A p-vector of z-scores.
 #'
@@ -565,9 +569,7 @@ susie_ss <- function(XtX, Xty, yty, n,
 #'   \code{nrow(X) < ncol(X)}, a low-rank path is used that avoids
 #'   forming the p x p matrix, reducing per-iteration cost from
 #'   O(Lp^2) to O(LBp). Columns of \code{X} are standardized
-#'   internally. If \code{z_ld_weight > 0} or \code{var_y} with
-#'   \code{shat} are provided, the full correlation matrix is formed
-#'   from \code{X} and the standard path is used.
+#'   internally.
 #'
 #' @param bhat Alternative summary data giving the estimated effects
 #'   (a vector of length p). This, together with \code{shat}, may be
@@ -582,35 +584,10 @@ susie_ss <- function(XtX, Xty, yty, n,
 #'   (returned from \code{coef}) are computed on the
 #'   \dQuote{standardized} X, y scale.
 #' 
-#' @param lambda Regularization parameter for R matrix (default 0).
-#'   When \code{lambda} > 0, eigenvalues of R are regularized as
-#'   \code{sigma2 * D + lambda}, which can shrink credible sets.
-#'   For multi-panel mixture (\code{R} is a list), lambda = 0 is
-#'   recommended (no regularization). When \code{lambda} > 0, you
-#'   cannot use \code{unmappable_effects} methods.
-#'
-#' @param z_ld_weight This parameter is included for backwards
-#'   compatibility with previous versions of the function, but it is no
-#'   longer recommended to set this to a non-zero value. When
-#'   \code{z_ld_weight > 0}, the matrix \code{R} is adjusted to be
-#'   \code{cov2cor((1-w)*R + w*tcrossprod(z))}, where \code{w =
-#'   z_ld_weight}.
-#'
-#' @param prior_variance This specifies the prior variance parameter
-#'   for the SuSiE-RSS variant with the \dQuote{regularized} R matrix.
-#'   This is ignored when \code{lambda = 0}.
-#' 
 #' @param estimate_residual_variance The default is FALSE, the
 #'   residual variance is fixed to 1 or variance of y. If the in-sample
 #'   R matrix is provided, we recommend setting
 #'   \code{estimate_residual_variance = TRUE}.
-#'
-#' @param intercept_value Real number specifying the intercept. This
-#'   is ignored when \code{lambda = 0}.
-#' 
-#' @param check_R If TRUE, check that R is positive semidefinite.
-#'
-#' @param check_z If TRUE, check that z lies in column space of R.
 #'
 #' @param finite_R Controls variance inflation to account
 #'   for estimating the R matrix from a finite reference panel. Accepts three
@@ -642,7 +619,7 @@ susie_ss <- function(XtX, Xty, yty, n,
 #'   allele-coding / strand-flip checks, see the kriging diagnostic in
 #'   \code{susie_rss}'s companion utilities.
 #'   Requires \code{finite_R}; auto-disables \code{estimate_residual_variance}
-#'   with a warning. \code{"map_qc"} works only with \code{lambda = 0}.
+#'   with a warning.
 #'
 #' @param eig_delta_rel,eig_delta_abs Cutoffs for "low-eigenvalue"
 #'   directions of \code{R} used by the QC diagnostic
@@ -654,6 +631,10 @@ susie_ss <- function(XtX, Xty, yty, n,
 #' @param artifact_threshold Flag threshold on the QC score \code{Q_art}
 #'   (a fraction in [0, 1]). Default \code{0.1}; flag fires when
 #'   \code{Q_art > artifact_threshold}. Heuristic, not a calibrated test.
+#'
+#' @param init_only Logical. If \code{TRUE}, return a list with
+#'   \code{data} and \code{params} objects without running the IBSS
+#'   algorithm. Default is \code{FALSE}.
 #'
 #' @return In addition to the standard \code{"susie"} output (see
 #'   \code{\link{susie}}), the returned object may contain:
@@ -687,20 +668,17 @@ susie_ss <- function(XtX, Xty, yty, n,
 susie_rss <- function(z = NULL, R = NULL, n = NULL,
                       X = NULL,
                       bhat = NULL, shat = NULL, var_y = NULL,
-                      L = min(10, if (!is.null(R)) ncol(R)
+                      L = min(10, if (is.list(R) && !is.matrix(R)) ncol(R[[1]])
+                               else if (!is.null(R)) ncol(R)
                                else if (is.list(X) && !is.matrix(X)) ncol(X[[1]])
                                else ncol(X)),
-                      lambda = 0,
                       maf = NULL,
                       maf_thresh = 0,
-                      z_ld_weight = 0,
-                      prior_variance = 50,
                       scaled_prior_variance = 0.2,
                       residual_variance = NULL,
                       prior_weights = NULL,
                       null_weight = 0,
                       standardize = TRUE,
-                      intercept_value = 0,
                       estimate_residual_variance = FALSE,
                       estimate_residual_method = c("MoM", "MLE", "NIG"),
                       estimate_prior_variance = TRUE,
@@ -725,8 +703,6 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
                       track_fit = FALSE,
                       check_input = FALSE,
                       check_prior = TRUE,
-                      check_R = TRUE,
-                      check_z = FALSE,
                       n_purity = 100,
                       r_tol = 1e-8,
                       refine = FALSE,
@@ -745,22 +721,13 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
     stop("Please provide either R (correlation matrix) or X (factor matrix).")
   if (!is.null(R) && !is.null(X))
     stop("Please provide either R or X, but not both.")
-  is_multi_panel <- is.list(X) && !is.matrix(X)
+  is_multi_panel <- (is.list(X) && !is.matrix(X)) ||
+                    (is.list(R) && !is.matrix(R))
+  lambda <- 0
+  prior_variance <- 50
+  intercept_value <- 0
 
   R_bias <- match.arg(R_bias)
-
-  # Lambda > 0 (rss_lambda eigendecomp path) does not extend cleanly to
-  # multi-panel mixture, finite-reference inflation, or R-bias correction:
-  # Eloglik.rss_lambda is a global eigenvalue-based likelihood, not a
-  # per-variant Gaussian, so per-variant variance augmentation has no
-  # place there. Block the unsupported combinations at entry.
-  if (lambda != 0 && is_multi_panel)
-    stop("Multi-panel mixture is not supported when lambda > 0. ",
-         "Set lambda = 0.")
-  if (lambda != 0 && !is.null(finite_R))
-    stop("finite_R is not available when lambda > 0. Set lambda = 0.")
-  if (lambda != 0 && R_bias != "none")
-    stop("R_bias is not available when lambda > 0. Set lambda = 0.")
 
   if (!is.numeric(eig_delta_rel) || length(eig_delta_rel) != 1L ||
       eig_delta_rel < 0)
@@ -773,13 +740,11 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
     stop("artifact_threshold must be a single numeric in [0, 1].")
 
   # Resolve finite_R BEFORE any X -> R conversion.
-  finite_R <- resolve_finite_R(finite_R, X, is_multi_panel)
-  if (!is.null(finite_R)) {
-    if (finite_R < 1000)
-      warning_message("finite_R = ", finite_R,
-              " is below 1000. Variance inflation may be imprecise at small ",
-              "reference sample sizes.")
-  }
+  if (isTRUE(finite_R) && is.null(X))
+    stop("finite_R = TRUE requires X input. When using precomputed R, ",
+         "provide the reference sample size explicitly.")
+  finite_R <- resolve_finite_R(finite_R, if (!is.null(X)) X else R,
+                               is_multi_panel)
   if (R_bias != "none" && is.null(finite_R))
     stop("R_bias requires finite_R because lambda_bias is estimated ",
          "as extra R bias beyond finite-reference uncertainty.")
@@ -793,6 +758,38 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
       "estimate_residual_variance = TRUE; disabling sigma^2 estimation."
     )
     estimate_residual_variance <- FALSE
+  }
+
+  # Handle multi-panel R input.
+  if (!is.null(R) && is_multi_panel) {
+    for (k in seq_along(R)) {
+      if (!is.matrix(R[[k]]) || !is.numeric(R[[k]]))
+        stop("Each element of R list must be a numeric matrix.")
+      if (nrow(R[[k]]) != ncol(R[[k]]))
+        stop("Each element of R list must be square.")
+    }
+    if (is.null(n))
+      stop("Sample size 'n' is required for multi-panel mode.")
+    if (convergence_method[1] == "elbo") {
+      convergence_method <- "pip"
+      warning_message("Switching to PIP-based convergence for multi-panel mixture ",
+              "as mixture weights updates change R(omega) each iteration, which prevents ",
+              "ELBO monotonicity.")
+    }
+    sp_call <- match.call()
+    sp_call[[1]] <- quote(susie_rss)
+    sp_call$verbose <- FALSE
+    sp_call$s_init <- NULL
+    sp_call$model_init <- NULL
+    sp_fits <- lapply(seq_along(R), function(k) {
+      Rk <- R[[k]]
+      sp_call$R <- Rk
+      sp_call$finite_R <- if (is.null(finite_R)) NULL else finite_R[k]
+      tryCatch(eval(sp_call, parent.frame(2)), error = function(e) NULL)
+    })
+    sp_elbos <- vapply(sp_fits, function(f)
+      if (!is.null(f)) tail(f$elbo, 1) else -Inf, numeric(1))
+    attr(R, ".init_panel") <- which.max(sp_elbos)
   }
 
   # Handle X input
@@ -830,16 +827,16 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
       sp_call$verbose <- FALSE
       sp_call$s_init <- NULL
       sp_call$model_init <- NULL
-      sp_fits <- lapply(X, function(Xk) {
+      sp_fits <- lapply(seq_along(X), function(k) {
+        Xk <- X[[k]]
         sp_call$X <- Xk
+        sp_call$finite_R <- if (is.null(finite_R)) NULL else finite_R[k]
         tryCatch(eval(sp_call, parent.frame(2)), error = function(e) NULL)
       })
       sp_elbos <- vapply(sp_fits, function(f)
         if (!is.null(f)) tail(f$elbo, 1) else -Inf, numeric(1))
       attr(X, ".init_panel") <- which.max(sp_elbos)
-      check_R <- FALSE
-      check_z <- FALSE
-    } else {
+      } else {
       if (!is.matrix(X) || !is.numeric(X))
         stop("X must be a numeric matrix.")
 
@@ -849,11 +846,11 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
         X <- t(t(X) - cm)
 
       # Features incompatible with the low-rank path: fall back to forming R
-      needs_R <- z_ld_weight > 0 || (!is.null(var_y) && !is.null(shat))
+      needs_R <- !is.null(var_y) && !is.null(shat)
       if (needs_R && nrow(X) < ncol(X)) {
         warning_message(
-          "X is provided as a low-rank factor matrix, but z_ld_weight or ",
-          "var_y/shat require the full correlation matrix R. Forming ",
+          "X is provided as a low-rank factor matrix, but var_y/shat ",
+          "requires the full correlation matrix R. Forming ",
           "R = cov2cor(crossprod(X)/nrow(X)) and using the standard path.")
       }
 
@@ -861,10 +858,6 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
       if (nrow(X) >= ncol(X) || needs_R) {
         R <- safe_cor(X)
         X <- NULL
-      } else {
-        # Low-rank path: skip R checks
-        check_R <- FALSE
-        check_z <- FALSE
       }
     }
   }
@@ -893,7 +886,7 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
     z = z, R = R, X = X, n = n,
     bhat = bhat, shat = shat, var_y = var_y,
     L = L, lambda = lambda, maf = maf, maf_thresh = maf_thresh,
-    z_ld_weight = z_ld_weight, prior_variance = prior_variance,
+    prior_variance = prior_variance,
     scaled_prior_variance = scaled_prior_variance,
     residual_variance = residual_variance,
     prior_weights = prior_weights, null_weight = null_weight,
@@ -912,7 +905,7 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
     coverage = coverage, min_abs_corr = min_abs_corr,
     max_iter = max_iter, tol = tol, convergence_method = convergence_method,
     verbose = verbose, track_fit = track_fit, check_input = check_input,
-    check_prior = check_prior, check_R = check_R, check_z = check_z,
+    check_prior = check_prior,
     n_purity = n_purity, r_tol = r_tol, refine = refine,
     finite_R = finite_R, R_bias = R_bias,
     eig_delta_rel = eig_delta_rel, eig_delta_abs = eig_delta_abs,
@@ -948,4 +941,110 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
   }
 
   return(model)
+}
+
+#' Sum of Single Effects Regression using the RSS-lambda likelihood
+#'
+#' @description Specialized interface for the regularized eigendecomposition
+#' RSS likelihood of Zou et al. (2022). This path accepts a single reference
+#' matrix or a single factor matrix and does not support multi-panel mixture,
+#' finite-reference inflation, or R-bias correction.
+#'
+#' @inheritParams susie_rss
+#' @param lambda Regularization parameter for the RSS-lambda likelihood.
+#' @param prior_variance Prior variance used by the RSS-lambda likelihood.
+#' @param intercept_value Intercept value used by the RSS-lambda likelihood.
+#' @param check_R If TRUE, check that R is positive semidefinite.
+#' @param check_z If TRUE, check that z lies in column space of R.
+#'
+#' @return A \code{"susie"} fit.
+#'
+#' @export
+susie_rss_lambda <- function(z = NULL, R = NULL, n = NULL,
+                             X = NULL,
+                             L = min(10, if (!is.null(R)) ncol(R)
+                                      else ncol(X)),
+                             lambda,
+                             maf = NULL,
+                             maf_thresh = 0,
+                             prior_variance = 50,
+                             residual_variance = NULL,
+                             prior_weights = NULL,
+                             null_weight = 0,
+                             intercept_value = 0,
+                             estimate_residual_variance = FALSE,
+                             estimate_residual_method = c("MLE", "MoM"),
+                             estimate_prior_variance = TRUE,
+                             estimate_prior_method = c("optim", "EM", "simple"),
+                             prior_variance_grid = NULL,
+                             mixture_weights = NULL,
+                             check_null_threshold = 0,
+                             prior_tol = 1e-9,
+                             residual_variance_lowerbound = 0,
+                             model_init = NULL,
+                             coverage = 0.95,
+                             min_abs_corr = 0.5,
+                             max_iter = 100,
+                             L_greedy = NULL,
+                             greedy_lbf_cutoff = 0.1,
+                             tol = 1e-4,
+                             convergence_method = c("elbo", "pip"),
+                             verbose = FALSE,
+                             track_fit = FALSE,
+                             check_prior = TRUE,
+                             check_R = TRUE,
+                             check_z = FALSE,
+                             n_purity = 100,
+                             r_tol = 1e-8,
+                             refine = FALSE,
+                             init_only = FALSE,
+                             slot_prior = NULL) {
+  if (missing(lambda))
+    stop("susie_rss_lambda() requires lambda.")
+  if (is.null(R) && is.null(X))
+    stop("Please provide either R (correlation matrix) or X (factor matrix).")
+  if (!is.null(R) && !is.null(X))
+    stop("Please provide either R or X, but not both.")
+  if (is.list(R) && !is.matrix(R))
+    stop("susie_rss_lambda() accepts only a single R matrix.")
+  if (is.list(X) && !is.matrix(X))
+    stop("susie_rss_lambda() accepts only a single X matrix.")
+
+  estimate_residual_method <- match.arg(estimate_residual_method)
+  convergence_method       <- match.arg(convergence_method)
+  mp <- resolve_mixture_prior(estimate_prior_method, estimate_prior_variance,
+                              prior_variance_grid, mixture_weights)
+  estimate_prior_method   <- mp$estimate_prior_method
+  estimate_prior_variance <- mp$estimate_prior_variance
+  prior_variance_grid     <- mp$prior_variance_grid
+  mixture_weights         <- mp$mixture_weights
+
+  susie_objects <- rss_lambda_constructor(
+    z = z, R = R, X = X, n = n,
+    L = L, lambda = lambda, maf = maf, maf_thresh = maf_thresh,
+    prior_variance = prior_variance,
+    residual_variance = residual_variance,
+    prior_weights = prior_weights, null_weight = null_weight,
+    intercept_value = intercept_value,
+    estimate_residual_variance = estimate_residual_variance,
+    estimate_residual_method = estimate_residual_method,
+    estimate_prior_variance = estimate_prior_variance,
+    estimate_prior_method = estimate_prior_method,
+    prior_variance_grid = prior_variance_grid,
+    mixture_weights = mixture_weights,
+    check_null_threshold = check_null_threshold, prior_tol = prior_tol,
+    residual_variance_lowerbound = residual_variance_lowerbound,
+    model_init = model_init, coverage = coverage, min_abs_corr = min_abs_corr,
+    max_iter = max_iter, tol = tol, convergence_method = convergence_method,
+    verbose = verbose, track_fit = track_fit,
+    check_prior = check_prior, check_R = check_R, check_z = check_z,
+    n_purity = n_purity, r_tol = r_tol, refine = refine,
+    slot_prior = slot_prior, L_greedy = L_greedy,
+    greedy_lbf_cutoff = greedy_lbf_cutoff
+  )
+
+  if (init_only)
+    return(susie_objects)
+
+  susie_workhorse(susie_objects$data, susie_objects$params)
 }

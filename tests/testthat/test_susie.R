@@ -575,8 +575,7 @@ test_that("susie_rss with lambda = 0 returns valid susie object", {
   z_scores <- with(univariate_regression(dat$X, dat$y), betahat / sebetahat)
   R <- with(ss, cov2cor(XtX))
 
-  fit <- susie_rss(z = z_scores, R = R, n = 100, L = 5,
-                   lambda = 0, verbose = FALSE)
+  fit <- susie_rss(z = z_scores, R = R, n = 100, L = 5 , verbose = FALSE)
 
   expect_s3_class(fit, "susie")
   expect_true("alpha" %in% names(fit))
@@ -593,8 +592,7 @@ test_that("susie_rss with lambda = 0 has correct dimensions", {
   z_scores <- with(univariate_regression(dat$X, dat$y), betahat / sebetahat)
   R <- with(ss, cov2cor(XtX))
 
-  fit <- susie_rss(z = z_scores, R = R, n = 100, L = 5,
-                   lambda = 0, verbose = FALSE)
+  fit <- susie_rss(z = z_scores, R = R, n = 100, L = 5 , verbose = FALSE)
 
   expect_equal(dim(fit$alpha), c(5, 50))
   expect_equal(dim(fit$mu), c(5, 50))
@@ -610,8 +608,7 @@ test_that("susie_rss with lambda = 0 maintains valid probability distributions",
   z_scores <- with(univariate_regression(dat$X, dat$y), betahat / sebetahat)
   R <- with(ss, cov2cor(XtX))
 
-  fit <- susie_rss(z = z_scores, R = R, n = 100, L = 5,
-                   lambda = 0, verbose = FALSE)
+  fit <- susie_rss(z = z_scores, R = R, n = 100, L = 5 , verbose = FALSE)
 
   expect_equal(rowSums(fit$alpha), rep(1, 5), tolerance = 1e-10)
   expect_true(all(fit$alpha >= 0 & fit$alpha <= 1))
@@ -627,7 +624,7 @@ test_that("susie_rss with lambda = 0 accepts bhat and shat instead of z", {
   R <- with(ss, cov2cor(XtX))
 
   fit <- susie_rss(bhat = univar$betahat, shat = univar$sebetahat,
-                   R = R, n = 100, L = 5, lambda = 0, verbose = FALSE)
+                   R = R, n = 100, L = 5 , verbose = FALSE)
 
   expect_s3_class(fit, "susie")
   expect_equal(dim(fit$alpha), c(5, 50))
@@ -642,8 +639,7 @@ test_that("susie_rss with lambda = 0 handles maf filtering", {
   R <- with(ss, cov2cor(XtX))
   maf <- runif(50, 0, 0.5)
 
-  fit <- susie_rss(z = z_scores, R = R, n = 100, L = 5,
-                   lambda = 0, maf = maf, maf_thresh = 0.1,
+  fit <- susie_rss(z = z_scores, R = R, n = 100, L = 5 , maf = maf, maf_thresh = 0.1,
                    verbose = FALSE)
 
   n_filtered <- sum(maf > 0.1)
@@ -654,11 +650,11 @@ test_that("susie_rss with lambda = 0 handles maf filtering", {
 # SUSIE_RSS() - BASIC FUNCTIONALITY (lambda > 0)
 # =============================================================================
 
-test_that("susie_rss with lambda > 0 returns valid susie object", {
+test_that("susie_rss_lambda with lambda > 0 returns valid susie object", {
   set.seed(44)
   setup <- setup_rss_lambda_data(n = 500, p = 50, k = 3, lambda = 1e-5, seed = NULL)
 
-  fit <- susie_rss(z = setup$z, R = setup$R, L = 5,
+  fit <- susie_rss_lambda(z = setup$z, R = setup$R, L = 5,
                    lambda = 1e-5, verbose = FALSE)
 
   expect_s3_class(fit, "susie")
@@ -668,11 +664,11 @@ test_that("susie_rss with lambda > 0 returns valid susie object", {
   expect_true("pip" %in% names(fit))
 })
 
-test_that("susie_rss with lambda > 0 has correct dimensions", {
+test_that("susie_rss_lambda with lambda > 0 has correct dimensions", {
   set.seed(45)
   setup <- setup_rss_lambda_data(n = 500, p = 50, k = 3, lambda = 1e-5, seed = NULL)
 
-  fit <- susie_rss(z = setup$z, R = setup$R, L = 5,
+  fit <- susie_rss_lambda(z = setup$z, R = setup$R, L = 5,
                    lambda = 1e-5, verbose = FALSE)
 
   expect_equal(dim(fit$alpha), c(5, 50))
@@ -681,11 +677,11 @@ test_that("susie_rss with lambda > 0 has correct dimensions", {
   expect_length(fit$pip, 50)
 })
 
-test_that("susie_rss with lambda > 0 maintains valid probability distributions", {
+test_that("susie_rss_lambda with lambda > 0 maintains valid probability distributions", {
   set.seed(46)
   setup <- setup_rss_lambda_data(n = 500, p = 50, k = 3, lambda = 1e-5, seed = NULL)
 
-  fit <- susie_rss(z = setup$z, R = setup$R, L = 5,
+  fit <- susie_rss_lambda(z = setup$z, R = setup$R, L = 5,
                    lambda = 1e-5, verbose = FALSE)
 
   expect_equal(rowSums(fit$alpha), rep(1, 5), tolerance = 1e-10)
@@ -693,12 +689,12 @@ test_that("susie_rss with lambda > 0 maintains valid probability distributions",
   expect_true(all(fit$pip >= 0 & fit$pip <= 1))
 })
 
-test_that("susie_rss with lambda > 0 handles maf filtering", {
+test_that("susie_rss_lambda with lambda > 0 handles maf filtering", {
   set.seed(47)
   setup <- setup_rss_lambda_data(n = 500, p = 50, k = 3, lambda = 1e-5, seed = NULL)
   maf <- runif(50, 0, 0.5)
 
-  fit <- susie_rss(z = setup$z, R = setup$R, L = 5,
+  fit <- susie_rss_lambda(z = setup$z, R = setup$R, L = 5,
                    lambda = 1e-5, maf = maf, maf_thresh = 0.1,
                    verbose = FALSE)
 
@@ -706,23 +702,23 @@ test_that("susie_rss with lambda > 0 handles maf filtering", {
   expect_equal(ncol(fit$alpha), n_filtered)
 })
 
-test_that("susie_rss with lambda > 0 ELBO is monotonically increasing", {
+test_that("susie_rss_lambda with lambda > 0 ELBO is monotonically increasing", {
   set.seed(48)
   setup <- setup_rss_lambda_data(n = 500, p = 50, k = 3, lambda = 1e-5, seed = NULL)
 
-  fit <- susie_rss(z = setup$z, R = setup$R, L = 5,
+  fit <- susie_rss_lambda(z = setup$z, R = setup$R, L = 5,
                    lambda = 1e-5, verbose = FALSE)
 
   elbo_diff <- diff(fit$elbo)
   expect_true(all(elbo_diff > -1e-6))
 })
 
-test_that("susie_rss with lambda > 0 identifies causal variables", {
+test_that("susie_rss_lambda with lambda > 0 identifies causal variables", {
   set.seed(49)
   setup <- setup_rss_lambda_data(n = 500, p = 50, k = 3, lambda = 1e-5,
                                   signal_sd = 1, seed = NULL)
 
-  fit <- susie_rss(z = setup$z, R = setup$R, L = 10,
+  fit <- susie_rss_lambda(z = setup$z, R = setup$R, L = 10,
                    lambda = 1e-5, verbose = FALSE)
 
   # Top PIPs should include at least one true causal variable
@@ -744,51 +740,50 @@ test_that("susie_rss switches data type based on lambda", {
   R <- with(ss, cov2cor(XtX))
 
   # lambda = 0 should use sufficient statistics
-  fit_lambda0 <- susie_rss(z = z_scores, R = R, n = 100, L = 5,
-                           lambda = 0, verbose = FALSE)
+  fit_lambda0 <- susie_rss(z = z_scores, R = R, n = 100, L = 5 , verbose = FALSE)
 
   # lambda > 0 should use rss_lambda class
-  fit_lambda_pos <- susie_rss(z = z_scores, R = R, L = 5,
+  fit_lambda_pos <- susie_rss_lambda(z = z_scores, R = R, L = 5,
                               lambda = 1e-5, verbose = FALSE)
 
   expect_s3_class(fit_lambda0, "susie")
   expect_s3_class(fit_lambda_pos, "susie")
 })
 
-test_that("susie_rss with lambda > 0 accepts n parameter for PVE adjustment", {
+test_that("susie_rss_lambda with lambda > 0 accepts n parameter for PVE adjustment", {
   set.seed(51)
   setup <- setup_rss_lambda_data(n = 500, p = 50, k = 3, lambda = 1e-5, seed = NULL)
 
   # n is now used for PVE adjustment in all paths; no "n is not used" warning
-  fit <- susie_rss(z = setup$z, R = setup$R, n = 100, L = 5,
+  fit <- susie_rss_lambda(z = setup$z, R = setup$R, n = 100, L = 5,
                    lambda = 1e-5, verbose = FALSE)
   expect_s3_class(fit, "susie")
 })
 
-test_that("susie_rss with lambda > 0 rejects bhat/shat", {
+test_that("susie_rss_lambda does not expose bhat/shat", {
   set.seed(52)
   setup <- setup_rss_lambda_data(n = 500, p = 50, k = 3, lambda = 1e-5, seed = NULL)
 
   expect_error(
-    susie_rss(z = setup$z, R = setup$R, L = 5,
-              bhat = rnorm(50), shat = runif(50, 0.5, 1),
-              lambda = 1e-5, verbose = FALSE),
-    "bhat.*shat.*not supported"
+    susie_rss_lambda(z = setup$z, R = setup$R, L = 5,
+	      bhat = rnorm(50), shat = runif(50, 0.5, 1),
+	      lambda = 1e-5, verbose = FALSE),
+    "unused argument"
   )
 })
 
-test_that("susie_rss with lambda > 0 rejects var_y", {
+test_that("susie_rss_lambda does not expose var_y", {
   set.seed(53)
   setup <- setup_rss_lambda_data(n = 500, p = 50, k = 3, lambda = 1e-5, seed = NULL)
 
   expect_error(
-    susie_rss(z = setup$z, R = setup$R, L = 5,
-              var_y = 1.5, lambda = 1e-5, verbose = FALSE),
-    "var_y.*not supported"
+    susie_rss_lambda(z = setup$z, R = setup$R, L = 5,
+	      var_y = 1.5, lambda = 1e-5, verbose = FALSE),
+    "unused argument"
   )
 })
 
-test_that("susie_rss with lambda = 0 rejects intercept_value", {
+test_that("susie_rss does not expose intercept_value", {
   set.seed(54)
   dat <- simulate_regression(n = 100, p = 50, k = 3)
   ss <- compute_suff_stat(dat$X, dat$y, standardize = TRUE)
@@ -796,9 +791,8 @@ test_that("susie_rss with lambda = 0 rejects intercept_value", {
   R <- with(ss, cov2cor(XtX))
 
   expect_error(
-    susie_rss(z = z_scores, R = R, n = 100, L = 5,
-              lambda = 0, intercept_value = 0.5, verbose = FALSE),
-    "intercept_value.*only supported"
+    susie_rss(z = z_scores, R = R, n = 100, L = 5 , intercept_value = 0.5, verbose = FALSE),
+    "unused argument"
   )
 })
 
@@ -810,7 +804,7 @@ test_that("susie_rss requires either z or bhat/shat", {
   R <- diag(50)
 
   expect_error(
-    susie_rss(R = R, n = 100, L = 5, lambda = 0, verbose = FALSE),
+    susie_rss(R = R, n = 100, L = 5 , verbose = FALSE),
     "Please provide either z or \\(bhat, shat\\)"
   )
 })
@@ -823,22 +817,23 @@ test_that("susie_rss rejects both z and bhat/shat", {
 
   expect_error(
     susie_rss(z = z, bhat = bhat, shat = shat, R = R, n = 100,
-              L = 5, lambda = 0, verbose = FALSE),
+              L = 5 , verbose = FALSE),
     "Please provide either z or \\(bhat, shat\\), but not both"
   )
 })
 
-test_that("susie_rss handles check_R parameter", {
+test_that("susie_rss does not expose check_R", {
   set.seed(55)
   dat <- simulate_regression(n = 100, p = 50, k = 3)
   ss <- compute_suff_stat(dat$X, dat$y, standardize = TRUE)
   z_scores <- with(univariate_regression(dat$X, dat$y), betahat / sebetahat)
   R <- with(ss, cov2cor(XtX))
 
-  fit <- susie_rss(z = z_scores, R = R, n = 100, L = 5,
-                   lambda = 0, check_R = TRUE, verbose = FALSE)
-
-  expect_s3_class(fit, "susie")
+  expect_error(
+    susie_rss(z = z_scores, R = R, n = 100, L = 5,
+              check_R = TRUE, verbose = FALSE),
+    "unused argument"
+  )
 })
 
 # =============================================================================
@@ -870,8 +865,7 @@ test_that("susie, susie_ss, and susie_rss give similar PIPs", {
   z_scores <- with(univariate_regression(dat$X, dat$y), betahat / sebetahat)
   R <- with(ss, cov2cor(XtX))
 
-  fit_rss <- susie_rss(z = z_scores, R = R, n = 100, L = 5,
-                       lambda = 0, verbose = FALSE, estimate_residual_variance = TRUE)
+  fit_rss <- susie_rss(z = z_scores, R = R, n = 100, L = 5 , verbose = FALSE, estimate_residual_variance = TRUE)
 
   # PIPs should be very similar
   expect_equal(fit_ind$pip, fit_ss$pip, tolerance = 1e-3)
@@ -890,8 +884,7 @@ test_that("All three interfaces find credible sets", {
   ss_full <- compute_suff_stat(dat$X, dat$y, standardize = TRUE)
   z_scores <- with(univariate_regression(dat$X, dat$y), betahat / sebetahat)
   R <- with(ss_full, cov2cor(XtX))
-  fit_rss <- susie_rss(z = z_scores, R = R, n = 200, L = 10,
-                       lambda = 0, verbose = FALSE)
+  fit_rss <- susie_rss(z = z_scores, R = R, n = 200, L = 10 , verbose = FALSE)
 
   # At least one method should find credible sets
   has_cs <- (!is.null(fit_ind$sets$cs) && length(fit_ind$sets$cs) > 0) ||
@@ -940,8 +933,7 @@ test_that("susie_rss handles refine = TRUE", {
   z_scores <- with(univariate_regression(dat$X, dat$y), betahat / sebetahat)
   R <- with(ss, cov2cor(XtX))
 
-  fit <- susie_rss(z = z_scores, R = R, n = 200, L = 10,
-                   lambda = 0, refine = TRUE, verbose = FALSE)
+  fit <- susie_rss(z = z_scores, R = R, n = 200, L = 10 , refine = TRUE, verbose = FALSE)
 
   expect_s3_class(fit, "susie")
 })
@@ -979,8 +971,7 @@ test_that("susie_rss handles track_fit = TRUE", {
   z_scores <- with(univariate_regression(dat$X, dat$y), betahat / sebetahat)
   R <- with(ss, cov2cor(XtX))
 
-  fit <- susie_rss(z = z_scores, R = R, n = 100, L = 5,
-                   lambda = 0, track_fit = TRUE, verbose = FALSE)
+  fit <- susie_rss(z = z_scores, R = R, n = 100, L = 5 , track_fit = TRUE, verbose = FALSE)
 
   expect_true("trace" %in% names(fit))
   expect_type(fit$trace, "list")
@@ -1019,8 +1010,7 @@ test_that("susie_rss verbose output works", {
   R <- with(ss, cov2cor(XtX))
 
   expect_message(
-    susie_rss(z = z_scores, R = R, n = 100, L = 5,
-              lambda = 0, verbose = TRUE),
+    susie_rss(z = z_scores, R = R, n = 100, L = 5 , verbose = TRUE),
     "ELBO"
   )
 })
@@ -1043,8 +1033,7 @@ test_that("All interfaces maintain non-negative prior variances", {
   ss_full <- compute_suff_stat(dat$X, dat$y, standardize = TRUE)
   z_scores <- with(univariate_regression(dat$X, dat$y), betahat / sebetahat)
   R <- with(ss_full, cov2cor(XtX))
-  fit_rss <- susie_rss(z = z_scores, R = R, n = 100, L = 5,
-                       lambda = 0, verbose = FALSE)
+  fit_rss <- susie_rss(z = z_scores, R = R, n = 100, L = 5 , verbose = FALSE)
   expect_true(all(fit_rss$V >= 0))
 })
 
@@ -1062,8 +1051,7 @@ test_that("All interfaces maintain positive residual variance", {
   ss_full <- compute_suff_stat(dat$X, dat$y, standardize = TRUE)
   z_scores <- with(univariate_regression(dat$X, dat$y), betahat / sebetahat)
   R <- with(ss_full, cov2cor(XtX))
-  fit_rss <- susie_rss(z = z_scores, R = R, n = 100, L = 5,
-                       lambda = 0, verbose = FALSE)
+  fit_rss <- susie_rss(z = z_scores, R = R, n = 100, L = 5 , verbose = FALSE)
   expect_true(fit_rss$sigma2 > 0)
 })
 
@@ -1092,8 +1080,7 @@ test_that("All interfaces produce output compatible with susie_get functions", {
   ss_full <- compute_suff_stat(dat$X, dat$y, standardize = TRUE)
   z_scores <- with(univariate_regression(dat$X, dat$y), betahat / sebetahat)
   R <- with(ss_full, cov2cor(XtX))
-  fit_rss <- susie_rss(z = z_scores, R = R, n = 100, L = 5,
-                       lambda = 0, verbose = FALSE)
+  fit_rss <- susie_rss(z = z_scores, R = R, n = 100, L = 5 , verbose = FALSE)
   expect_length(susie_get_pip(fit_rss), 50)
   expect_equal(susie_get_objective(fit_rss, last_only = TRUE),
                fit_rss$elbo[length(fit_rss$elbo)])

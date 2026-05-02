@@ -1375,14 +1375,14 @@ test_that("rss_lambda_constructor rejects NIG", {
   )
 })
 
-test_that("rss_lambda_constructor sets unmappable_effects to none", {
+test_that("rss_lambda_constructor does not expose unmappable_effects", {
   z <- rnorm(50)
   R <- diag(50)
 
-  result <- rss_lambda_constructor(z, R, lambda = 0.5,
-                                  unmappable_effects = "inf")
-
-  expect_equal(result$params$unmappable_effects, "none")
+  expect_error(
+    rss_lambda_constructor(z, R, lambda = 0.5, unmappable_effects = "inf"),
+    "unused argument"
+  )
 })
 
 # =============================================================================
@@ -1656,17 +1656,6 @@ test_that("summary_stats_constructor rejects empty z vector", {
   )
 })
 
-test_that("summary_stats_constructor warns about deprecated z_ld_weight", {
-  p <- 50
-  z <- rnorm(p)
-  R <- diag(p)
-
-  expect_message(
-    summary_stats_constructor(z = z, R = R, n = 100, lambda = 0, z_ld_weight = 0.1),
-    "As of version 0.11.0, use of non-zero z_ld_weight is no longer recommended"
-  )
-})
-
 test_that("summary_stats_constructor rejects MAF with wrong length", {
   p <- 50
   z <- rnorm(p)
@@ -1789,16 +1778,6 @@ test_that("summary_stats_constructor rejects var_y when lambda != 0", {
   expect_error(
     summary_stats_constructor(z = z, R = R, var_y = 1.5, lambda = 0.5),
     "var_y.*not supported"
-  )
-})
-
-test_that("summary_stats_constructor rejects z_ld_weight when lambda != 0", {
-  z <- rnorm(50)
-  R <- diag(50)
-
-  expect_error(
-    summary_stats_constructor(z = z, R = R, z_ld_weight = 0.5, lambda = 0.5),
-    "z_ld_weight.*not supported"
   )
 })
 
