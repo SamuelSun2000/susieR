@@ -575,7 +575,6 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
                                       n = NULL, bhat = NULL,
                                       shat = NULL, var_y = NULL,
                                       L = min(10, if (!is.null(R)) ncol(R) else ncol(X)),
-                                      lambda = 0,
                                       maf = NULL,
                                       maf_thresh = 0,
                                       prior_variance = 50,
@@ -584,7 +583,6 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
                                       prior_weights = NULL,
                                       null_weight = 0,
                                       standardize = TRUE,
-                                      intercept_value = 0,
                                       estimate_residual_variance = FALSE,
                                       estimate_residual_method = "MoM",
                                       estimate_prior_variance = TRUE,
@@ -661,8 +659,6 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
   R_finite <- resolve_R_finite(R_finite, if (!is.null(X)) X else R,
                                is_multipanel)
   if (is_multipanel) {
-    if (lambda != 0)
-      stop("Multi-panel mixture is available only on the sufficient-statistics path.")
     if (!is.null(bhat) || !is.null(shat)) {
       stop("Parameters 'bhat' and 'shat' are not supported in the ",
            "multi-panel summary-statistics path. ",
@@ -700,49 +696,8 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
     ))
   }
 
-  if (lambda != 0) {
-    if (!is.null(R_finite))
-      stop("R_finite is not available in the RSS-lambda path.")
-    if (R_mismatch != "none")
-      stop("R_mismatch is not available in the RSS-lambda path.")
-    if (!is.null(bhat) || !is.null(shat)) {
-      stop("Parameters 'bhat' and 'shat' are not supported in the ",
-           "RSS-lambda path.")
-    }
-    if (!is.null(var_y))
-      stop("Parameter 'var_y' is not supported in the RSS-lambda path.")
-    return(rss_lambda_constructor(
-      z = z, R = R, X = X, n = n,
-      L = L, lambda = lambda, maf = maf, maf_thresh = maf_thresh,
-      prior_variance = prior_variance,
-      residual_variance = residual_variance, prior_weights = prior_weights,
-      null_weight = null_weight, intercept_value = intercept_value,
-      estimate_residual_variance = estimate_residual_variance,
-      estimate_residual_method = estimate_residual_method,
-      estimate_prior_variance = estimate_prior_variance,
-      estimate_prior_method = estimate_prior_method,
-      prior_variance_grid = prior_variance_grid,
-      mixture_weights = mixture_weights,
-      check_null_threshold = check_null_threshold, prior_tol = prior_tol,
-      residual_variance_lowerbound = residual_variance_lowerbound,
-      model_init = model_init, coverage = coverage, min_abs_corr = min_abs_corr,
-      max_iter = max_iter, tol = tol, convergence_method = convergence_method,
-      verbose = verbose, track_fit = track_fit,
-      check_prior = check_prior, check_R = TRUE, check_z = FALSE,
-      n_purity = n_purity, r_tol = r_tol, refine = refine,
-      slot_prior = slot_prior, L_greedy = L_greedy,
-      greedy_lbf_cutoff = greedy_lbf_cutoff
-    ))
-  }
-
-  # Parameter validation for standard RSS (lambda = 0)
-  if (intercept_value != 0) {
-    stop("Parameter 'intercept_value' is only supported in the ",
-         "eigendecomposition path (lambda != 0 or multi-panel).")
-  }
-
   # Issue warning for estimate_residual_variance if TRUE
-  if (estimate_residual_variance && lambda == 0) {
+  if (estimate_residual_variance) {
     warning_message("For estimate_residual_variance = TRUE, please check ",
             "that R is the \"in-sample\" R matrix; that is, the ",
             "correlation matrix obtained using the exact same data ",

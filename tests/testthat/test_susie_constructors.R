@@ -1503,24 +1503,12 @@ test_that("rss_lambda_constructor rejects null_weight >= 1", {
 # SUMMARY STATISTICS CONSTRUCTOR - Routing Logic
 # =============================================================================
 
-test_that("summary_stats_constructor routes to rss_lambda when lambda != 0", {
+test_that("summary_stats_constructor builds a sufficient_stats data object", {
   p <- 50
   z <- rnorm(p)
   R <- diag(p)
 
-  result <- summary_stats_constructor(z = z, R = R, lambda = 0.5,
-                                      estimate_residual_method = "MLE")
-
-  expect_s3_class(result$data, "rss_lambda")
-  expect_equal(result$data$lambda, 0.5)
-})
-
-test_that("summary_stats_constructor routes to sufficient_stats when lambda = 0", {
-  p <- 50
-  z <- rnorm(p)
-  R <- diag(p)
-
-  result <- summary_stats_constructor(z = z, R = R, n = 100, lambda = 0)
+  result <- summary_stats_constructor(z = z, R = R, n = 100)
 
   expect_s3_class(result$data, "ss")
 })
@@ -1537,7 +1525,7 @@ test_that("summary_stats_constructor rejects R with wrong number of rows", {
   R_wrong <- diag(40)
 
   expect_error(
-    summary_stats_constructor(z = z, R = R_wrong, n = 100, lambda = 0),
+    summary_stats_constructor(z = z, R = R_wrong, n = 100),
     "The dimension of R \\(40 x 40\\) does not agree with expected \\(50 x 50\\)"
   )
 })
@@ -1549,19 +1537,19 @@ test_that("summary_stats_constructor rejects n <= 1", {
 
   # Test n = 1
   expect_error(
-    summary_stats_constructor(z = z, R = R, n = 1, lambda = 0),
+    summary_stats_constructor(z = z, R = R, n = 1),
     "n must be greater than 1"
   )
 
   # Test n = 0
   expect_error(
-    summary_stats_constructor(z = z, R = R, n = 0, lambda = 0),
+    summary_stats_constructor(z = z, R = R, n = 0),
     "n must be greater than 1"
   )
 
   # Test negative n
   expect_error(
-    summary_stats_constructor(z = z, R = R, n = -5, lambda = 0),
+    summary_stats_constructor(z = z, R = R, n = -5),
     "n must be greater than 1"
   )
 })
@@ -1573,7 +1561,7 @@ test_that("summary_stats_constructor rejects mismatched bhat and shat lengths", 
   shat <- abs(rnorm(p - 5))  # Wrong length
 
   expect_error(
-    summary_stats_constructor(bhat = bhat, shat = shat, R = R, n = 100, lambda = 0),
+    summary_stats_constructor(bhat = bhat, shat = shat, R = R, n = 100),
     "The lengths of bhat and shat do not agree"
   )
 })
@@ -1585,7 +1573,7 @@ test_that("summary_stats_constructor accepts scalar shat and replicates it", {
   shat <- 0.1  # Scalar
 
   # Should replicate shat to length of bhat
-  result <- summary_stats_constructor(bhat = bhat, shat = shat, R = R, n = 100, lambda = 0)
+  result <- summary_stats_constructor(bhat = bhat, shat = shat, R = R, n = 100)
   expect_true(!is.null(result))
 })
 
@@ -1597,7 +1585,7 @@ test_that("summary_stats_constructor rejects missing values in bhat", {
   shat <- abs(rnorm(p))
 
   expect_error(
-    summary_stats_constructor(bhat = bhat, shat = shat, R = R, n = 100, lambda = 0),
+    summary_stats_constructor(bhat = bhat, shat = shat, R = R, n = 100),
     "bhat, shat cannot have missing values"
   )
 })
@@ -1610,7 +1598,7 @@ test_that("summary_stats_constructor rejects missing values in shat", {
   shat[10] <- NA
 
   expect_error(
-    summary_stats_constructor(bhat = bhat, shat = shat, R = R, n = 100, lambda = 0),
+    summary_stats_constructor(bhat = bhat, shat = shat, R = R, n = 100),
     "bhat, shat cannot have missing values"
   )
 })
@@ -1623,7 +1611,7 @@ test_that("summary_stats_constructor rejects zero elements in shat", {
   shat[5] <- 0
 
   expect_error(
-    summary_stats_constructor(bhat = bhat, shat = shat, R = R, n = 100, lambda = 0),
+    summary_stats_constructor(bhat = bhat, shat = shat, R = R, n = 100),
     "shat cannot have zero or negative elements"
   )
 })
@@ -1636,7 +1624,7 @@ test_that("summary_stats_constructor rejects negative elements in shat", {
   shat[8] <- -0.5
 
   expect_error(
-    summary_stats_constructor(bhat = bhat, shat = shat, R = R, n = 100, lambda = 0),
+    summary_stats_constructor(bhat = bhat, shat = shat, R = R, n = 100),
     "shat cannot have zero or negative elements"
   )
 })
@@ -1648,7 +1636,7 @@ test_that("summary_stats_constructor rejects empty z vector", {
   R <- matrix(0, 0, 0)  # Match the expected dimension (0 x 0)
 
   expect_error(
-    summary_stats_constructor(z = z, R = R, n = 100, lambda = 0),
+    summary_stats_constructor(z = z, R = R, n = 100),
     "Input vector z should have at least one element"
   )
 })
@@ -1660,7 +1648,7 @@ test_that("summary_stats_constructor rejects MAF with wrong length", {
   maf <- runif(p - 10)  # Wrong length
 
   expect_error(
-    summary_stats_constructor(z = z, R = R, n = 100, lambda = 0, maf = maf),
+    summary_stats_constructor(z = z, R = R, n = 100, maf = maf),
     "The length of maf does not agree with expected 50"
   )
 })
@@ -1675,7 +1663,7 @@ test_that("summary_stats_constructor handles shat and var_y for original scale e
 
   # This should use the original scale path (lines 649-655)
   result <- summary_stats_constructor(
-    bhat = bhat, shat = shat, var_y = var_y, R = R, n = n, lambda = 0
+    bhat = bhat, shat = shat, var_y = var_y, R = R, n = n
   )
 
   # Verify the result is created successfully
@@ -1699,7 +1687,7 @@ test_that("summary_stats_constructor converts z to sufficient stats", {
   R <- diag(p)
   n <- 100
 
-  result <- summary_stats_constructor(z = z, R = R, n = n, lambda = 0)
+  result <- summary_stats_constructor(z = z, R = R, n = n)
 
   expect_true("XtX" %in% names(result$data))
   expect_true("Xty" %in% names(result$data))
@@ -1712,7 +1700,7 @@ test_that("summary_stats_constructor handles z without n", {
   R <- diag(p)
 
   expect_message(
-    result <- summary_stats_constructor(z = z, R = R, lambda = 0),
+    result <- summary_stats_constructor(z = z, R = R),
     "Providing the sample size"
   )
 
@@ -1726,7 +1714,7 @@ test_that("summary_stats_constructor converts bhat/shat to z", {
   R <- diag(p)
   n <- 100
 
-  result <- summary_stats_constructor(bhat = bhat, shat = shat, R = R, n = n, lambda = 0)
+  result <- summary_stats_constructor(bhat = bhat, shat = shat, R = R, n = n)
 
   expect_s3_class(result$data, "ss")
 })
@@ -1735,7 +1723,7 @@ test_that("summary_stats_constructor requires either z or bhat/shat", {
   R <- diag(50)
 
   expect_error(
-    summary_stats_constructor(R = R, n = 100, lambda = 0),
+    summary_stats_constructor(R = R, n = 100),
     "Please provide either z or \\(bhat, shat\\)"
   )
 })
@@ -1747,59 +1735,8 @@ test_that("summary_stats_constructor rejects both z and bhat/shat", {
   R <- diag(50)
 
   expect_error(
-    summary_stats_constructor(z = z, bhat = bhat, shat = shat, R = R, n = 100, lambda = 0),
+    summary_stats_constructor(z = z, bhat = bhat, shat = shat, R = R, n = 100),
     "Please provide either z or \\(bhat, shat\\), but not both"
-  )
-})
-
-# =============================================================================
-# SUMMARY STATISTICS CONSTRUCTOR - Lambda != 0 Restrictions
-# =============================================================================
-
-test_that("summary_stats_constructor rejects bhat/shat when lambda != 0", {
-  z <- rnorm(50)
-  bhat <- rnorm(50)
-  shat <- runif(50, 0.5, 1.5)
-  R <- diag(50)
-
-  expect_error(
-    summary_stats_constructor(z = z, R = R, bhat = bhat, shat = shat, lambda = 0.5),
-    "bhat.*shat.*not supported"
-  )
-})
-
-test_that("summary_stats_constructor rejects var_y when lambda != 0", {
-  z <- rnorm(50)
-  R <- diag(50)
-
-  expect_error(
-    summary_stats_constructor(z = z, R = R, var_y = 1.5, lambda = 0.5),
-    "var_y.*not supported"
-  )
-})
-
-test_that("summary_stats_constructor accepts n when lambda != 0 for PVE adjustment", {
-  z <- rnorm(50)
-  R <- diag(50)
-
-  # n is used for PVE adjustment in all paths; the lambda > 0 dispatch
-  # routes through rss_lambda_constructor which requires MLE.
-  result <- summary_stats_constructor(z = z, R = R, n = 100, lambda = 0.5,
-                                      estimate_residual_method = "MLE")
-  expect_true(!is.null(result))
-})
-
-# =============================================================================
-# SUMMARY STATISTICS CONSTRUCTOR - Lambda=0 Restrictions
-# =============================================================================
-
-test_that("summary_stats_constructor rejects intercept_value when lambda = 0", {
-  z <- rnorm(50)
-  R <- diag(50)
-
-  expect_error(
-    summary_stats_constructor(z = z, R = R, n = 100, lambda = 0, intercept_value = 0.5),
-    "intercept_value.*only supported"
   )
 })
 

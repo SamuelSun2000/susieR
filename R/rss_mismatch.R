@@ -38,7 +38,7 @@ resolve_R_finite <- function(R_finite, X = NULL, is_multi_panel = FALSE) {
            "When using a precomputed R matrix, provide a positive number ",
            "specifying the reference sample size B instead.")
     if (is_multi_panel)
-      return(min(vapply(X, nrow, integer(1))))
+      return(vapply(X, nrow, integer(1)))
     return(nrow(X))
   }
   if (!is.numeric(R_finite) || any(!is.finite(R_finite)) ||

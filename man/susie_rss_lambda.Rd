@@ -55,14 +55,12 @@ susie_rss_lambda(
 
 \item{n}{The sample size, not required but recommended.}
 
-\item{X}{A factor matrix (B x p) such that \code{R = crossprod(X) /
-nrow(X)} approximates the R (correlation) matrix. When
-\code{nrow(X) >= ncol(X)}, the correlation matrix \code{R} is
-formed explicitly and the standard path is used. When
-\code{nrow(X) < ncol(X)}, a low-rank path is used that avoids
-forming the p x p matrix, reducing per-iteration cost from
-O(Lp^2) to O(LBp). Columns of \code{X} are standardized
-internally.}
+\item{X}{Optional factor matrix (B by p) such that
+\code{R = crossprod(X) / nrow(X)} approximates the correlation
+matrix \code{R}. The RSS-lambda path always builds the eigen
+decomposition via SVD of standardized \code{X}; there is no
+separate low-rank branch. Provide either \code{R} or \code{X}, not
+both.}
 
 \item{L}{Maximum number of non-zero effects in the model. If L is larger than
 the number of covariates, p, L is set to p.}

@@ -1163,7 +1163,7 @@ test_that("SS and RSS-lambda paths agree with small lambda (no inflation)", {
 })
 
 # =============================================================================
-# MULTI-PANEL R MIXTURE TESTS
+# MULTI-PANEL HELPER UTILITIES (used by ss_mixture, not the lambda path)
 # =============================================================================
 
 test_that("form_X_meta combines panels correctly", {

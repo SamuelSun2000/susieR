@@ -782,17 +782,18 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
     sp_call$s_init <- NULL
     sp_call$model_init <- NULL
 
-    # Returns the index of the panel with the highest single-panel ELBO.
-    # `panel_arg` selects which call slot to substitute (`"R"` or `"X"`).
+    # Run K single-panel sub-fits and return them along with the index of
+    # the highest-ELBO panel. `panel_arg` selects which call slot to
+    # substitute (`"R"` or `"X"`).
     pick_init_panel <- function(panels, panel_arg) {
-      sp_fits <- lapply(seq_along(panels), function(k) {
+      fits <- lapply(seq_along(panels), function(k) {
         sp_call[[panel_arg]] <- panels[[k]]
         sp_call$R_finite <- if (is.null(R_finite)) NULL else R_finite[k]
         tryCatch(eval(sp_call, user_env), error = function(e) NULL)
       })
-      sp_elbos <- vapply(sp_fits, function(f)
+      elbos <- vapply(fits, function(f)
         if (!is.null(f)) tail(f$elbo, 1) else -Inf, numeric(1))
-      which.max(sp_elbos)
+      list(idx = which.max(elbos), fits = fits, elbos = elbos)
     }
 
     if (!is.null(R)) {
@@ -802,7 +803,8 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
         if (nrow(R[[k]]) != ncol(R[[k]]))
           stop("Each element of R list must be square.")
       }
-      attr(R, ".init_panel") <- pick_init_panel(R, "R")
+      sp <- pick_init_panel(R, "R")
+      attr(R, ".init_panel") <- sp$idx
     } else {
       for (k in seq_along(X)) {
         if (!is.matrix(X[[k]]) || !is.numeric(X[[k]]))
@@ -817,8 +819,11 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
           Xk <- t(t(Xk) - cm)
         Xk
       })
-      attr(X, ".init_panel") <- pick_init_panel(X, "X")
+      sp <- pick_init_panel(X, "X")
+      attr(X, ".init_panel") <- sp$idx
     }
+    sp_fits <- sp$fits
+    sp_elbos <- sp$elbos
   }
 
   # Handle single-panel X input.
@@ -936,6 +941,12 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
 #'
 #' @inheritParams susie_rss
 #'
+#' @param X Optional factor matrix (B by p) such that
+#'   \code{R = crossprod(X) / nrow(X)} approximates the correlation
+#'   matrix \code{R}. The RSS-lambda path always builds the eigen
+#'   decomposition via SVD of standardized \code{X}; there is no
+#'   separate low-rank branch. Provide either \code{R} or \code{X}, not
+#'   both.
 #' @param lambda Regularization parameter for the RSS-lambda likelihood.
 #'   Must be supplied. \code{lambda = "estimate"} estimates lambda from
 #'   the null-space residual.
