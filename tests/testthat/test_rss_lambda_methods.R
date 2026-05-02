@@ -903,12 +903,12 @@ test_that("susie_rss_lambda excludes R_finite, R_mismatch, and multi-panel", {
   )
   expect_error(
     susie_rss_lambda(z = z, R = R, n = n, L = 3, lambda = 0.1,
-                     R_mismatch = "map", max_iter = 2, verbose = FALSE),
+                     R_mismatch = "eb_zero", max_iter = 2, verbose = FALSE),
     "unused argument"
   )
   expect_error(
     susie_rss_lambda(z = z, R = R, n = n, L = 3, lambda = 0.1,
-                     R_mismatch = "map_qc", max_iter = 2, verbose = FALSE),
+                     R_mismatch = "eb", max_iter = 2, verbose = FALSE),
     "unused argument"
   )
   expect_error(
@@ -930,7 +930,7 @@ test_that("R_mismatch works with and without finite-reference input", {
   R <- cor(X)
   z <- rnorm(p)
 
-  fit_inf <- susie_rss(z = z, R = R, n = n, L = 3, R_mismatch = "map",
+  fit_inf <- susie_rss(z = z, R = R, n = n, L = 3, R_mismatch = "eb_zero",
                        max_iter = 2, verbose = FALSE)
   expect_equal(fit_inf$R_finite_diagnostics$B, Inf)
   expect_length(fit_inf$R_finite_diagnostics$lambda_bias, 1)
@@ -941,7 +941,7 @@ test_that("R_mismatch works with and without finite-reference input", {
                tolerance = 1e-12)
 
   fit_false <- susie_rss(z = z, R = R, n = n, L = 3, R_finite = FALSE,
-                         R_mismatch = "map", max_iter = 2, verbose = FALSE)
+                         R_mismatch = "eb_zero", max_iter = 2, verbose = FALSE)
   expect_equal(fit_false$R_finite_diagnostics$B, Inf)
 
   # F6: "mle" is no longer a valid choice.
@@ -955,13 +955,13 @@ test_that("R_mismatch works with and without finite-reference input", {
   # which uses message()) and is auto-disabled.
   expect_message(
     fit_warn <- susie_rss(z = z, R = R, n = n, L = 3, R_finite = 10000,
-                          R_mismatch = "map", estimate_residual_variance = TRUE,
+                          R_mismatch = "eb_zero", estimate_residual_variance = TRUE,
                           max_iter = 2, verbose = FALSE),
     "incompatible with"
   )
 
   fit <- susie_rss(z = z, R = R, n = n, L = 3, R_finite = 10000,
-                   R_mismatch = "map", max_iter = 2, verbose = FALSE)
+                   R_mismatch = "eb_zero", max_iter = 2, verbose = FALSE)
   # SS path: region-level scalar lambda_bias and B_corrected (Commit 3 redesign).
   expect_length(fit$R_finite_diagnostics$lambda_bias, 1)
   # B_corrected = 1 / (1/R_finite_B + lambda_bias).
@@ -1006,7 +1006,7 @@ test_that("Fisher SE zero-mask sends near-boundary estimates to 0", {
   R <- cor(X)
   z <- rnorm(p)  # pure null
   fit <- susie_rss(z = z, R = R, n = n, L = 3, R_finite = 10000,
-                   R_mismatch = "map", max_iter = 5, verbose = FALSE)
+                   R_mismatch = "eb_zero", max_iter = 5, verbose = FALSE)
   # All entries should be cleanly zero, not ~4e-9 optimizer floor.
   lb <- fit$R_finite_diagnostics$lambda_bias
   expect_true(all(lb == 0 | lb > 1e-6),
@@ -1029,7 +1029,7 @@ test_that("In-sample LD identity yields lambda_bias = 0 (spec invariant 5.3)", {
   z <- ss$XtX %*% beta / sqrt(diag(ss$XtX)) + rnorm(p)
   z <- as.numeric(z)
   fit <- susie_rss(z = z, R = R, n = n, L = 3, R_finite = 5000,
-                   R_mismatch = "map", max_iter = 8, verbose = FALSE)
+                   R_mismatch = "eb_zero", max_iter = 8, verbose = FALSE)
   expect_true(all(fit$R_finite_diagnostics$lambda_bias == 0),
               info = "In-sample LD must produce lambda_bias = 0")
 })
@@ -1053,7 +1053,7 @@ test_that("In-sample LD with multiple sparse signals does not inflate lambda_bia
   z <- calc_z(X, y, center = TRUE, scale = FALSE)
 
   fit <- susie_rss(z = z, X = X, n = n, L = 6, R_finite = TRUE,
-                   R_mismatch = "map", max_iter = 50, verbose = FALSE)
+                   R_mismatch = "eb_zero", max_iter = 50, verbose = FALSE)
 
   expect_true(max(fit$R_finite_diagnostics$lambda_bias) < 0.01,
               info = "In-sample LD should not estimate large population mismatch")
@@ -1090,7 +1090,7 @@ test_that("Large R_finite limit reduces to pure-drift estimator", {
   beta <- rep(0, p); beta[1] <- 0.6
   z <- as.numeric(R %*% beta * sqrt(n) + rnorm(p))
   fit <- susie_rss(z = z, R = R, n = n, L = 3, R_finite = 1e12,
-                   R_mismatch = "map", max_iter = 5, verbose = FALSE)
+                   R_mismatch = "eb_zero", max_iter = 5, verbose = FALSE)
   lb <- fit$R_finite_diagnostics$lambda_bias
   bc <- fit$R_finite_diagnostics$B_corrected
   active <- lb > 0

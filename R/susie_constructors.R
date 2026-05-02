@@ -641,7 +641,7 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
 
   is_multipanel <- (is.list(X) && !is.matrix(X)) ||
                    (is.list(R) && !is.matrix(R))
-  R_mismatch <- match.arg(R_mismatch, c("none", "map", "map_qc"))
+  R_mismatch <- match.arg(R_mismatch, c("none", "eb", "eb_zero"))
   R_finite_explicit_false <- identical(R_finite, FALSE)
   if (isTRUE(R_finite) && is.null(X))
     stop("R_finite = TRUE requires X input. When using precomputed R, ",
@@ -795,7 +795,7 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
     X <- standardize_X(X)
   }
 
-  R_mismatch <- match.arg(R_mismatch, c("none", "map", "map_qc"))
+  R_mismatch <- match.arg(R_mismatch, c("none", "eb", "eb_zero"))
   R_finite_B <- R_finite
   if (R_mismatch != "none" && is.null(R_finite_B))
     R_finite_B <- Inf
@@ -809,13 +809,11 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
       x_is_standardized = TRUE)
   }
 
-  # Cache eigen(R) for the Q_art QC diagnostic. Only computed when the
-  # user opts into map_qc; the standard "map" path does not pay the
-  # O(p^3) eigen cost. Works for both R-input and X-input: after
-  # standardize_X, crossprod(X) == R. Reuses the attr(R, "eigen")
-  # convention when the caller pre-computed it.
+  # Cache eigen(R) for the Q_art QC diagnostic whenever R_mismatch is active.
+  # Works for both R-input and X-input: after standardize_X, crossprod(X) == R.
+  # Reuses the attr(R, "eigen") convention when the caller pre-computed it.
   eigen_R_cache <- NULL
-  if (R_mismatch == "map_qc") {
+  if (R_mismatch != "none") {
     eigen_R_cache <- if (!is.null(R)) attr(R, "eigen") else NULL
     if (is.null(eigen_R_cache)) {
       R_for_eigen <- if (!is.null(R)) R else crossprod(X)
@@ -893,7 +891,7 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
     result$data$R_mismatch <- R_mismatch
   }
 
-  # eigen(R) cache for Q_art diagnostic (map_qc only).
+  # eigen(R) cache for Q_art diagnostic.
   if (!is.null(eigen_R_cache))
     result$data$eigen_R <- eigen_R_cache
 
@@ -1118,7 +1116,7 @@ ss_mixture_constructor <- function(z, R = NULL, X = NULL, n,
     ),
     class = c("ss_mixture", "ss")
   )
-  if (R_mismatch == "map_qc")
+  if (R_mismatch != "none")
     data_object$eigen_R <- eigen(R_init, symmetric = TRUE)
 
   list(data = data_object, params = params_object)

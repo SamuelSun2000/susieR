@@ -160,6 +160,8 @@ ibss_initialize.default <- function(data, params) {
     model$lambda_bias <- 0
     model$B_corrected <- data$R_finite_B
     model$R_finite_B <- data$R_finite_B
+    if (is.null(params$model_init))
+      model <- initialize_R_mismatch(data, params, model)
   }
 
   return(model)
@@ -395,7 +397,7 @@ ibss_finalize <- function(data, params, model, elbo = NULL, iter = NA_integer_,
       model$R_finite_diagnostics$R_mismatch <- data$R_mismatch
     if (!is.null(model$shat2_inflation))
       model$R_finite_diagnostics$per_variable_penalty <- as.vector(model$shat2_inflation - 1)
-    # Q_art / artifact fields are present only for R_mismatch = "map_qc"
+    # Q_art / artifact fields are present only when R_mismatch is active
     # (set by fit_R_mismatch). Copy whichever exist.
     for (fld in c("Q_art", "artifact_flag", "artifact_evaluable",
                   "low_eigen_count", "low_eigen_fraction", "eig_delta",
@@ -404,6 +406,8 @@ ibss_finalize <- function(data, params, model, elbo = NULL, iter = NA_integer_,
         model$R_finite_diagnostics[[fld]] <- model[[fld]]
     if (!is.null(model$R_mismatch_trace))
       model$R_finite_diagnostics$R_mismatch_trace <- model$R_mismatch_trace
+    if (!is.null(model$R_mismatch_init))
+      model$R_finite_diagnostics$R_mismatch_init <- model$R_mismatch_init
   }
 
   # Multi-panel omega weights

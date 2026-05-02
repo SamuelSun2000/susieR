@@ -617,21 +617,23 @@ susie_ss <- function(XtX, Xty, yty, n,
 #'   \code{R_finite_diagnostics} element with per-region and
 #'   per-variable quality metrics.
 #'
-#' @param R_mismatch R-mismatch correction mode. \code{"none"} (default) is off.
-#'   \code{"map"} adds a region-level population-mismatch variance
-#'   component. When \code{R_finite} is provided, the component is added on
-#'   top of the finite-reference correction; otherwise it is the
-#'   \eqn{B = \infty} limit with no finite-reference term.
-#'   \code{"map_qc"} is \code{"map"} plus a QC score (\code{Q_art}) that
-#'   extends the Zou et al. (2022) column-space check from the input
-#'   summary vector to the fitted residual after \code{R_mismatch}
-#'   correction. It warns when that residual still projects onto
-#'   near-null directions of the supplied \code{R}.
-#'   Auto-disables \code{estimate_residual_variance} with a warning.
+#' @param R_mismatch R-mismatch correction mode. \code{"none"} (default) is
+#'   off. \code{"eb"} is the recommended empirical-Bayes correction: it
+#'   initializes the region-level variance component from a one-SER
+#'   protected residual, then updates it after each IBSS sweep. \code{"eb_zero"}
+#'   uses the same EB updates but starts from \code{lambda = 0}; this is mainly
+#'   useful as an ablation/diagnostic mode. When \code{R_finite} is provided,
+#'   the EB component is added on top of the finite-reference correction;
+#'   otherwise it is the \eqn{B = \infty} limit with no finite-reference term.
+#'   Both EB modes report a QC score (\code{Q_art}) that extends the Zou et al.
+#'   (2022) column-space check from the input summary vector to the fitted
+#'   residual after correction. They warn when that residual still projects
+#'   onto near-null directions of the supplied \code{R}, and auto-disable
+#'   \code{estimate_residual_variance} with a warning.
 #'
 #' @param eig_delta_rel,eig_delta_abs Cutoffs for "low-eigenvalue"
-#'   directions of \code{R} used by the QC diagnostic
-#'   (\code{R_mismatch = "map_qc"}). Default \code{eig_delta_rel = 1e-3},
+#'   directions of \code{R} used by the QC diagnostic when
+#'   \code{R_mismatch != "none"}. Default \code{eig_delta_rel = 1e-3},
 #'   \code{eig_delta_abs = 0}; the threshold is
 #'   \code{max(eig_delta_abs, eig_delta_rel * max_eigenvalue(R))}. Tighter
 #'   (smaller) values flag fewer regions.
@@ -715,7 +717,7 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
                       r_tol = 1e-8,
                       refine = FALSE,
                       R_finite = NULL,
-                      R_mismatch = c("none", "map", "map_qc"),
+                      R_mismatch = c("none", "eb", "eb_zero"),
                       eig_delta_rel = 1e-3,
                       eig_delta_abs = 0,
                       artifact_threshold = 0.1,

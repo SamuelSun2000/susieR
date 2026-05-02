@@ -12,8 +12,10 @@
 #     (compute_shat2_inflation)
 #   * model-state storage helper for per-slot inflation diagnostics
 #     (apply_inflation_state)
+#   * SER-protected initialization for the recommended EB path
+#     (initialize_R_mismatch)
 #   * per-sweep region-level fit (fit_R_mismatch)
-#   * residual R-mismatch QC diagnostic Q_art (R_mismatch = "map_qc")
+#   * residual R-mismatch QC diagnostic Q_art (always with R_mismatch)
 #
 # Storage convention on the model:
 #   model$lambda_bias    scalar set once per sweep by fit_R_mismatch
@@ -227,7 +229,7 @@ apply_inflation_state <- function(model, infl_state, l) {
 # PER-SWEEP REGION-LEVEL fit_R_mismatch
 # =============================================================================
 
-#' Fit the region-level lambda_bias from the post-sweep fitted residual.
+#' Fit the region-level lambda_bias from a fitted residual.
 #'
 #' Math (see archive/ld_mismatch_generativemodel.tex):
 #'   beta_bar    = colSums(slot_weight * alpha * mu)        (full posterior mean, betahat scale)
@@ -245,14 +247,14 @@ apply_inflation_state <- function(model, infl_state, l) {
 #' compute_shat2_inflation, which estimated lambda_bias from the
 #' intra-sweep r_full_z that drifts as the slot loop progresses.
 #'
-#' For mode = "map_qc" the same lambda_bias fit is followed by the
-#' Q_art residual artifact diagnostic; see compute_Q_art. The
-#' The artifact diagnostic emits an R warning when flagged; it does
-#' not change lambda_bias or the SER likelihood.
+#' The same lambda_bias fit is followed by the Q_art residual artifact
+#' diagnostic; see compute_Q_art. The artifact diagnostic emits an R
+#' warning when flagged; it does not change lambda_bias or the SER
+#' likelihood.
 #'
 #' @keywords internal
 #' @noRd
-fit_R_mismatch <- function(data, params, model) {
+compute_R_mismatch_state <- function(data, params, model, phase = "sweep") {
   R_mismatch <- if (!is.null(params$R_mismatch)) params$R_mismatch else "none"
   if (R_mismatch == "none") return(model)
   R_finite_B <- if (!is.null(model$R_finite_B)) model$R_finite_B else data$R_finite_B
@@ -278,41 +280,39 @@ fit_R_mismatch <- function(data, params, model) {
                                             R_finite_B, R_mismatch)
   model$B_corrected <- 1 / (1 / R_finite_B + model$lambda_bias)
 
-  if (R_mismatch == "map_qc") {
-    eigen_R <- get_R_mismatch_eigen(data, model)
-    if (is.null(eigen_R))
-      stop("R_mismatch = 'map_qc' requires data$eigen_R; ",
-           "summary_stats_constructor should have cached it.")
-    eig_delta_rel <- if (!is.null(params$eig_delta_rel))
-                       params$eig_delta_rel else 1e-3
-    eig_delta_abs <- if (!is.null(params$eig_delta_abs))
-                       params$eig_delta_abs else 0
-    art <- compute_Q_art(eigen_R, r_fit_z, eig_delta_rel, eig_delta_abs)
-    threshold <- if (!is.null(params$artifact_threshold))
-                   params$artifact_threshold else 0.1
-    flagged <- isTRUE(art$evaluable) && isTRUE(art$Q_art > threshold)
+  eigen_R <- get_R_mismatch_eigen(data, model)
+  if (is.null(eigen_R))
+    stop("R_mismatch requires data$eigen_R; ",
+         "summary_stats_constructor should have cached it.")
+  eig_delta_rel <- if (!is.null(params$eig_delta_rel))
+                     params$eig_delta_rel else 1e-3
+  eig_delta_abs <- if (!is.null(params$eig_delta_abs))
+                     params$eig_delta_abs else 0
+  art <- compute_Q_art(eigen_R, r_fit_z, eig_delta_rel, eig_delta_abs)
+  threshold <- if (!is.null(params$artifact_threshold))
+                 params$artifact_threshold else 0.1
+  flagged <- isTRUE(art$evaluable) && isTRUE(art$Q_art > threshold)
 
-    model$Q_art              <- art$Q_art
-    model$artifact_evaluable <- art$evaluable
-    model$artifact_flag      <- flagged
-    model$low_eigen_count    <- art$low_eigen_count
-    model$low_eigen_fraction <- art$low_eigen_count /
-                                length(eigen_R$values)
-    model$eig_delta          <- art$eig_delta
+  model$Q_art              <- art$Q_art
+  model$artifact_evaluable <- art$evaluable
+  model$artifact_flag      <- flagged
+  model$low_eigen_count    <- art$low_eigen_count
+  model$low_eigen_fraction <- art$low_eigen_count /
+                              length(eigen_R$values)
+  model$eig_delta          <- art$eig_delta
 
-    if (flagged) {
-      msg <- paste0("Residual R-bias artifact detected (Q_art = ",
-                    sprintf("%.3g", art$Q_art),
-                    " > threshold ", sprintf("%.3g", threshold),
-                    "). Fine-mapping results may be unreliable with ",
-                    "this R reference. Consider allele/QC review, ",
-                    "multi-reference analysis, or conservative fallback.")
-      model$mode_label <- "warning"
-      warning_message(msg)
-      warning(msg, call. = FALSE)
-    } else {
-      model$mode_label <- "normal"
-    }
+  if (flagged) {
+    msg <- paste0("Residual R-bias artifact detected (Q_art = ",
+                  sprintf("%.3g", art$Q_art),
+                  " > threshold ", sprintf("%.3g", threshold),
+                  "). Fine-mapping results may be unreliable with ",
+                  "this R reference. Consider allele/QC review, ",
+                  "multi-reference analysis, or conservative fallback.")
+    model$mode_label <- "warning"
+    warning_message(msg)
+    warning(msg, call. = FALSE)
+  } else {
+    model$mode_label <- "normal"
   }
 
   if (isTRUE(params$track_fit)) {
@@ -323,6 +323,7 @@ fit_R_mismatch <- function(data, params, model) {
     trace_row <- list(
       sweep = if (is.null(model$R_mismatch_trace)) 1L else
                 length(model$R_mismatch_trace) + 1L,
+      phase = phase,
       R_mismatch = R_mismatch,
       lambda_bias = model$lambda_bias,
       B_corrected = model$B_corrected,
@@ -355,7 +356,43 @@ fit_R_mismatch <- function(data, params, model) {
   model
 }
 
-# Eigen accessor for map_qc. The ordinary SS path stores data$eigen_R.
+#' SER-protected initialization for the recommended R_mismatch EB path.
+#'
+#' The joint EB/sparse objective is path dependent. Starting lambda_bias at
+#' zero can let secondary R-mismatch patterns enter as sparse effects before
+#' the variance component is estimated. For R_mismatch = "eb", initialize by
+#' fitting one SER update, then estimate lambda_bias from the residual after
+#' this dominant signal has been protected. R_mismatch = "eb_zero" skips this
+#' initializer and starts at lambda_bias = 0.
+#'
+#' @keywords internal
+#' @noRd
+initialize_R_mismatch <- function(data, params, model) {
+  R_mismatch <- if (!is.null(params$R_mismatch)) params$R_mismatch else "none"
+  if (R_mismatch != "eb" || !inherits(data, c("ss", "ss_mixture")) ||
+      nrow(model$alpha) < 1)
+    return(model)
+
+  model <- single_effect_update(data, params, model, 1L)
+  model <- compute_R_mismatch_state(data, params, model, phase = "init_ser")
+  model$R_mismatch_init <- list(
+    method = "ser",
+    lambda_bias = model$lambda_bias,
+    B_corrected = model$B_corrected,
+    Q_art = if (!is.null(model$Q_art)) model$Q_art else NA_real_,
+    artifact_flag = if (!is.null(model$artifact_flag))
+                      model$artifact_flag else NA
+  )
+  model
+}
+
+#' @keywords internal
+#' @noRd
+fit_R_mismatch <- function(data, params, model) {
+  compute_R_mismatch_state(data, params, model, phase = "sweep")
+}
+
+# Eigen accessor for R-mismatch QC. The ordinary SS path stores data$eigen_R.
 # The ss_mixture path can change R through omega, so recover the current
 # mixture spectrum from panel_R when omega is available; otherwise fall
 # back to the initialized X_meta crossproduct.
