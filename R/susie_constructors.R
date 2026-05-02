@@ -606,7 +606,7 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
                                       refine = FALSE,
                                       R_finite = NULL,
                                       R_mismatch = "none",
-                                      R_mismatch_method = "bounded_mle",
+                                      R_mismatch_method = "mle",
                                       eig_delta_rel = 1e-3,
                                       eig_delta_abs = 0,
                                       artifact_threshold = 0.1,
@@ -643,7 +643,7 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
   is_multipanel <- (is.list(X) && !is.matrix(X)) ||
                    (is.list(R) && !is.matrix(R))
   R_mismatch <- match.arg(R_mismatch, c("none", "eb", "eb_force_init", "eb_no_init"))
-  R_mismatch_method <- match.arg(R_mismatch_method, c("bounded_mle", "map"))
+  R_mismatch_method <- match.arg(R_mismatch_method, c("mle", "map"))
   R_finite_explicit_false <- identical(R_finite, FALSE)
   if (isTRUE(R_finite) && is.null(X))
     stop("R_finite = TRUE requires X input. When using precomputed R, ",
@@ -949,7 +949,7 @@ ss_mixture_constructor <- function(z, R = NULL, X = NULL, n,
                                    refine = FALSE,
                                    R_finite = NULL,
                                    R_mismatch = "none",
-                                   R_mismatch_method = "bounded_mle",
+                                   R_mismatch_method = "mle",
                                    eig_delta_rel = 1e-3,
                                    eig_delta_abs = 0,
                                    artifact_threshold = 0.1,
@@ -961,7 +961,7 @@ ss_mixture_constructor <- function(z, R = NULL, X = NULL, n,
   if (is.null(n) || !is.numeric(n) || length(n) != 1 || n <= 1)
     stop("Sample size 'n' is required for multi-panel mode.")
   R_mismatch <- match.arg(R_mismatch, c("none", "eb", "eb_force_init", "eb_no_init"))
-  R_mismatch_method <- match.arg(R_mismatch_method, c("bounded_mle", "map"))
+  R_mismatch_method <- match.arg(R_mismatch_method, c("mle", "map"))
   if (is.null(z))
     stop("Multi-panel mode requires z-scores.")
   if (!is.null(R) && !is.null(X))

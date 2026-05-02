@@ -121,10 +121,7 @@ compute_R_finite_diagnostics <- function(X = NULL, R = NULL, B, p,
 # total continuous R-mismatch variance component.
 # Likelihood on the z-score residual scale,
 #   tau_j^2 = sigma2 + (1/R_finite_B + lambda_bias) * s_j,
-# either by bounded MLE or by MAP with a half-Cauchy prior on
-# u = sqrt(lambda_bias). The bounded MLE constrains
-#   1 / (1/R_finite_B + lambda_bias) >= 1,
-# so the combined R-uncertainty term never implies B_eff below one sample.
+# either by MLE or by MAP with a half-Cauchy prior on u = sqrt(lambda_bias).
 # The Fisher-information boundary SE,
 #   SE_0 = sqrt(1 / {0.5 * sum((s_j / tau_j0)^2)}),
 #   tau_j0 = sigma2 + s_j / R_finite_B,
@@ -133,11 +130,11 @@ compute_R_finite_diagnostics <- function(X = NULL, R = NULL, B, p,
 # thresholds with one rule; "none" short-circuits before optimization.
 #' @keywords internal
 estimate_lambda_bias <- function(r, s, sigma2, R_finite_B, method,
-                                 R_mismatch_method = "bounded_mle") {
+                                 R_mismatch_method = "mle") {
   if (is.null(method) || method == "none")
     return(0)
   R_mismatch_method <- match.arg(R_mismatch_method,
-                                 c("bounded_mle", "map"))
+                                 c("mle", "map"))
   keep <- is.finite(r) & is.finite(s) & s > .Machine$double.eps
   if (!any(keep) || !is.finite(sigma2) || sigma2 <= .Machine$double.eps)
     return(0)
@@ -149,19 +146,20 @@ estimate_lambda_bias <- function(r, s, sigma2, R_finite_B, method,
   fisher_info0 <- 0.5 * sum((cache$s / cache$base)^2)
   se_boundary <- if (fisher_info0 > 0) sqrt(1 / fisher_info0) else Inf
 
-  if (R_mismatch_method == "bounded_mle") {
-    upper_lambda <- max(0, 1 - 1 / R_finite_B)
-    if (upper_lambda <= .Machine$double.eps)
-      return(0)
+  if (R_mismatch_method == "mle") {
+    upper_lambda <- max(c(1, 100 / R_finite_B, 10 * pos), na.rm = TRUE)
     nll <- function(lambda_bias) {
       tau <- cache$base + lambda_bias * cache$s
       0.5 * sum(log(tau) + cache$r2 / tau)
     }
+    while (is.finite(upper_lambda) &&
+           upper_lambda < .Machine$double.xmax / 10 &&
+           nll(upper_lambda) < nll(upper_lambda / 2)) {
+      upper_lambda <- upper_lambda * 10
+    }
     opt <- optimize(nll, interval = c(0, upper_lambda))
     if (nll(0) <= opt$objective)
       return(0)
-    if (nll(upper_lambda) <= opt$objective)
-      return(upper_lambda)
     return(if (opt$minimum < 0.1 * se_boundary) 0 else opt$minimum)
   }
 
@@ -270,7 +268,7 @@ compute_R_mismatch_state <- function(data, params, model, phase = "sweep") {
   s_full   <- XtXr_full^2 / nm1 + v_g_full
 
   R_mismatch_method <- if (!is.null(params$R_mismatch_method))
-                         params$R_mismatch_method else "bounded_mle"
+                         params$R_mismatch_method else "mle"
   model$lambda_bias <- estimate_lambda_bias(r_fit_z, s_full, model$sigma2,
                                             R_finite_B, R_mismatch,
                                             R_mismatch_method)

@@ -50,7 +50,7 @@ susie_rss(
   refine = FALSE,
   R_finite = NULL,
   R_mismatch = c("none", "eb", "eb_force_init", "eb_no_init"),
-  R_mismatch_method = c("bounded_mle", "map"),
+  R_mismatch_method = c("mle", "map"),
   eig_delta_rel = 0.001,
   eig_delta_abs = 0,
   artifact_threshold = 0.1,
@@ -308,8 +308,7 @@ onto near-null directions of the supplied \code{R}, and auto-disable
 
 \item{R_mismatch_method}{Estimator for the region-level
 \code{lambda_bias} variance component when \code{R_mismatch != "none"}.
-\code{"bounded_mle"} (default) maximizes the working Gaussian likelihood
-subject to \eqn{B_\mathrm{eff} = 1/(1/B + \lambda_\mathrm{bias}) \ge 1}.
+\code{"mle"} (default) maximizes the working Gaussian likelihood.
 \code{"map"} uses a half-Cauchy MAP estimator.}
 
 \item{eig_delta_rel, eig_delta_abs}{Cutoffs for "low-eigenvalue"
