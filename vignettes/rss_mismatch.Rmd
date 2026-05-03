@@ -1,5 +1,5 @@
 ---
-title: "Modeling and Accounting for LD Reference Mismatch in Summary Statistics Fine Mapping"
+title: "Modeling and Accounting for LD Reference Mismatch in Summary Statistics Fine-mapping"
 author: "Gao Wang"
 date: "`r Sys.Date()`"
 output: rmarkdown::html_vignette
@@ -16,27 +16,30 @@ knitr::opts_chunk$set(collapse = TRUE,comment = "#",fig.width = 5,
 ```
 
 This vignette gives a practical workflow for using `susie_rss` when the
-GWAS summary statistics and the supplied LD matrix may not come from
-exactly the same samples. In `susie_rss`, this LD matrix is supplied
-through the argument `R`. This vignette complements the
+GWAS summary statistics and the supplied LD from external reference samples 
+mismatch, inducing high false positives in fine-mapping. This vignette complements the
 [summary statistics vignette](finemapping_summary_statistics.html) and
 the older [RSS diagnostic vignette](susierss_diagnostic.html).
 
-The model introduced here targets a specific mechanism by which LD
-mismatch affects SuSiE-RSS: each single effect update subtracts fitted
-effects through the supplied LD matrix. If that LD matrix comes from a
-finite reference panel, or from a reference panel whose population
-differs from the target GWAS population, the subtraction is imperfect.
-The leftover residual can then look like additional sparse association
-signals.
+Because an effect variant induces
+marginal associations at correlated variants due to LD, SuSiE-RSS 
+uses the input LD matrix to subtract the expected contribution of 
+the fitted effect across the region at each single effect update. 
+If that LD matrix mismatches, the subtraction is imperfect.
+The leftover residual can then surface as additional sparse association
+signals, creating spurious additional association signals. 
+The model introduced here targets a specific mechanism by which LD mismatch 
+affects SuSiE-RSS: when the LD matrix is estimated from a finite genotype reference panel, 
+or from a reference panel whose population differs from the target GWAS population.
 
 The approach here is to detect this LD mismatch pattern, quantify the
 uncertainty it introduces, and attenuate signals that depend strongly on
 uncertain LD subtraction. In the current `susie_rss` implementation,
 `R_finite` accounts for finite LD reference panel uncertainty, and
-`R_mismatch = "eb"` estimates an additional LD mismatch component from
-the data. A separate diagnostic flags residual artifacts that should be
-inspected rather than absorbed into the uncertainty adjustment.
+`R_mismatch = "eb"` estimates additional LD mismatch component --- mainly motivated
+as population drift --- from the data. 
+A separate diagnostic flags the reliability of fine-mapped CS as well as the region 
+by measuring signal attenuation and residual artifacts to caution users to inspect the results.
 
 ```{r}
 library(susieR)
@@ -47,13 +50,13 @@ count_cs <- function(fit) {
 }
 ```
 
-## Recap: a detectable allele coding artifact
+## Recap: a "preventable" allele coding artifact
 
-The older RSS diagnostic vignette discusses allele coding artifacts in
-more detail. We briefly revisit the same idea here because it provides
-a useful contrast with the LD mismatch model developed below. The
-package contains a small example with one association signal and one
-deliberately misaligned variant.
+The older
+[RSS diagnostic vignette](susierss_diagnostic.html) discusses allele coding artifacts 
+ as source of LD mismatch --- specifically the "allele flip". We briefly revisit the same idea here because it provides
+a useful contrast with the our finite reference and population-drift LD mismatch model 
+developed below.
 
 ```{r}
 data(SummaryConsistency, package = "susieR")
@@ -79,7 +82,7 @@ points(SummaryConsistency$flip_id,
        fit_toy_bad$pip[flip_id], col = 7, pch = 16)
 ```
 
-The kriging diagnostic highlights the discordant variant.
+The kriging diagnostic for allele flip highlights the discordant variant.
 
 ```{r}
 kr_toy <- kriging_rss(zflip, Rtoy, n = ntoy)
@@ -99,20 +102,24 @@ detach(SummaryConsistency)
 ```
 
 In practice, it is useful to run this basic check before modeling LD
-mismatch. When there is an obvious low level allele coding artifact, fix
-it directly through **proper bioinformatics procedures**. This can be done using many bioinformatics tools,
+mismatch. When there is an obvious low level allele coding artifact, 
+it is the best practice to fix
+it directly through **proper bioinformatics procedures**. 
+This can be done using many bioinformatics tools,
 for example `pecotmr::allele_qc` from [this package](https://github.com/StatFunGen/pecotmr).
 In this toy example, `susie_rss` reports
 `r count_cs(fit_toy_bad)` credible sets before the correction and
 `r count_cs(fit_toy_fixed)` after the correction, and the kriging rule
 identifies the deliberately misaligned variant.
-The example from real data below shows a different situation where the
-kriging outlier check does not find isolated variants to remove, but
-model-based LD uncertainty still changes the fine mapping result.
+
 
 ## Example using real GWAS data and a 1000 Genomes European LD reference panel
 
-The example data are summary statistics from a real gene region.
+
+The example below from real data below shows a different situation where the
+kriging outlier check does not find isolated variants to remove, but
+model-based LD uncertainty still changes the fine mapping result.
+The summary statistics came from a real GWAS study of a genomic region.
 The supplied LD matrix `R` was computed from a 1000 Genomes European
 LD reference panel with roughly 500 samples. The full region used in
 the original analysis contains more than 5,000 variants.
@@ -203,7 +210,7 @@ round(cs_corr, 3)
 
 In this subset, the ordinary fit reports `r count_cs(fit_rss)`
 credible sets and does not converge within `r fit_rss$niter`
-iterations. The reported credible sets are internally tight, with
+iterations. The reported credible sets are tight, with
 minimum purity at least
 `r round(min(fit_rss$sets$purity$min.abs.corr), 3)`, but several of
 them are nearly perfectly correlated with each other. This combination,
@@ -214,9 +221,7 @@ typical sign of LD mismatch.
 
 The older RSS diagnostic checks whether individual z-scores are
 surprising conditional on the other z-scores and the supplied LD matrix.
-This is useful for finding isolated allele coding problems. It is
-described in more detail in the
-[RSS diagnostic vignette](susierss_diagnostic.html).
+This is useful for finding isolated allele coding problems.
 
 ```{r}
 kr <- kriging_rss(z, R, n = n)
@@ -233,9 +238,9 @@ length(outlier)
 ```
 
 For this example, the kriging diagnostic identifies `r length(outlier)`
-isolated allele switch outliers. This illustrates a common distinction:
-kriging is good for obvious, localized allele coding artifacts, but this
-example is not of that type. It is not designed to model the broader
+isolated allele switch outliers. This illustrates that 
+kriging, designed for checking allele flips, does not work on this
+example which is not of that type of artifacts. It is not designed to model the broader
 finite LD reference error and mismatch between the LD reference panel
 and the target GWAS population that can affect an entire region.
 
@@ -279,10 +284,9 @@ does not fully resolve the mismatch pattern.
 
 Finite LD reference uncertainty only accounts for the fact that the LD
 matrix was estimated from a finite panel. It does not account for
-systematic mismatch between the LD reference population and the GWAS
+systematic mismatch due to drift between the LD reference population and the GWAS
 population. The option `R_mismatch = "eb"` estimates an additional
-variance component shared across the region from the fitted residuals
-and uses it in later SER updates.
+variance component shared across the region from the fitted residuals.
 
 ```{r}
 fit_B500_eb <- susie_rss(bhat = bhat, shat = shat,
@@ -330,13 +334,17 @@ coverage 0.9543; the largest PIP is 0.1142. Compared with the earlier
 fits, the EB adjustment keeps one signal but represents it as a broad
 credible set rather than several small, highly correlated credible sets.
 This is more consistent with the weak marginal association in this
-region.
+region. 
+
+In practice we recommend setting both `R_finite` and `R_mismatch` unless your
+reference LD is based on large samples such as current UK Biobank (300,000 to 500,000)
+in which case setting e.g. `R_finite = 300000` will have no practical impact to the results.
 
 ## Diagnostic metrics
 
 The warnings above should not be ignored. Even after the EB adjustment,
 `susie_rss` reports diagnostic warnings, indicating that the fine
-mapping result remains uncertain. The fit object returns several
+mapping result remain uncertain. The fit object returns several
 diagnostic metrics to summarize this uncertainty.
 
 ```{r}
@@ -363,8 +371,8 @@ automatically reliable.
 
 ## Diagnostic with one effect
 
-When the reliability flag is raised, the fit object may contain a
-diagnostic model with one effect:
+When the reliability flag is raised, the fit object provides a
+diagnostic model using single-effect regression (SER):
 
 ```{r}
 ser <- fit_Binf_eb$R_finite_diagnostics$ser_model
@@ -391,7 +399,7 @@ susie_plot(ser, y = "PIP", add_legend = TRUE,
 
 In this example, the one-effect diagnostic gives the same result as the
 EB mismatch fit above: one 34-variant credible set, minimum purity
-0.8609, and maximum PIP 0.1142. This exact match is a coincidence, not
+0.8609, and maximum PIP 0.1142. This exact match is merely a coincidence, not
 a general property of the method. When an EB mismatch fit produces a
 reliability warning, compare the EB result with this one-effect
 diagnostic rather than treating the EB fit as automatically reliable.
@@ -401,27 +409,27 @@ diagnostic rather than treating the EB fit as automatically reliable.
 For routine analyses with GWAS summary statistics and an external LD
 reference panel:
 
-- First run basic allele and variant alignment checks. The kriging
-  diagnostic is useful for obvious, localized allele coding artifacts.
+- First run basic allele and variant alignment quality control and checks. 
+  The kriging
+  diagnostic can be useful for such obvious, localized allele coding artifacts.
 - Fit ordinary `susie_rss` and look for signs of instability, such as
   nonconvergence, multiple highly correlated credible sets, or many
   small credible sets in a weak association region.
 - Use `R_finite` when the LD matrix was estimated from a finite LD
-  reference panel.
-- Add `R_mismatch = "eb"` when broader LD mismatch remains after
+  reference panel; add `R_mismatch = "eb"` when broader LD mismatch remains after
   accounting for finite reference uncertainty.
 - Inspect `fit$R_finite_diagnostics`, including `Q_art`,
   `R_sensitivity_flag`, and `R_reliability_flag`.
 - If a reliability warning is raised, compare the EB result with the
-  one-effect diagnostic when available, and interpret the fine mapping
-  result conservatively.
+  SER diagnostic model, and interpret the fine mapping
+  result conservatively with the SER model as a safer fall-back.
 
 ## Caution: our method is not gauranteed to capture allele coding artifacts
 
-The toy example above is based on the out-of-sample LD reference example
+The old RSS vignette example is based on the out-of-sample LD reference example
 from Zou et al. (2022). Because its LD matrix was computed from a finite
 reference panel of 500 individuals, it is appropriate to set
-`R_finite = 500` when using the new diagnostics. This helps flag the
+`R_finite = 500` when using the new diagnostics. It turns out that our method helps flag the
 problem, but it still does not replace allele alignment QC.
 
 ```{r}
@@ -467,8 +475,8 @@ points(SummaryConsistency$flip_id,
 With `R_finite = 500`, the fit still reports 2 credible sets and the
 flipped variant still has PIP close to 1, but `R_reliability_flag` is
 `TRUE`. Adding `R_mismatch = "eb"` gives the same result in this
-example. In contrast, using `R_mismatch = "eb"` without `R_finite = 500`
-does not even flag the artifact. Directly correcting the allele encoding
+example. In contrast, **using `R_mismatch = "eb"` alone without `R_finite = 500`
+does not even flag the artifact**. Directly correcting the allele encoding
 is what reduces the fit to 1 credible set.
 
 ```{r cleanup, include=FALSE}
