@@ -132,13 +132,15 @@ test_that("track_ibss_fit.default stores iteration snapshots", {
   # Should store snapshot at iteration 1
   result <- track_ibss_fit.default(data, params, model, tracking, iter = 1, elbo = c(-Inf))
   expect_true(is.list(result[[1]]))
-  expect_true(is.matrix(result[[1]]$alpha))
-  expect_equal(result[[1]]$sigma2, 1)
+  expect_s3_class(result[[1]]$alpha, "data.frame")
+  expect_s3_class(result[[1]]$effect, "data.frame")
+  expect_s3_class(result[[1]]$iteration, "data.frame")
+  expect_equal(result[[1]]$iteration$sigma2, 1)
 
   # Should store snapshot at iteration 2
   result2 <- track_ibss_fit.default(data, params, model, result, iter = 2, elbo = c(-Inf, 100))
   expect_equal(length(result2), 2)
-  expect_equal(result2[[2]]$niter, 2)
+  expect_equal(result2[[2]]$iteration$iteration, 1)
 
   # With track_fit = FALSE, tracking stays empty
   params_no_track <- list(track_fit = FALSE)

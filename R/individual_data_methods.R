@@ -82,11 +82,7 @@ validate_prior.individual <- function(data, params, model, ...) {
 #' @keywords internal
 track_ibss_fit.individual <- function(data, params, model, tracking, iter, elbo, ...) {
   if (params$unmappable_effects %in% c("ash", "ash_filter_archived")) {
-    tracking <- track_ibss_fit.default(data, params, model, tracking, iter, elbo, ...)
-    if (isTRUE(params$track_fit)) {
-      tracking[[iter]]$tau2 <- model$tau2
-    }
-    return(tracking)
+    return(track_ibss_fit.default(data, params, model, tracking, iter, elbo, ...))
   }
   return(track_ibss_fit.default(data, params, model, tracking, iter, elbo, ...))
 }

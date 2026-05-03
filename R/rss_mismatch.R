@@ -78,12 +78,16 @@ summarize_R_bf_attenuation <- function(model, threshold = log(20)) {
   })
 
   cs_max <- cs_weighted <- numeric(0)
+  cs_top_variable <- integer(0)
+  cs_top_attenuation <- numeric(0)
   cs_label <- character(0)
   if (!is.null(model$sets$cs) && length(model$sets$cs) > 0) {
     cs_index <- model$sets$cs_index
     if (is.null(cs_index))
       cs_index <- as.integer(sub("^L", "", names(model$sets$cs)))
-    cs_max <- cs_weighted <- rep(NA_real_, length(model$sets$cs))
+    cs_max <- cs_weighted <- cs_top_attenuation <-
+      rep(NA_real_, length(model$sets$cs))
+    cs_top_variable <- rep(NA_integer_, length(model$sets$cs))
     for (i in seq_along(model$sets$cs)) {
       l <- cs_index[i]
       vars <- model$sets$cs[[i]]
@@ -91,10 +95,16 @@ summarize_R_bf_attenuation <- function(model, threshold = log(20)) {
         vals <- D[l, vars]
         cs_max[i] <- if (all(is.na(vals))) NA_real_ else max(vals, na.rm = TRUE)
         cs_weighted[i] <- sum(model$alpha[l, vars] * vals, na.rm = TRUE)
+        if (any(is.finite(vals))) {
+          j <- which.max(replace(vals, !is.finite(vals), -Inf))
+          cs_top_variable[i] <- vars[j]
+          cs_top_attenuation[i] <- vals[j]
+        }
       }
     }
     cs_label <- label_atten(cs_max)
-    names(cs_max) <- names(cs_weighted) <- names(cs_label) <- names(model$sets$cs)
+    names(cs_max) <- names(cs_weighted) <- names(cs_label) <-
+      names(cs_top_variable) <- names(cs_top_attenuation) <- names(model$sets$cs)
   }
 
   flag <- any(is.finite(cs_max) & cs_max >= threshold)
@@ -107,6 +117,8 @@ summarize_R_bf_attenuation <- function(model, threshold = log(20)) {
     cs_max = cs_max,
     cs_weighted = cs_weighted,
     cs_label = cs_label,
+    cs_top_variable = cs_top_variable,
+    cs_top_attenuation = cs_top_attenuation,
     threshold = threshold
   )
   d$R_sensitivity_flag <- flag

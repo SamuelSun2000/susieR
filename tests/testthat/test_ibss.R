@@ -587,16 +587,13 @@ test_that("ibss_finalize includes tracking when track_fit=TRUE", {
   model <- ibss_fit(setup$data, setup$params, model)
 
   # Create mock tracking data
-  tracking <- list(
-    elbo = c(100, 110, 115),
-    sigma2 = c(1, 0.9, 0.85)
-  )
+  tracking <- list(make_track_snapshot(model, 0L))
 
   model_final <- ibss_finalize(setup$data, setup$params, model,
                                elbo = NULL, iter = 3L, tracking = tracking)
 
   expect_true("trace" %in% names(model_final))
-  expect_type(model_final$trace, "list")
+  expect_s3_class(model_final$trace, "susie_track")
 })
 
 test_that("ibss_finalize excludes tracking when track_fit=FALSE", {
@@ -736,4 +733,3 @@ test_that("Full IBSS pipeline maintains mathematical properties", {
   expect_true(all(model$pip <= 1))
   expect_true(all(model$V >= 0))
 })
-

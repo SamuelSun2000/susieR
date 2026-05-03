@@ -235,9 +235,10 @@
 #'  a summary of the optimization settings, and refinement progress (if
 #'  \code{refine = TRUE}) are printed to the console.
 #'
-#' @param track_fit If \code{track_fit = TRUE}, \code{trace}
-#'   is also returned containing detailed information about the
-#'   estimates at each iteration of the IBSS fitting procedure.
+#' @param track_fit If \code{track_fit = TRUE}, a compact
+#'   \code{susie_track} object is returned in \code{trace}, containing
+#'   alpha history, effect summaries and available diagnostics at each
+#'   iteration of the IBSS fitting procedure.
 #'
 #' @param residual_variance_lowerbound Lower limit on the estimated
 #'   residual variance. It is only relevant when

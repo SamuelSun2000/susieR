@@ -991,7 +991,7 @@ test_that("susie handles track_fit = TRUE", {
   fit <- susie(dat$X, dat$y, L = 5, track_fit = TRUE, verbose = FALSE)
 
   expect_true("trace" %in% names(fit))
-  expect_type(fit$trace, "list")
+  expect_s3_class(fit$trace, "susie_track")
 })
 
 test_that("susie_ss handles track_fit = TRUE", {
@@ -1003,7 +1003,7 @@ test_that("susie_ss handles track_fit = TRUE", {
                   track_fit = TRUE, verbose = FALSE)
 
   expect_true("trace" %in% names(fit))
-  expect_type(fit$trace, "list")
+  expect_s3_class(fit$trace, "susie_track")
 })
 
 test_that("susie_rss handles track_fit = TRUE", {
@@ -1016,7 +1016,7 @@ test_that("susie_rss handles track_fit = TRUE", {
   fit <- susie_rss(z = z_scores, R = R, n = 100, L = 5 , track_fit = TRUE, verbose = FALSE)
 
   expect_true("trace" %in% names(fit))
-  expect_type(fit$trace, "list")
+  expect_s3_class(fit$trace, "susie_track")
 })
 
 # =============================================================================

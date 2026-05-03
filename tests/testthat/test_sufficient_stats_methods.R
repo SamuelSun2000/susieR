@@ -153,8 +153,8 @@ test_that("track_ibss_fit.ss tracks tau2 for unmappable_effects='inf'", {
   result <- track_ibss_fit.ss(setup$data, setup$params, setup$model,
                                tracking, iter, elbo)
 
-  expect_true("tau2" %in% names(result[[1]]))
-  expect_equal(result[[1]]$tau2, setup$model$tau2)
+  expect_true("tau2" %in% names(result[[1]]$effect))
+  expect_equal(result[[1]]$effect$tau2, setup$model$tau2)
 })
 
 # =============================================================================

@@ -76,19 +76,8 @@ track_ibss_fit <- function(data, params, model, tracking, iter, ...) {
 #' @keywords internal
 track_ibss_fit.default <- function(data, params, model, tracking, iter, elbo, ...) {
   # Store iteration snapshot if tracking is enabled.
-  # tracking is a purely numeric list: tracking[[1]], [[2]], etc.
   if (isTRUE(params$track_fit)) {
-    tracking[[iter]] <- list(
-      alpha  = model$alpha,
-      niter  = iter,
-      V      = model$V,
-      sigma2 = model$sigma2
-    )
-    # Track slot activity per iteration when active
-    if (!is.null(model$slot_weights)) {
-      tracking[[iter]]$slot_weights <- model$slot_weights
-      tracking[[iter]]$lbf <- model$lbf
-    }
+    tracking[[iter]] <- make_track_snapshot(model, iter - 1L)
   }
   return(tracking)
 }

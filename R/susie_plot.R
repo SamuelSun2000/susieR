@@ -12,7 +12,9 @@
 #'   \code{\link{susie}} or one of its variants. For \code{suse_plot},
 #'   the susie fit must have \code{model$z}, \code{model$PIP}, and may
 #'   include \code{model$sets}. \code{model} may also be a vector of
-#'   z-scores or PIPs.
+#'   z-scores or PIPs. For \code{susie_plot_iteration}, \code{model}
+#'   must be either a SuSiE fit or its \code{susie_track} object from
+#'   \code{model$trace}.
 #'
 #' @param y A string indicating what to plot: either \code{"z_original"} for
 #'   z-scores, \code{"z"} for z-score derived p-values on (base-10) log-scale,
@@ -284,7 +286,7 @@ susie_plot <- function(model, y, add_bar = FALSE, pos = NULL, b = NULL,
 
 #' @rdname susie_plots
 #'
-#' @param L An integer specifying the number of credible sets to plot.
+#' @param L An integer specifying the number of single-effect rows to plot.
 #'
 #' @param file_prefix Prefix to path of output plot file. If not
 #'   specified, the plot, or plots, will be saved to a temporary
@@ -302,7 +304,7 @@ susie_plot <- function(model, y, add_bar = FALSE, pos = NULL, b = NULL,
 #' X <- matrix(rnorm(n * p), nrow = n, ncol = p)
 #' X <- scale(X, center = TRUE, scale = TRUE)
 #' y <- drop(X %*% beta + rnorm(n))
-#' res <- susie(X, y, L = 10)
+#' res <- susie(X, y, L = 10, track_fit = TRUE)
 #' susie_plot_iteration(res, L = 10)
 #'
 #' @importFrom grDevices pdf
@@ -318,8 +320,8 @@ susie_plot <- function(model, y, add_bar = FALSE, pos = NULL, b = NULL,
 #' @export
 #'
 susie_plot_iteration <- function(model, L, file_prefix, pos = NULL) {
-  get_layer <- function(obj, k, idx, vars) {
-    alpha <- melt(obj$alpha[1:k, vars, drop = FALSE])
+  get_layer <- function(alpha_mat, k, idx, vars) {
+    alpha <- melt(alpha_mat[1:k, vars, drop = FALSE])
     colnames(alpha) <- c("L", "variables", "alpha")
     alpha$L <- as.factor(alpha$L)
     ggplot(alpha, aes(x = .data$variables, y = .data$alpha, group = .data$L)) +
@@ -327,9 +329,33 @@ susie_plot_iteration <- function(model, L, file_prefix, pos = NULL) {
       ggtitle(paste("Iteration", idx)) +
       theme_classic()
   }
-  k <- min(nrow(model$alpha), L)
+
+  if (inherits(model, "susie_track")) {
+    track <- model
+    final_alpha <- restore_alpha_from_track(track, max(track$iteration$iteration))
+    has_track <- TRUE
+  } else if (inherits(model, "susie")) {
+    if (!is.null(model$trace)) {
+      if (!inherits(model$trace, "susie_track"))
+        stop("model$trace must be a susie_track object")
+      track <- model$trace
+      final_alpha <- restore_alpha_from_track(track,
+                                              max(track$iteration$iteration))
+      has_track <- TRUE
+    } else {
+      track <- NULL
+      final_alpha <- model$alpha
+      has_track <- FALSE
+    }
+  } else {
+    stop("model must be a susie fit or a susie_track object")
+  }
+
+  if (missing(L))
+    L <- nrow(final_alpha)
+  k <- min(nrow(final_alpha), L)
   if (is.null(pos)) {
-    vars <- 1:ncol(model$alpha)
+    vars <- 1:ncol(final_alpha)
   } else {
     vars <- pos
   }
@@ -337,16 +363,17 @@ susie_plot_iteration <- function(model, L, file_prefix, pos = NULL) {
     file_prefix <- file.path(tempdir(), "susie_plot")
   }
   pdf(paste0(file_prefix, ".pdf"), 8, 3)
-  if (is.null(model$trace)) {
-    print(get_layer(model, k, model$niter, vars))
+  if (!has_track) {
+    print(get_layer(final_alpha, k, model$niter, vars))
   } else {
-    for (i in 2:length(model$trace)) {
-      print(get_layer(model$trace[[i]], k, i - 1, vars))
+    iterations <- sort(unique(track$iteration$iteration))
+    for (iter in iterations) {
+      print(get_layer(restore_alpha_from_track(track, iter), k, iter, vars))
     }
   }
   dev.off()
   format <- ".pdf"
-  if (!is.null(model$trace)) {
+  if (has_track) {
     cmd <- paste(
       "convert -delay 30 -loop 0 -density 300 -dispose previous",
       paste0(file_prefix, ".pdf"),

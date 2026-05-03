@@ -374,9 +374,6 @@ ibss_finalize <- function(data, params, model, elbo = NULL, iter = NA_integer_,
   model$pip  <- susie_get_pip(model, prior_tol = params$prior_tol)
   model$z    <- get_zscore(data, params, model)
 
-  # Tracking Across Iterations
-  if (params$track_fit) model$trace <- tracking
-
   # Assign Variable Names
   model <- get_variable_names(data, model)
 
@@ -427,6 +424,13 @@ ibss_finalize <- function(data, params, model, elbo = NULL, iter = NA_integer_,
       warning_message(msg)
       warning(msg, call. = FALSE)
     }
+  }
+
+  # Tracking Across Iterations
+  if (params$track_fit) {
+    tracking[[length(tracking) + 1L]] <- make_track_snapshot(model, iter)
+    model$trace <- tracking
+    model$trace <- make_susie_track_history(model)
   }
 
   # Multi-panel omega weights

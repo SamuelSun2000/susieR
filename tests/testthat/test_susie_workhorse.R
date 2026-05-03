@@ -361,7 +361,7 @@ test_that("susie_workhorse includes tracking when track_fit=TRUE", {
   result <- susie_workhorse(setup$data, setup$params)
 
   expect_true("trace" %in% names(result))
-  expect_type(result$trace, "list")
+  expect_s3_class(result$trace, "susie_track")
 })
 
 test_that("susie_workhorse excludes tracking when track_fit=FALSE", {
