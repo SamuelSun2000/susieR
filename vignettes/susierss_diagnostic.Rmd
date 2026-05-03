@@ -19,6 +19,11 @@ This vignette demonstrates the use of the diagnostic plot for
 assessing consistency of the summary statistics and the reference LD
 matrix.
 
+This vignette focuses on diagnosing inconsistencies such as allele
+coding artifacts. For model-based ways to account for finite or
+mismatched LD reference panels in fine mapping, see
+[this vignette](rss_mismatch.html).
+
 The `susie_rss` assumes the LD matrix accurately estimate the
 correlations among SNPs from the original GWAS genotype
 data. Typically, the LD matrix comes from some public database of

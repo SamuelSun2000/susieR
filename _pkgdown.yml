@@ -63,6 +63,7 @@ articles:
     - finemapping_summary_statistics
     - susie_rss
     - susierss_diagnostic
+    - rss_mismatch
     - small_sample
   - title: "Advanced Topics"
     desc: >

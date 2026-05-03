@@ -69,7 +69,9 @@ reference panels to estimate it when this matrix cannot be obtained
 from samples directly. *Importantly, the LD matrix has to be a matrix
 containing estimates of the correlation, $r$, and not $r^2$ or $|r|$.*
 See also [this vignette](susierss_diagnostic.html) for how to check the
-consistency of the LD matrix with the summary statistics.
+consistency of the LD matrix with the summary statistics. For
+model-based ways to account for finite or mismatched LD reference
+panels, see [this vignette](rss_mismatch.html).
 
 The `univariate_regression` function can be used to compute summary
 statistics by fitting univariate simple regression variable by

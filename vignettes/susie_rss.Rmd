@@ -55,7 +55,9 @@ is, when it was computed from the same matrix `X` that was used to
 obtain the other statistics). If the covariate effects are removed from 
 the genotypes in univariate regression, the in-sample LD matrix should 
 compute from the genotype residuals where the covariate effects have 
-been removed.
+been removed. For out-of-sample LD reference panels and the
+`R_finite` and `R_mismatch` options, see
+[this vignette](rss_mismatch.html).
 
 ```{r first-comparison, fig.height=3.5, fig.width=3}
 res1 <- susie(X,y,L = 10)
