@@ -4,7 +4,7 @@ author: "Gao Wang"
 date: "`r Sys.Date()`"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Modeling and Accounting for LD Reference Mismatch in Summary Statistics Fine Mapping}
+  %\VignetteIndexEntry{Modeling and Accounting for LD Reference Mismatch in Summary Statistics Fine-mapping}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -118,7 +118,7 @@ identifies the deliberately misaligned variant.
 
 The example below from real data below shows a different situation where the
 kriging outlier check does not find isolated variants to remove, but
-model-based LD uncertainty still changes the fine mapping result.
+model-based LD uncertainty still changes the fine-mapping result.
 The summary statistics came from a real GWAS study of a genomic region.
 The supplied LD matrix `R` was computed from a 1000 Genomes European
 LD reference panel with roughly 500 samples. The full region used in
@@ -147,7 +147,7 @@ dim(R)
 ```
 
 The marginal z-scores show the association pattern before any
-fine mapping model is fitted.
+fine-mapping model is fitted.
 
 ```{r}
 susie_plot(z, y = "z")
@@ -421,47 +421,34 @@ reference panel:
 - Inspect `fit$R_finite_diagnostics`, including `Q_art`,
   `R_sensitivity_flag`, and `R_reliability_flag`.
 - If a reliability warning is raised, compare the EB result with the
-  SER diagnostic model, and interpret the fine mapping
+  SER diagnostic model, and interpret the fine-mapping
   result conservatively with the SER model as a safer fall-back.
 
-## Caution: our method is not gauranteed to capture allele coding artifacts
+## Caution: allele coding artifacts are outside this model
 
 The old RSS vignette example is based on the out-of-sample LD reference example
 from Zou et al. (2022). Because its LD matrix was computed from a finite
 reference panel of 500 individuals, it is appropriate to set
-`R_finite = 500` when using the new diagnostics. It turns out that our method helps flag the
-problem, but it still does not replace allele alignment QC.
+`R_finite = 500` when using the new diagnostics. This setting can raise
+a reliability warning, but that warning is not an allele flip correction
+and it does not replace allele alignment QC.
 
-```{r}
-fit_toy_bad_B500 <- susie_rss(zflip, Rtoy, n = ntoy, R_finite = 500)
+```{r, message=FALSE, warning=FALSE}
 fit_toy_bad_B500_eb <- susie_rss(zflip, Rtoy, n = ntoy,
                                  R_finite = 500,
-                                 R_mismatch = "eb")
-fit_toy_bad_eb <- susie_rss(zflip, Rtoy, n = ntoy,
-                            R_mismatch = "eb")
+                                 R_mismatch = "eb",
+                                 track_fit = TRUE)
+d_toy <- fit_toy_bad_B500_eb$R_finite_diagnostics
 
 knitr::kable(data.frame(
-  method = c("ordinary susie_rss",
-             "R_finite = 500",
-             "R_finite = 500, R_mismatch = eb",
-             "R_mismatch = eb",
-             "after allele correction"),
-  n_cs = c(count_cs(fit_toy_bad),
-           count_cs(fit_toy_bad_B500),
-           count_cs(fit_toy_bad_B500_eb),
-           count_cs(fit_toy_bad_eb),
-           count_cs(fit_toy_fixed)),
-  flipped_variant_pip = c(fit_toy_bad$pip[SummaryConsistency$flip_id],
-                          fit_toy_bad_B500$pip[SummaryConsistency$flip_id],
-                          fit_toy_bad_B500_eb$pip[SummaryConsistency$flip_id],
-                          fit_toy_bad_eb$pip[SummaryConsistency$flip_id],
-                          fit_toy_fixed$pip[SummaryConsistency$flip_id]),
-  R_reliability_flag = c(NA,
-                         fit_toy_bad_B500$R_finite_diagnostics$R_reliability_flag,
-                         fit_toy_bad_B500_eb$R_finite_diagnostics$R_reliability_flag,
-                         fit_toy_bad_eb$R_finite_diagnostics$R_reliability_flag,
-                         NA)
-), digits = 3)
+  n_cs = count_cs(fit_toy_bad_B500_eb),
+  flipped_variant_pip =
+    unname(fit_toy_bad_B500_eb$pip[SummaryConsistency$flip_id]),
+  Q_art = d_toy$Q_art,
+  residual_artifact_flag = d_toy$artifact_flag,
+  CS_sensitivity_flag = d_toy$R_sensitivity_flag,
+  overall_reliability_flag = d_toy$R_reliability_flag
+), digits = 3, row.names = FALSE)
 ```
 
 ```{r}
@@ -472,12 +459,112 @@ points(SummaryConsistency$flip_id,
        col = 7, pch = 16)
 ```
 
-With `R_finite = 500`, the fit still reports 2 credible sets and the
-flipped variant still has PIP close to 1, but `R_reliability_flag` is
-`TRUE`. Adding `R_mismatch = "eb"` gives the same result in this
-example. In contrast, **using `R_mismatch = "eb"` alone without `R_finite = 500`
-does not even flag the artifact**. Directly correcting the allele encoding
-is what reduces the fit to 1 credible set.
+This fit still reports 2 credible sets, and the flipped variant still
+has PIP close to 1. The residual artifact diagnostic does not flag this
+fit: `Q_art` is small and `residual_artifact_flag` is `FALSE`. However,
+the CS-level sensitivity diagnostic is `TRUE`, so the overall
+reliability flag is also `TRUE`. The warning therefore comes from CS
+sensitivity, not from `Q_art`.
+
+This behavior is expected. The model in this vignette is designed for
+finite reference error and population drift in the LD matrix. It does
+not include an allele flip parameter, and it does not try to decide
+whether an individual z-score should have its sign reversed. That is
+deliberate: allele alignment is a data-processing problem that should
+be handled before fitting the LD mismatch model.
+
+The reason is visible from the z-scores. Given the true signal and the
+LD matrix, the flipped variant should have a positive marginal
+association. Instead its observed z-score has the opposite sign.
+
+```{r}
+flip_expected <- Rtoy[SummaryConsistency$flip_id,
+                      SummaryConsistency$signal_id] *
+                 zflip[SummaryConsistency$signal_id]
+knitr::kable(data.frame(
+  flipped_variant_z = zflip[SummaryConsistency$flip_id],
+  LD_implied_z_from_signal = flip_expected,
+  residual_after_signal = zflip[SummaryConsistency$flip_id] - flip_expected
+), digits = 3)
+```
+
+This is a deterministic sign error at one variant, not the stochastic LD
+uncertainty modeled by `R_finite` or `R_mismatch = "eb"`.
+
+The compact track history can then be used to follow this specific
+artifact. We do not need to inspect the full object. For this toy
+example, the relevant rows are the single effects whose top variable is
+either the true signal or the known flipped variant. After the first
+IBSS iteration, one effect is already assigned almost entirely to the
+flipped variant.
+
+```{r}
+track_toy <- fit_toy_bad_B500_eb$trace
+track_effect <- subset(track_toy$effect,
+                       iteration %in% 1:3 &
+                       top_variable %in% c(SummaryConsistency$signal_id,
+                                           SummaryConsistency$flip_id))
+track_story <- data.frame(
+  iteration = track_effect$iteration,
+  effect = track_effect$effect,
+  variant = paste0(track_effect$top_variable_name, " (", ifelse(
+    track_effect$top_variable == SummaryConsistency$signal_id,
+    "true signal",
+    "flipped variant"
+  ), ")"),
+  alpha_at_variant = track_effect$top_alpha,
+  max_variable_lbf = track_effect$top_lbf,
+  single_effect_lbf = track_effect$effect_lbf
+)
+
+knitr::kable(track_story,
+             digits = 3)
+```
+
+Because this is a toy example, we know which variant is the true signal
+and which variant was deliberately flipped. The track table itself only
+shows the fitted single effect summaries: one effect is already highly
+concentrated on the flipped variant after the first iteration.
+
+The CS-level diagnostic also shows why this happens. The fitted log BF
+and the log BF attenuation are different quantities: the former
+describes the fitted signal strength, whereas the latter measures how
+much that signal depends on uncertain LD.
+
+```{r}
+cs_story <- track_toy$cs_sensitivity
+final_effect <- track_toy$effect[
+  track_toy$effect$iteration == max(track_toy$effect$iteration),
+  c("effect", "top_lbf")
+]
+cs_story <- merge(cs_story, final_effect, by = "effect",
+                  all.x = TRUE, sort = FALSE)
+cs_story <- cs_story[cs_story$is_sensitive,
+                     c("cs", "effect", "cs_size", "top_lbf",
+                       "cs_max_bf_attenuation", "threshold",
+                       "cs_sensitivity_label",
+                       "top_sensitive_variable_name")]
+names(cs_story) <- c("cs", "effect", "cs_size", "max_log_BF",
+                     "log_BF_attenuation", "threshold", "sensitivity",
+                     "sensitive_variant")
+knitr::kable(cs_story,
+             digits = 3)
+```
+
+For both credible sets, the attenuation is above the threshold
+`log(20) = 3.0`, so both are labeled `highly_sensitive`. This is why
+`CS_sensitivity_flag` is `TRUE`, and why the overall reliability flag
+is `TRUE`, even though `Q_art = 0.012` and the residual artifact flag is
+`FALSE`.
+
+Thus, an allele flip can create a convincing sparse effect before the
+LD mismatch model has anything useful to adjust. In this example,
+`R_finite = 500` still raises a reliability warning through CS-level
+sensitivity, but that warning should be interpreted as a cue to inspect
+alignment, not as an automatic correction of the allele coding problem.
+In practice this warning is not guaranteed: for example, fitting this
+same toy example with `R_mismatch = "eb"` but without `R_finite = 500`
+does not raise the reliability warning.
 
 ```{r cleanup, include=FALSE}
 detach(rss_mismatch_example)
