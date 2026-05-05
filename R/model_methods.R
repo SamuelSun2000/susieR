@@ -80,11 +80,14 @@ initialize_matrices <- function(data, params, var_y) {
 #' @keywords internal
 initialize_matrices.default <- function(data, params, var_y) {
   L <- params$L
+  # NIG uses the scaled slab variance s0 = sigma0^2 / sigma^2 during fitting.
+  V <- expand_scaled_prior_variance(
+    params$scaled_prior_variance, ifelse(isTRUE(params$use_NIG), 1, var_y), L)
   mat_init <- list(
     alpha             = matrix(1 / data$p, L, data$p),
     mu                = matrix(0, L, data$p),
     mu2               = matrix(0, L, data$p),
-    V                 = expand_scaled_prior_variance(params$scaled_prior_variance, var_y, L),
+    V                 = V,
     KL                = rep(as.numeric(NA), L),
     lbf               = rep(as.numeric(NA), L),
     lbf_variable      = matrix(as.numeric(NA), L, data$p),

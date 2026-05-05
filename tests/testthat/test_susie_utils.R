@@ -955,6 +955,79 @@ test_that("initialize_matrices handles vector scaled_prior_variance of length L"
   expect_equal(result$V, spv * var_y)
 })
 
+test_that("initialize_matrices keeps NIG prior variance on scaled sigma units", {
+  n <- 100; p <- 50; L <- 5
+  data <- list(n = n, p = p)
+  params <- list(
+    L = L,
+    scaled_prior_variance = 0.2,
+    residual_variance = 1.5,
+    prior_weights = rep(1 / p, p),
+    null_weight = 0,
+    use_NIG = TRUE
+  )
+
+  result <- initialize_matrices(data, params, var_y = 20)
+
+  expect_equal(result$V, rep(0.2, L))
+})
+
+test_that("initialize_matrices preserves vector NIG scaled prior variance", {
+  n <- 100; p <- 50; L <- 5
+  data <- list(n = n, p = p)
+  spv <- c(0.1, 0.2, 0.3, 0.4, 0.5)
+  params <- list(
+    L = L,
+    scaled_prior_variance = spv,
+    residual_variance = 1.5,
+    prior_weights = rep(1 / p, p),
+    null_weight = 0,
+    use_NIG = TRUE
+  )
+
+  result <- initialize_matrices(data, params, var_y = 20)
+
+  expect_equal(result$V, spv)
+})
+
+test_that("NIG initial log BF uses scaled prior variance, not var_y-scaled V", {
+  set.seed(946)
+  n <- 40
+  p <- 10
+  X <- matrix(rnorm(n * p), n, p)
+  y <- 10 * rnorm(n)
+  X <- scale(X, center = TRUE, scale = FALSE)
+  y <- drop(scale(y, center = TRUE, scale = FALSE))
+  data <- list(n = n, p = p, X = X, y = y)
+  class(data) <- "individual"
+  params <- list(
+    L = 1,
+    scaled_prior_variance = 0.2,
+    residual_variance = var(y),
+    prior_weights = rep(1 / p, p),
+    null_weight = 0,
+    use_NIG = TRUE
+  )
+  model <- initialize_matrices(data, params, var_y = var(y))
+  model$predictor_weights <- colSums(X^2)
+  model$raw_residuals <- y
+  model$residuals <- drop(crossprod(X, y))
+  nig_ss <- get_nig_sufficient_stats(data, model)
+
+  lbf <- compute_lbf_NIG(n, model$predictor_weights, model$residuals,
+                         nig_ss$yy, nig_ss$sxy, model$V[1],
+                         a0 = 0.1, b0 = 0.1)
+  expected_lbf <- compute_lbf_NIG(n, model$predictor_weights, model$residuals,
+                                  nig_ss$yy, nig_ss$sxy, s0 = 0.2,
+                                  a0 = 0.1, b0 = 0.1)
+  old_lbf <- compute_lbf_NIG(n, model$predictor_weights, model$residuals,
+                             nig_ss$yy, nig_ss$sxy, s0 = 0.2 * var(y),
+                             a0 = 0.1, b0 = 0.1)
+
+  expect_equal(lbf, expected_lbf, tolerance = 1e-14)
+  expect_gt(max(abs(old_lbf - expected_lbf)), 0.1)
+})
+
 test_that("expand_scaled_prior_variance recycles scalar and preserves vector", {
   expect_equal(expand_scaled_prior_variance(0.2, 2.0, 5), rep(0.4, 5))
   expect_equal(
@@ -1622,50 +1695,52 @@ test_that("get_nig_sufficient_stats does not center individual residuals when in
   expect_gt(max(abs(old_lbf - expected_lbf)), 1)
 })
 
-test_that("posterior_mean_NIG computes posterior mean", {
+test_that("live NIG split helpers match bundled formula reference", {
+  compute_stats_NIG_reference <- function(n, xx, xy, yy, sxy, s0, a0, b0,
+                                          tau = 1) {
+    r0 <- s0 / (s0 + tau / xx)
+    rss <- yy * (1 - r0 * sxy^2)
+    a1 <- a0 + n
+    b1 <- b0 + rss
+    lbf <- -(log(1 + s0 * xx / tau) +
+               a1 * log(b1 / (b0 + yy))) / 2
+    bhat <- xy / xx
+    post_mean <- r0 * bhat
+    post_var <- b1 / (a1 - 2) * r0 * tau / xx
+    rv <- (b1 / 2) / (a1 / 2 - 1)
+    list(
+      lbf = lbf,
+      post_mean = post_mean,
+      post_mean2 = post_var + post_mean^2,
+      post_var = post_var,
+      rv = rv
+    )
+  }
+
   set.seed(666)
-  p <- 50
-  xtx <- 100
-  xty <- 50
-  s0_t <- 1
+  n <- 40
+  p <- 12
+  X <- matrix(rnorm(n * p), n, p)
+  y <- rnorm(n)
+  xx <- colSums(X^2)
+  xy <- drop(crossprod(X, y))
+  yy <- sum(y^2)
+  sxy <- xy / sqrt(xx * yy)
+  s0 <- 0.8
+  a0 <- 0.1
+  b0 <- 0.2
+  tau <- seq(1, 1.5, length.out = p)
 
-  result <- posterior_mean_NIG(xtx, xty, s0_t)
+  ref <- compute_stats_NIG_reference(n, xx, xy, yy, sxy, s0, a0, b0, tau)
+  lbf <- compute_lbf_NIG(n, xx, xy, yy, sxy, s0, a0, b0, tau)
+  moments <- compute_posterior_moments_NIG(n, xx, xy, yy, sxy, s0, a0, b0,
+                                           tau)
 
-  # Check output is numeric
-  expect_length(result, 1)
-  expect_true(is.finite(result))
-
-  # Posterior mean should be shrunk toward zero
-  ols_est <- xty / xtx
-  expect_true(abs(result) < abs(ols_est))
-
-  # Test with very small prior (strong shrinkage)
-  result_small <- posterior_mean_NIG(xtx, xty, s0_t = 0.01)
-  expect_true(abs(result_small) < abs(result))
-})
-
-test_that("posterior_var_NIG computes posterior variance", {
-  set.seed(777)
-  xtx <- 100
-  xty <- 50
-  yty <- 1000
-  n <- 100
-  s0_t <- 1
-
-  result <- posterior_var_NIG(xtx, xty, yty, n, s0_t)
-
-  # Check components
-  expect_true(all(c("post_var", "beta1") %in% names(result)))
-  expect_true(is.finite(result$post_var))
-  expect_true(is.finite(result$beta1))
-
-  # Posterior variance should be positive
-  expect_true(result$post_var > 0)
-
-  # Test with very small prior (should return 0)
-  result_small <- posterior_var_NIG(xtx, xty, yty, n, s0_t = 1e-6)
-  expect_equal(result_small$post_var, 0)
-  expect_equal(result_small$beta1, 0)
+  expect_equal(lbf, ref$lbf, tolerance = 1e-14)
+  expect_equal(moments$post_mean, ref$post_mean, tolerance = 1e-14)
+  expect_equal(moments$post_mean2, ref$post_mean2, tolerance = 1e-14)
+  expect_equal(moments$post_var, ref$post_var, tolerance = 1e-14)
+  expect_equal(moments$rv, ref$rv, tolerance = 1e-14)
 })
 
 test_that("est_residual_variance estimates residual variance", {

@@ -1149,8 +1149,8 @@ compute_lbf_gradient <- function(alpha, betahat, shat2, V, use_NIG = FALSE) {
 # and unmappable effects models.
 #
 # Functions: mom_unmappable, mle_unmappable, create_ash_grid,
-# compute_lbf_NIG_univariate, posterior_mean_NIG,
-# posterior_var_NIG, compute_stats_NIG, update_prior_variance_NIG_EM,
+# compute_lbf_NIG_univariate, compute_lbf_NIG,
+# compute_posterior_moments_NIG, update_prior_variance_NIG_EM,
 # compute_kl_NIG, inv_gamma_factor, compute_null_loglik_NIG,
 # compute_marginal_loglik, est_residual_variance, update_model_variance
 # =============================================================================
@@ -1355,68 +1355,6 @@ compute_lbf_NIG_univariate <- function(x, y, s0, alpha0 = 0, beta0 = 0) {
   sxy <- xy / sqrt(xx * yy)
   ratio <- (beta0 + yy * (1 - r0 * sxy^2)) / (beta0 + yy)
   return((log(1 - r0) - (n + alpha0) * log(ratio)) / 2)
-}
-
-# Posterior mean for NIG prior using sufficient statistics
-#' @keywords internal
-posterior_mean_NIG <- function(xtx, xty, s0_t = 1) {
-  omega <- (xtx + (1 / s0_t^2))^(-1)
-  b_bar <- omega %*% xty
-  return(b_bar)
-}
-
-# Posterior variance for NIG prior using sufficient statistics
-#' @keywords internal
-posterior_var_NIG <- function(xtx, xty, yty, n, s0_t = 1) {
-
-  # If prior variance is too small, return 0.
-  if (s0_t < 1e-5) {
-    return(list(post_var = 0, beta1 = 0))
-  }
-
-  omega <- (xtx + (1 / s0_t^2))^(-1)
-  b_bar <- omega %*% xty
-  beta1 <- (yty - b_bar * (omega^(-1)) * b_bar)
-  post_var_up <- 0.5 * (yty - b_bar * (omega^(-1)) * b_bar)
-  post_var_down <- 0.5 * (n * (1 / omega))
-  post_var <- omega * (post_var_up / post_var_down) * n / (n - 2)
-
-  return(list(post_var = post_var, beta1 = beta1))
-}
-
-# Compute the (log) Bayes factors and additional statistics under Normal-Inverse-Gamma (NIG) prior
-#' @keywords internal
-compute_stats_NIG <- function(n, xx, xy, yy, sxy, s0, a0, b0, tau = 1) {
-
-  r0 <- s0 / (s0 + tau / xx)
-  rss <- yy * (1 - r0 * sxy^2)
-
-  # Update inverse-gamma parameters
-  a1 <- a0 + n
-  b1 <- b0 + rss
-
-  # Compute log Bayes factor for each variable
-  lbf <- -(log(1 + s0 * xx / tau) + a1 * log(b1 / (b0 + yy))) / 2
-
-  # Compute least-squares estimate for each variable
-  bhat <- xy / xx
-
-  # Compute posterior mean
-  post_mean <- r0 * bhat
-
-  # Compute posterior variance
-  post_var <- b1 / (a1 - 2) * r0 * tau / xx
-
-  # Posterior mean of residual variance under IG((a0+n)/2, (b0+RSS)/2)
-  rv <- (b1 / 2) / (a1 / 2 - 1)
-
-  return(list(
-    lbf        = lbf,
-    post_mean  = post_mean,
-    post_mean2 = post_var + post_mean^2,
-    post_var   = post_var,
-    rv         = rv
-  ))
 }
 
 # Compute log Bayes factors under Normal-Inverse-Gamma (NIG) prior
