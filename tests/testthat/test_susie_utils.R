@@ -1565,6 +1565,63 @@ test_that("compute_lbf_NIG_univariate computes log Bayes factor", {
   expect_true(is.finite(result_alpha))
 })
 
+test_that("get_nig_sufficient_stats matches old cor() formula after intercept centering", {
+  set.seed(556)
+  n <- 40
+  p <- 5
+  X <- matrix(rnorm(n * p, mean = 2), n, p)
+  r <- 3 + rnorm(n)
+  X <- scale(X, center = TRUE, scale = FALSE)
+  r <- drop(scale(r, center = TRUE, scale = FALSE))
+
+  model <- list(
+    raw_residuals     = r,
+    residuals         = drop(crossprod(X, r)),
+    predictor_weights = colSums(X^2)
+  )
+
+  out <- get_nig_sufficient_stats(list(X = X), model)
+  expected <- drop(crossprod(X, r)) / sqrt(colSums(X^2) * sum(r^2))
+  old_cor_formula <- drop(cor(X, r))
+
+  expect_equal(out$sxy, expected, tolerance = 1e-14)
+  expect_equal(out$sxy, old_cor_formula, tolerance = 1e-14)
+})
+
+test_that("get_nig_sufficient_stats does not center individual residuals when intercept is FALSE", {
+  set.seed(557)
+  n <- 40
+  p <- 5
+  X <- matrix(rnorm(n * p, mean = 2), n, p)
+  r <- 3 + rnorm(n)
+
+  model <- list(
+    raw_residuals     = r,
+    residuals         = drop(crossprod(X, r)),
+    predictor_weights = colSums(X^2)
+  )
+
+  out <- get_nig_sufficient_stats(list(X = X), model)
+  expected <- drop(crossprod(X, r)) / sqrt(colSums(X^2) * sum(r^2))
+  old_cor_formula <- drop(cor(X, r))
+
+  expect_equal(out$sxy, expected, tolerance = 1e-14)
+  expect_gt(max(abs(out$sxy - old_cor_formula)), 0.1)
+
+  new_lbf <- compute_lbf_NIG(n, colSums(X^2), drop(crossprod(X, r)),
+                             sum(r^2), out$sxy, s0 = 1,
+                             a0 = 0.1, b0 = 0.1)
+  old_lbf <- compute_lbf_NIG(n, colSums(X^2), drop(crossprod(X, r)),
+                             sum(r^2), old_cor_formula, s0 = 1,
+                             a0 = 0.1, b0 = 0.1)
+  expected_lbf <- compute_lbf_NIG(n, colSums(X^2), drop(crossprod(X, r)),
+                                  sum(r^2), expected, s0 = 1,
+                                  a0 = 0.1, b0 = 0.1)
+
+  expect_equal(new_lbf, expected_lbf, tolerance = 1e-14)
+  expect_gt(max(abs(old_lbf - expected_lbf)), 1)
+})
+
 test_that("posterior_mean_NIG computes posterior mean", {
   set.seed(666)
   p <- 50

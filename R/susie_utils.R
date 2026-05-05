@@ -1302,9 +1302,12 @@ mle_unmappable <- function(data, params, model, omega, est_tau2 = TRUE, est_sigm
 #' @keywords internal
 get_nig_sufficient_stats <- function(data, model) {
   if (!is.null(model$raw_residuals)) {
-    # Individual data path: compute from raw residuals
+    # Individual data path: compute from the SER crossproducts. Using cor()
+    # would silently center X and the residuals, which is wrong when the
+    # caller sets intercept = FALSE.
     yy  <- sum(model$raw_residuals^2)
-    sxy <- drop(cor(data$X, model$raw_residuals))
+    sxy <- model$residuals / sqrt(model$predictor_weights * yy)
+    sxy <- pmin(pmax(sxy, -1), 1)
     tau <- 1
   } else {
     # SS/RSS path: use pre-computed quantities
