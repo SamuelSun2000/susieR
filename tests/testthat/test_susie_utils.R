@@ -1028,6 +1028,24 @@ test_that("NIG initial log BF uses scaled prior variance, not var_y-scaled V", {
   expect_gt(max(abs(old_lbf - expected_lbf)), 0.1)
 })
 
+test_that("NIG final model reports prior variance in y units", {
+  set.seed(947)
+  n <- 40
+  p <- 5
+  X <- matrix(rnorm(n * p), n, p)
+  y <- rnorm(n, sd = 3)
+  scaled_prior_variance <- 0.2
+
+  fit <- susie(X, y, L = 1, estimate_residual_method = "NIG",
+               estimate_prior_variance = FALSE,
+               scaled_prior_variance = scaled_prior_variance,
+               verbose = FALSE)
+
+  expect_true("rv" %in% names(fit))
+  expect_equal(fit$V / fit$rv, scaled_prior_variance, tolerance = 1e-12)
+  expect_gt(abs(fit$V - scaled_prior_variance), 1)
+})
+
 test_that("expand_scaled_prior_variance recycles scalar and preserves vector", {
   expect_equal(expand_scaled_prior_variance(0.2, 2.0, 5), rep(0.4, 5))
   expect_equal(
