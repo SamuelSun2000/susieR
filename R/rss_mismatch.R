@@ -338,8 +338,87 @@ compute_shat2_inflation <- function(data, model, XtXr_without_l, b_minus_l, r) {
   eta2    <- XtXr_without_l^2 / (data$n - 1)
   s <- eta2 + v_g
   lambda_bias <- if (is.null(model$lambda_bias)) 0 else model$lambda_bias
-  infl <- 1 + (1 / R_finite_B + lambda_bias) * s / model$sigma2
+  R_mismatch <- if (!is.null(data$R_mismatch)) data$R_mismatch else "eb"
+  if (identical(R_mismatch, "eb_mix") && lambda_bias > 0) {
+    # eb_mix estimates the same regional component as eb, then applies only the
+    # population term locally as w_j * lambda. Here w_j is the per-variant
+    # mismatch probability; the finite-reference term B^{-1} is unchanged.
+    pi1 <- if (!is.null(data$eb_mix_pi1)) data$eb_mix_pi1 else 0.999
+    w <- compute_mixture_gate(r, eta2, R_finite_B, lambda_bias, model$sigma2,
+                              data, pi1 = pi1)
+    infl <- 1 + (1 / R_finite_B + w * lambda_bias) * s / model$sigma2
+  } else {
+    infl <- 1 + (1 / R_finite_B + lambda_bias) * s / model$sigma2
+  }
   list(infl = infl)
+}
+
+#' @keywords internal
+validate_eb_mix_pi1 <- function(eb_mix_pi1) {
+  if (!is.numeric(eb_mix_pi1) || length(eb_mix_pi1) != 1L ||
+      !is.finite(eb_mix_pi1) || eb_mix_pi1 <= 0 || eb_mix_pi1 > 1)
+    stop("eb_mix_pi1 must be a single finite numeric value in (0, 1].")
+  as.numeric(eb_mix_pi1)
+}
+
+#' @keywords internal
+estimate_eb_mix_vsig <- function(r_z, tau_det2, pi1 = 0.999) {
+  pi1 <- validate_eb_mix_pi1(pi1)
+  if (pi1 >= 1)
+    return(max(c(1, tau_det2, r_z^2), na.rm = TRUE))
+  ok <- is.finite(r_z) & is.finite(tau_det2) & tau_det2 > 0
+  rz <- r_z[ok]
+  tau0 <- tau_det2[ok]
+  if (length(rz) < 2)
+    return(max(c(1, tau0, rz^2), na.rm = TRUE))
+
+  q99 <- as.numeric(stats::quantile(rz^2, 0.99, na.rm = TRUE))
+  scale_v <- max(c(1, q99, max(tau0, na.rm = TRUE),
+                   max(rz^2, na.rm = TRUE)), na.rm = TRUE)
+  lower_v <- max(.Machine$double.eps, min(tau0, na.rm = TRUE) * 0.01)
+  upper_v <- max(c(1, 10 * scale_v, 100 * max(rz^2, na.rm = TRUE),
+                   100 * max(tau0, na.rm = TRUE)), na.rm = TRUE)
+  if (!is.finite(lower_v) || !is.finite(upper_v) || lower_v >= upper_v)
+    return(scale_v)
+
+  nll <- function(logV) {
+    V <- exp(logV)
+    log0 <- log(pi1) + stats::dnorm(rz, 0, sqrt(tau0), log = TRUE)
+    log1 <- log1p(-pi1) + stats::dnorm(rz, 0, sqrt(V), log = TRUE)
+    m <- pmax(log0, log1)
+    -sum(m + log(exp(log0 - m) + exp(log1 - m)))
+  }
+  opt <- try(stats::optimize(nll, interval = log(c(lower_v, upper_v)),
+                             tol = 1e-6), silent = TRUE)
+  if (inherits(opt, "try-error") || !is.finite(opt$minimum))
+    return(scale_v)
+  exp(opt$minimum)
+}
+
+# Per-variant mismatch-vs-signal posterior for R_mismatch = "eb_mix".
+# Two-component mixture on the z-scale SER residual r_z = r / sqrt(n-1):
+#   mismatch ~ N(0, tau_det2_j),  signal ~ N(0, V_sig)   [wide]
+#   tau_det2_j = sigma2 + (1/B + lambda) * eta_j^2   [eta-only: drops v_g, preserves new signals]
+# Returns w_j = Pr(mismatch | r_z_j) in [0, 1].
+#' @keywords internal
+compute_mixture_gate <- function(r, eta2, R_finite_B, lambda_bias, sigma2, data,
+                                 pi1 = 0.999) {
+  pi1 <- validate_eb_mix_pi1(pi1)
+  if (pi1 >= 1)
+    return(rep(1, length(eta2)))
+  nm1 <- if (!is.null(data$nm1)) data$nm1 else (data$n - 1)
+  if (!is.finite(nm1) || nm1 <= 0) return(rep(1, length(eta2)))
+  r_z <- r / sqrt(nm1)
+  tau_det2 <- pmax(sigma2 + (1 / R_finite_B + lambda_bias) * eta2,
+                   .Machine$double.eps)
+  V_sig <- estimate_eb_mix_vsig(r_z, tau_det2, pi1)
+  log_prior_odds <- log(pi1) - log1p(-pi1)
+  # eta-only likelihood log-ratio (mismatch / signal)
+  llr <- stats::dnorm(r_z, 0, sqrt(tau_det2), log = TRUE) -
+         stats::dnorm(r_z, 0, sqrt(V_sig), log = TRUE)
+  w <- 1 / (1 + exp(-(log_prior_odds + llr)))
+  w[!is.finite(w)] <- 1
+  w
 }
 
 # =============================================================================
@@ -491,7 +570,7 @@ compute_R_mismatch_state <- function(data, params, model, phase = "sweep") {
 initialize_R_mismatch <- function(data, params, model) {
   R_mismatch <- if (!is.null(params$R_mismatch)) params$R_mismatch else "none"
   R_finite_B <- if (!is.null(model$R_finite_B)) model$R_finite_B else data$R_finite_B
-  should_init <- R_mismatch %in% c("eb", "eb_force_init") ||
+  should_init <- R_mismatch %in% c("eb", "eb_mix", "eb_force_init") ||
                  (R_mismatch == "eb_ser_init" && is.infinite(R_finite_B))
   if (!should_init || !inherits(data, c("ss", "ss_mixture")) ||
       nrow(model$alpha) < 1)
@@ -500,7 +579,7 @@ initialize_R_mismatch <- function(data, params, model) {
   model <- single_effect_update(data, params, model, 1L)
   model$R_mismatch_ser_model <- make_R_mismatch_ser_model(data, params, model, 1L)
   model <- compute_R_mismatch_state(data, params, model, phase = "init_ser")
-  init_coherence <- if (R_mismatch == "eb") compute_ser_ld_coherence(data, model, model$alpha[1, ]) else 1
+  init_coherence <- if (R_mismatch %in% c("eb", "eb_mix")) compute_ser_ld_coherence(data, model, model$alpha[1, ]) else 1
   model$lambda_bias <- init_coherence * model$lambda_bias
   model$R_mismatch_init <- list(
     method = "ser",

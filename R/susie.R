@@ -649,11 +649,19 @@ susie_ss <- function(XtX, Xty, yty, n,
 #'   correction. It warns when that residual still projects onto near-null
 #'   directions of the supplied \code{R}, and auto-disables
 #'   \code{estimate_residual_variance} with a warning.
+#'   \code{"eb_mix"} estimates the same regional component as \code{"eb"}, but
+#'   applies the population term locally as \code{w_j * lambda}, where
+#'   \code{w_j} is a per-variant mismatch probability from a two-component
+#'   residual mixture. The finite-reference term \eqn{B^{-1}} is unchanged.
 #'
 #' @param R_mismatch_method Estimator for the region-level
 #'   \code{lambda_bias} variance component when \code{R_mismatch != "none"}.
 #'   \code{"mle"} (default) maximizes the working Gaussian likelihood.
 #'   \code{"map"} uses a half-Cauchy MAP estimator.
+#'
+#' @param eb_mix_pi1 Mismatch-component prior probability in the
+#'   \code{R_mismatch = "eb_mix"} residual mixture gate. Default \code{0.999};
+#'   set to \code{1} to recover the ordinary \code{"eb"} correction.
 #'
 #' @param eig_delta_rel,eig_delta_abs Cutoffs for "low-eigenvalue"
 #'   directions of \code{R} used by the QC diagnostic when
@@ -749,8 +757,9 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
                       r_tol = 1e-8,
                       refine = FALSE,
                       R_finite = NULL,
-                      R_mismatch = c("none", "eb"),
+                      R_mismatch = c("none", "eb", "eb_mix"),
                       R_mismatch_method = c("mle", "map"),
+                      eb_mix_pi1 = 0.999,
                       eig_delta_rel = 1e-3,
                       eig_delta_abs = 0,
                       artifact_threshold = 0.1,
@@ -768,7 +777,7 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
   if (length(R_mismatch) > 1L)
     R_mismatch <- R_mismatch[1L]
   R_mismatch <- match.arg(R_mismatch,
-                          c("none", "eb", "eb_ser_init",
+                          c("none", "eb", "eb_mix", "eb_ser_init",
                             "eb_force_init", "eb_no_init"))
   R_mismatch_method        <- match.arg(R_mismatch_method)
   mp <- resolve_mixture_prior(estimate_prior_method, estimate_prior_variance,
@@ -807,6 +816,7 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
     R_finite = R_finite,
     R_mismatch = R_mismatch,
     R_mismatch_method = R_mismatch_method,
+    eb_mix_pi1 = eb_mix_pi1,
     eig_delta_rel = eig_delta_rel, eig_delta_abs = eig_delta_abs,
     artifact_threshold = artifact_threshold,
     R_sensitivity_threshold = R_sensitivity_threshold,
