@@ -1007,6 +1007,7 @@ test_that("R_mismatch = 'eb_mix' uses the SER-protected initialization like 'eb'
 
 test_that("susie_rss exposes and stores eb_mix_pi1", {
   expect_true("eb_mix_pi1" %in% names(formals(susie_rss)))
+  expect_equal(formals(susie_rss)$eb_mix_pi1, 1e-5)
   set.seed(17)
   p <- 8; n <- 200
   X <- matrix(rnorm(n * p), n, p)
@@ -1027,17 +1028,17 @@ test_that("eb_mix_pi1 is validated", {
   X <- matrix(rnorm(n * p), n, p)
   R <- cor(X)
   z <- rnorm(p)
-  expect_error(
-    susie_rss(z = z, R = R, n = n, L = 2, R_finite = 100,
-              R_mismatch = "eb_mix", eb_mix_pi1 = 0, init_only = TRUE),
-    "eb_mix_pi1"
-  )
   obj <- suppressWarnings(susie_rss(z = z, R = R, n = n, L = 2,
                                     R_finite = 100,
                                     R_mismatch = "eb_mix",
-                                    eb_mix_pi1 = 1,
+                                    eb_mix_pi1 = 0,
                                     init_only = TRUE))
-  expect_equal(obj$params$eb_mix_pi1, 1)
+  expect_equal(obj$params$eb_mix_pi1, 0)
+  expect_error(
+    susie_rss(z = z, R = R, n = n, L = 2, R_finite = 100,
+              R_mismatch = "eb_mix", eb_mix_pi1 = -1e-5, init_only = TRUE),
+    "eb_mix_pi1"
+  )
 })
 
 test_that("eb_mix_pi1 is stored in multi-panel RSS constructors", {
@@ -1061,7 +1062,7 @@ test_that("eb_mix_pi1 is stored in multi-panel RSS constructors", {
 test_that("eb_mix signal variance scale is estimated by MLE at fixed pi1", {
   r_z <- c(rep(0, 40), seq(-2, 2, length.out = 20))
   tau_det2 <- rep(1, length(r_z))
-  V_sig <- susieR:::estimate_eb_mix_vsig(r_z, tau_det2, pi1 = 0.999)
+  V_sig <- susieR:::estimate_eb_mix_vsig(r_z, tau_det2, pi1 = 1e-5)
   expect_true(is.finite(V_sig))
   expect_gt(V_sig, 0)
   expect_lt(V_sig, 100)
@@ -1069,44 +1070,54 @@ test_that("eb_mix signal variance scale is estimated by MLE at fixed pi1", {
 
 test_that("eb_mix helper fallbacks are conservative", {
   expect_equal(
-    susieR:::estimate_eb_mix_vsig(c(2, 3), c(1, 2), pi1 = 1),
+    susieR:::estimate_eb_mix_vsig(c(2, 3), c(1, 2), pi1 = 0),
     9
   )
   expect_equal(
-    susieR:::estimate_eb_mix_vsig(c(2, NA), c(1, 2), pi1 = 0.999),
+    susieR:::estimate_eb_mix_vsig(c(2, NA), c(1, 2), pi1 = 1e-5),
     4
   )
   expect_equal(
     susieR:::compute_mixture_gate(c(1, 2), c(1, 2), R_finite_B = 100,
                                   lambda_bias = 0.1, sigma2 = 1,
-                                  data = list(nm1 = 0), pi1 = 0.999),
+                                  data = list(nm1 = 0), pi1 = 1e-5),
     rep(1, 2)
   )
 })
 
-test_that("eb_mix_pi1 changes the population gate strength", {
+test_that("larger eb_mix_pi1 lowers the mismatch gate", {
   eta2 <- c(A = 1e-8, B = 100)
   r <- c(A = 6, B = 6) * sqrt(2000)
   w_low <- susieR:::compute_mixture_gate(r, eta2, R_finite_B = 200,
                                          lambda_bias = 0.1, sigma2 = 1,
                                          data = list(nm1 = 2000),
-                                         pi1 = 0.8)
+                                         pi1 = 1e-6)
   w_high <- susieR:::compute_mixture_gate(r, eta2, R_finite_B = 200,
                                           lambda_bias = 0.1, sigma2 = 1,
                                           data = list(nm1 = 2000),
-                                          pi1 = 0.98)
-  expect_gt(w_high[["A"]], w_low[["A"]])
-  expect_gt(w_high[["B"]], w_low[["B"]])
+                                          pi1 = 1e-2)
+  expect_lt(w_high[["A"]], w_low[["A"]])
+  expect_lt(w_high[["B"]], w_low[["B"]])
 })
 
-test_that("eb_mix_pi1 = 1 returns the ordinary EB gate", {
+test_that("eb_mix_pi1 = 0 returns the ordinary EB gate", {
+  eta2 <- c(A = 1e-8, B = 100)
+  r <- c(A = 6, B = 6) * sqrt(2000)
+  w <- susieR:::compute_mixture_gate(r, eta2, R_finite_B = 200,
+                                     lambda_bias = 0.1, sigma2 = 1,
+                                     data = list(nm1 = 2000),
+                                     pi1 = 0)
+  expect_equal(w, rep(1, length(eta2)))
+})
+
+test_that("eb_mix_pi1 = 1 returns the all-signal gate", {
   eta2 <- c(A = 1e-8, B = 100)
   r <- c(A = 6, B = 6) * sqrt(2000)
   w <- susieR:::compute_mixture_gate(r, eta2, R_finite_B = 200,
                                      lambda_bias = 0.1, sigma2 = 1,
                                      data = list(nm1 = 2000),
                                      pi1 = 1)
-  expect_equal(w, rep(1, length(eta2)))
+  expect_equal(unname(w), rep(0, length(eta2)))
 })
 
 test_that("compute_mixture_gate returns probabilities in [0,1]", {
@@ -1170,9 +1181,9 @@ test_that("eb_mix == eb when lambda_bias = 0 (no population term to gate)", {
   expect_equal(infl_mix, infl_eb)
 })
 
-test_that("eb_mix with eb_mix_pi1 = 1 exactly nests ordinary eb", {
+test_that("eb_mix with eb_mix_pi1 = 0 exactly nests ordinary eb", {
   data_mix <- list(n = 2001, nm1 = 2000, R_mismatch = "eb_mix",
-                   eb_mix_pi1 = 1)
+                   eb_mix_pi1 = 0)
   data_eb  <- list(n = 2001, nm1 = 2000, R_mismatch = "eb")
   model <- list(sigma2 = 1, lambda_bias = 0.1, R_finite_B = 500)
   XtXr_without_l <- rep(10, 5)
