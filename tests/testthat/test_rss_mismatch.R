@@ -1007,7 +1007,7 @@ test_that("R_mismatch = 'eb_mix' uses the SER-protected initialization like 'eb'
 
 test_that("susie_rss exposes and stores eb_mix_pi1", {
   expect_true("eb_mix_pi1" %in% names(formals(susie_rss)))
-  expect_equal(formals(susie_rss)$eb_mix_pi1, 1e-5)
+  expect_equal(formals(susie_rss)$eb_mix_pi1, 1e-6)
   set.seed(17)
   p <- 8; n <- 200
   X <- matrix(rnorm(n * p), n, p)

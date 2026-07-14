@@ -343,7 +343,7 @@ compute_shat2_inflation <- function(data, model, XtXr_without_l, b_minus_l, r) {
     # eb_mix estimates the same regional component as eb, then applies only the
     # population term locally as w_j * lambda. Here w_j is the per-variant
     # mismatch probability; the finite-reference term B^{-1} is unchanged.
-    pi1 <- if (!is.null(data$eb_mix_pi1)) data$eb_mix_pi1 else 1e-5
+    pi1 <- if (!is.null(data$eb_mix_pi1)) data$eb_mix_pi1 else 1e-6
     w <- compute_mixture_gate(r, eta2, R_finite_B, lambda_bias, model$sigma2,
                               data, pi1 = pi1)
     infl <- 1 + (1 / R_finite_B + w * lambda_bias) * s / model$sigma2
@@ -362,7 +362,7 @@ validate_eb_mix_pi1 <- function(eb_mix_pi1) {
 }
 
 #' @keywords internal
-estimate_eb_mix_vsig <- function(r_z, tau_det2, pi1 = 1e-5) {
+estimate_eb_mix_vsig <- function(r_z, tau_det2, pi1 = 1e-6) {
   pi1 <- validate_eb_mix_pi1(pi1)
   if (pi1 <= 0)
     return(max(c(1, tau_det2, r_z^2), na.rm = TRUE))
@@ -402,7 +402,7 @@ estimate_eb_mix_vsig <- function(r_z, tau_det2, pi1 = 1e-5) {
 # pi1 = Pr(signal). Returns w_j = Pr(mismatch | r_z_j) in [0, 1].
 #' @keywords internal
 compute_mixture_gate <- function(r, eta2, R_finite_B, lambda_bias, sigma2, data,
-                                 pi1 = 1e-5) {
+                                 pi1 = 1e-6) {
   pi1 <- validate_eb_mix_pi1(pi1)
   if (pi1 <= 0)
     return(rep(1, length(eta2)))
