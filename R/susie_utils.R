@@ -2606,6 +2606,10 @@ get_purity <- function(pos, X, Xcorr, squared = FALSE, n = "auto",
       X_sub <- as.matrix(X_sub)
       value <- abs(get_upper_tri(safe_cor(X_sub)))
     } else {
+      n <- resolve_n_purity(n, length(pos), length(pos), use_rfast)
+      if (length(pos) > n) {
+        pos <- sample(pos, n)
+      }
       value <- abs(get_upper_tri(Xcorr[pos, pos]))
     }
     if (squared) {
