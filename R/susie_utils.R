@@ -118,7 +118,10 @@ safe_cov2cor <- function(V) {
   d <- sqrt(diag(V))
   d_inv <- 1 / d
   d_inv[d == 0] <- 0
-  R <- V * outer(d_inv, d_inv)
+  # Avoid outer(d_inv, d_inv) which calls BLAS DGER: 32-bit integer overflow
+  # for large matrices (n > ~46K). Use BLAS-free row/column scaling instead.
+  R <- V * d_inv
+  R <- t(R) * d_inv
   diag(R) <- 1
   R
 }

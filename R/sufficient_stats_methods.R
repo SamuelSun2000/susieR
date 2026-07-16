@@ -546,10 +546,7 @@ get_cs.ss <- function(data, params, model, ...) {
   }
 
   if (any(!(diag(data$XtX) %in% c(0, 1)))) {
-    d <- sqrt(diag(data$XtX))
-    d_inv <- 1 / d
-    d_inv[d == 0] <- 0
-    Xcorr <- structure(list(XtX = data$XtX, d_inv = d_inv), class = "scaled_XtX")
+    Xcorr <- structure(list(XtX = data$XtX), class = "scaled_XtX")
   } else {
     Xcorr <- data$XtX
   }
@@ -564,19 +561,12 @@ get_cs.ss <- function(data, params, model, ...) {
 }
 
 # Lazy submatrix extraction for scaled_XtX objects.
-# Computes Xcorr[i, j] = d_inv[i] * XtX[i, j] * d_inv[j] only for the
-# requested indices, so get_purity never needs a full n x n outer product.
-# Row/column scaling is done without outer() to avoid BLAS DGER integer
-# overflow for large submatrices.
+# Computes the correlation submatrix for the requested indices by delegating
+# to safe_cov2cor (which is now BLAS-free). This avoids materializing the
+# full n x n correlation matrix in get_cs.ss.
 #' @keywords internal
 `[.scaled_XtX` <- function(x, i, j, drop = TRUE) {
-  sub <- x$XtX[i, j, drop = FALSE]
-  di  <- x$d_inv[i]
-  dj  <- x$d_inv[j]
-  # Scale rows then columns: sub[r,c] = XtX[r,c] * d_inv[r] * d_inv[c]
-  sub <- sub * di
-  sub <- t(sub) * dj
-  diag(sub) <- 1
+  sub <- safe_cov2cor(x$XtX[i, j, drop = FALSE])
   if (drop && (nrow(sub) == 1L || ncol(sub) == 1L))
     sub <- drop(sub)
   sub
