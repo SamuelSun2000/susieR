@@ -118,7 +118,10 @@ safe_cov2cor <- function(V) {
   d <- sqrt(diag(V))
   d_inv <- 1 / d
   d_inv[d == 0] <- 0
-  R <- V * outer(d_inv, d_inv)
+  # Avoid outer(d_inv, d_inv) which calls BLAS DGER: 32-bit integer overflow
+  # for large matrices (n > ~46K). Use BLAS-free row/column scaling instead.
+  R <- V * d_inv
+  R <- t(R) * d_inv
   diag(R) <- 1
   R
 }
@@ -2606,6 +2609,10 @@ get_purity <- function(pos, X, Xcorr, squared = FALSE, n = "auto",
       X_sub <- as.matrix(X_sub)
       value <- abs(get_upper_tri(safe_cor(X_sub)))
     } else {
+      n <- resolve_n_purity(n, length(pos), length(pos), use_rfast)
+      if (length(pos) > n) {
+        pos <- sample(pos, n)
+      }
       value <- abs(get_upper_tri(Xcorr[pos, pos]))
     }
     if (squared) {
