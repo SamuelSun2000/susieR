@@ -1005,9 +1005,13 @@ test_that("R_mismatch = 'eb_mix' uses the SER-protected initialization like 'eb'
   expect_true(is.finite(fit$R_mismatch_init$ld_coherence))
 })
 
-test_that("susie_rss exposes and stores eb_mix_pi1", {
-  expect_true("eb_mix_pi1" %in% names(formals(susie_rss)))
-  expect_equal(formals(susie_rss)$eb_mix_pi1, 1e-6)
+test_that("susie_rss exposes only reference-P calibration for eb_mix", {
+  expect_false("eb_mix_pi1" %in% names(formals(susie_rss)))
+  expect_false("eb_mix_marginal_z_c" %in% names(formals(susie_rss)))
+  expect_true("eb_mix_ref" %in% names(formals(susie_rss)))
+  expect_equal(eval(formals(susie_rss)$eb_mix_ref), 5e-8)
+  expect_false("eb_mix_marginal_z_gamma" %in% names(formals(susie_rss)))
+  expect_false("eb_mix_marginal_z_mode" %in% names(formals(susie_rss)))
   set.seed(17)
   p <- 8; n <- 200
   X <- matrix(rnorm(n * p), n, p)
@@ -1016,13 +1020,19 @@ test_that("susie_rss exposes and stores eb_mix_pi1", {
   obj <- suppressWarnings(susie_rss(z = z, R = R, n = n, L = 2,
                                     R_finite = 100,
                                     R_mismatch = "eb_mix",
-                                    eb_mix_pi1 = 0.2,
+                                    eb_mix_ref = 1e-4,
                                     init_only = TRUE))
-  expect_equal(obj$params$eb_mix_pi1, 0.2)
-  expect_equal(obj$data$eb_mix_pi1, 0.2)
+  expect_null(obj$params$eb_mix_pi1)
+  expect_null(obj$data$eb_mix_pi1)
+  expect_equal(obj$params$eb_mix_ref, 1e-4)
+  expect_equal(obj$data$eb_mix_ref, 1e-4)
+  expect_equal(obj$params$eb_mix_z_ref, qnorm(1e-4 / 2, lower.tail = FALSE))
+  expect_equal(obj$data$eb_mix_z_ref, qnorm(1e-4 / 2, lower.tail = FALSE))
+  expect_length(obj$data$z_marginal, length(z))
+  expect_true(all(is.finite(obj$data$z_marginal)))
 })
 
-test_that("eb_mix_pi1 is validated", {
+test_that("eb_mix_ref is validated and converted to z_ref", {
   set.seed(18)
   p <- 8; n <- 200
   X <- matrix(rnorm(n * p), n, p)
@@ -1031,17 +1041,18 @@ test_that("eb_mix_pi1 is validated", {
   obj <- suppressWarnings(susie_rss(z = z, R = R, n = n, L = 2,
                                     R_finite = 100,
                                     R_mismatch = "eb_mix",
-                                    eb_mix_pi1 = 0,
                                     init_only = TRUE))
-  expect_equal(obj$params$eb_mix_pi1, 0)
+  expect_equal(obj$params$eb_mix_ref, 5e-8)
+  expect_equal(obj$params$eb_mix_z_ref, qnorm(5e-8 / 2, lower.tail = FALSE))
   expect_error(
     susie_rss(z = z, R = R, n = n, L = 2, R_finite = 100,
-              R_mismatch = "eb_mix", eb_mix_pi1 = -1e-5, init_only = TRUE),
-    "eb_mix_pi1"
+              R_mismatch = "eb_mix", eb_mix_ref = -1,
+              init_only = TRUE),
+    "eb_mix_ref"
   )
 })
 
-test_that("eb_mix_pi1 is stored in multi-panel RSS constructors", {
+test_that("eb_mix_ref is stored in multi-panel RSS constructors", {
   set.seed(19)
   p <- 8; n <- 200
   X1 <- matrix(rnorm(n * p), n, p)
@@ -1052,17 +1063,21 @@ test_that("eb_mix_pi1 is stored in multi-panel RSS constructors", {
   obj <- suppressWarnings(susie_rss(z = z, R = list(R1, R2), n = n, L = 2,
                                     R_finite = c(100, 120),
                                     R_mismatch = "eb_mix",
-                                    eb_mix_pi1 = 0.17,
+                                    eb_mix_ref = 1e-5,
                                     init_only = TRUE))
   expect_s3_class(obj$data, "ss_mixture")
-  expect_equal(obj$params$eb_mix_pi1, 0.17)
-  expect_equal(obj$data$eb_mix_pi1, 0.17)
+  expect_null(obj$params$eb_mix_pi1)
+  expect_null(obj$data$eb_mix_pi1)
+  expect_equal(obj$params$eb_mix_ref, 1e-5)
+  expect_equal(obj$data$eb_mix_ref, 1e-5)
+  expect_equal(obj$params$eb_mix_z_ref, qnorm(1e-5 / 2, lower.tail = FALSE))
+  expect_equal(obj$data$eb_mix_z_ref, qnorm(1e-5 / 2, lower.tail = FALSE))
 })
 
-test_that("eb_mix signal variance scale is estimated by MLE at fixed pi1", {
+test_that("eb_mix signal variance scale is estimated by MLE at fixed signal prior", {
   r_z <- c(rep(0, 40), seq(-2, 2, length.out = 20))
   tau_det2 <- rep(1, length(r_z))
-  V_sig <- susieR:::estimate_eb_mix_vsig(r_z, tau_det2, pi1 = 1e-5)
+  V_sig <- susieR:::estimate_eb_mix_vsig(r_z, tau_det2, pi_signal = 0.1)
   expect_true(is.finite(V_sig))
   expect_gt(V_sig, 0)
   expect_lt(V_sig, 100)
@@ -1070,54 +1085,61 @@ test_that("eb_mix signal variance scale is estimated by MLE at fixed pi1", {
 
 test_that("eb_mix helper fallbacks are conservative", {
   expect_equal(
-    susieR:::estimate_eb_mix_vsig(c(2, 3), c(1, 2), pi1 = 0),
+    susieR:::estimate_eb_mix_vsig(c(2, 3), c(1, 2), pi_signal = 0),
     9
   )
   expect_equal(
-    susieR:::estimate_eb_mix_vsig(c(2, NA), c(1, 2), pi1 = 1e-5),
+    susieR:::estimate_eb_mix_vsig(c(2, NA), c(1, 2), pi_signal = 0.1),
     4
   )
   expect_equal(
     susieR:::compute_mixture_gate(c(1, 2), c(1, 2), R_finite_B = 100,
                                   lambda_bias = 0.1, sigma2 = 1,
-                                  data = list(nm1 = 0), pi1 = 1e-5),
+                                  data = list(nm1 = 0)),
     rep(1, 2)
   )
 })
 
-test_that("larger eb_mix_pi1 lowers the mismatch gate", {
+test_that("stronger marginal evidence raises the mismatch gate", {
   eta2 <- c(A = 1e-8, B = 100)
   r <- c(A = 6, B = 6) * sqrt(2000)
-  w_low <- susieR:::compute_mixture_gate(r, eta2, R_finite_B = 200,
-                                         lambda_bias = 0.1, sigma2 = 1,
-                                         data = list(nm1 = 2000),
-                                         pi1 = 1e-6)
-  w_high <- susieR:::compute_mixture_gate(r, eta2, R_finite_B = 200,
-                                          lambda_bias = 0.1, sigma2 = 1,
-                                          data = list(nm1 = 2000),
-                                          pi1 = 1e-2)
-  expect_lt(w_high[["A"]], w_low[["A"]])
-  expect_lt(w_high[["B"]], w_low[["B"]])
+  w_weak <- susieR:::compute_mixture_gate(
+    r, eta2, R_finite_B = 200, lambda_bias = 0.1, sigma2 = 1,
+    data = list(nm1 = 2000), z_marginal = c(A = 0, B = 0), z_ref = 1)
+  w_strong <- susieR:::compute_mixture_gate(
+    r, eta2, R_finite_B = 200, lambda_bias = 0.1, sigma2 = 1,
+    data = list(nm1 = 2000), z_marginal = c(A = 0, B = 4), z_ref = 1)
+  expect_gt(w_strong[["A"]], w_weak[["A"]])
+  expect_gt(w_strong[["B"]], w_weak[["B"]])
 })
 
-test_that("eb_mix_pi1 = 0 returns the ordinary EB gate", {
-  eta2 <- c(A = 1e-8, B = 100)
-  r <- c(A = 6, B = 6) * sqrt(2000)
-  w <- susieR:::compute_mixture_gate(r, eta2, R_finite_B = 200,
-                                     lambda_bias = 0.1, sigma2 = 1,
-                                     data = list(nm1 = 2000),
-                                     pi1 = 0)
-  expect_equal(w, rep(1, length(eta2)))
+test_that("marginal z prior is a region-level shift", {
+  eta2 <- c(weak = 1, strong = 1)
+  r <- c(weak = 2, strong = 2) * sqrt(2000)
+  w_weak_region <- susieR:::compute_mixture_gate(
+    r, eta2, R_finite_B = 200, lambda_bias = 0.1, sigma2 = 1,
+    data = list(nm1 = 2000),
+    z_marginal = c(weak = 0, strong = 0), z_ref = 1)
+  w_strong_region <- susieR:::compute_mixture_gate(
+    r, eta2, R_finite_B = 200, lambda_bias = 0.1, sigma2 = 1,
+    data = list(nm1 = 2000),
+    z_marginal = c(weak = 0, strong = 4), z_ref = 1)
+  expect_equal(unname(w_strong_region[["weak"]]),
+               unname(w_strong_region[["strong"]]))
+  expect_gt(w_strong_region[["weak"]], w_weak_region[["weak"]])
 })
 
-test_that("eb_mix_pi1 = 1 returns the all-signal gate", {
-  eta2 <- c(A = 1e-8, B = 100)
-  r <- c(A = 6, B = 6) * sqrt(2000)
-  w <- susieR:::compute_mixture_gate(r, eta2, R_finite_B = 200,
-                                     lambda_bias = 0.1, sigma2 = 1,
-                                     data = list(nm1 = 2000),
-                                     pi1 = 1)
-  expect_equal(unname(w), rep(0, length(eta2)))
+test_that("marginal z prior is driven by the strongest marginal evidence", {
+  weak <- susieR:::compute_marginal_z_log_odds(
+    c(A = 2, B = 4), z_ref = qnorm(5e-8 / 2, lower.tail = FALSE)
+  )
+  strong <- susieR:::compute_marginal_z_log_odds(
+    c(A = 2, B = 6), z_ref = qnorm(5e-8 / 2, lower.tail = FALSE)
+  )
+  expect_true(all(weak < 0))
+  expect_true(all(strong > 0))
+  expect_equal(unname(weak[1]), unname(weak[2]))
+  expect_equal(unname(strong[1]), unname(strong[2]))
 })
 
 test_that("compute_mixture_gate returns probabilities in [0,1]", {
@@ -1137,8 +1159,9 @@ test_that("compute_mixture_gate is asymmetric: high-eta leakage corrected, low-e
   eta2 <- c(A = 1e-8, B = 100)
   r <- c(A = 6, B = 6) * sqrt(2000)
   w <- susieR:::compute_mixture_gate(r, eta2, R_finite_B = 200,
-                                     lambda_bias = 0.1, sigma2 = 1, data)
-  expect_lt(w[["A"]], 0.1)
+                                     lambda_bias = 0.1, sigma2 = 1, data,
+                                     z_marginal = c(A = 0, B = 6),
+                                     z_ref = 1)
   expect_gt(w[["B"]], 0.8)
   expect_gt(w[["B"]], w[["A"]])
 })
@@ -1171,21 +1194,6 @@ test_that("eb_mix == eb when lambda_bias = 0 (no population term to gate)", {
   data_mix <- list(n = 2001, nm1 = 2000, R_mismatch = "eb_mix")
   data_eb  <- list(n = 2001, nm1 = 2000, R_mismatch = "eb")
   model <- list(sigma2 = 1, lambda_bias = 0, R_finite_B = 500)
-  XtXr_without_l <- rep(10, 5)
-  b_minus_l <- rep(0.05, 5)
-  r <- c(300, 10, 10, 10, 10)
-  infl_eb  <- susieR:::compute_shat2_inflation(data_eb,  model,
-                                               XtXr_without_l, b_minus_l, r)$infl
-  infl_mix <- susieR:::compute_shat2_inflation(data_mix, model,
-                                               XtXr_without_l, b_minus_l, r)$infl
-  expect_equal(infl_mix, infl_eb)
-})
-
-test_that("eb_mix with eb_mix_pi1 = 0 exactly nests ordinary eb", {
-  data_mix <- list(n = 2001, nm1 = 2000, R_mismatch = "eb_mix",
-                   eb_mix_pi1 = 0)
-  data_eb  <- list(n = 2001, nm1 = 2000, R_mismatch = "eb")
-  model <- list(sigma2 = 1, lambda_bias = 0.1, R_finite_B = 500)
   XtXr_without_l <- rep(10, 5)
   b_minus_l <- rep(0.05, 5)
   r <- c(300, 10, 10, 10, 10)

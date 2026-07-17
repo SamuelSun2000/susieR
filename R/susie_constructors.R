@@ -736,7 +736,7 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
                                       R_finite = NULL,
                                       R_mismatch = "none",
                                       R_mismatch_method = "mle",
-                                      eb_mix_pi1 = 1e-6,
+                                      eb_mix_ref = 5e-8,
                                       eig_delta_rel = 1e-3,
                                       eig_delta_abs = 0,
                                       artifact_threshold = 0.1,
@@ -803,7 +803,8 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
                    (is.list(R) && !is.matrix(R))
   R_mismatch <- match.arg(R_mismatch, c("none", "eb", "eb_mix", "eb_ser_init", "eb_force_init", "eb_no_init"))
   R_mismatch_method <- match.arg(R_mismatch_method, c("mle", "map"))
-  eb_mix_pi1 <- validate_eb_mix_pi1(eb_mix_pi1)
+  eb_mix_ref <- validate_eb_mix_ref(eb_mix_ref)
+  eb_mix_z_ref <- eb_mix_ref_to_z_ref(eb_mix_ref)
   if (!is.numeric(R_sensitivity_threshold) ||
       length(R_sensitivity_threshold) != 1L ||
       !is.finite(R_sensitivity_threshold) ||
@@ -923,7 +924,7 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
       cs_extension_corr = cs_extension_corr,
       r_tol = r_tol, refine = refine, R_finite = R_finite,
       R_mismatch = R_mismatch, R_mismatch_method = R_mismatch_method,
-      eb_mix_pi1 = eb_mix_pi1,
+      eb_mix_ref = eb_mix_ref,
       eig_delta_rel = eig_delta_rel,
       eig_delta_abs = eig_delta_abs, artifact_threshold = artifact_threshold,
       R_sensitivity_threshold = R_sensitivity_threshold,
@@ -1164,8 +1165,11 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
   # Attach R-mismatch params consumed by R/rss_mismatch.R.
   result$params$R_mismatch <- R_mismatch
   result$params$R_mismatch_method <- R_mismatch_method
-  result$params$eb_mix_pi1 <- eb_mix_pi1
-  result$data$eb_mix_pi1 <- eb_mix_pi1
+  result$params$eb_mix_ref <- eb_mix_ref
+  result$data$eb_mix_ref <- eb_mix_ref
+  result$params$eb_mix_z_ref <- eb_mix_z_ref
+  result$data$eb_mix_z_ref <- eb_mix_z_ref
+  result$data$z_marginal <- z
   result$params$eig_delta_rel <- eig_delta_rel
   result$params$eig_delta_abs <- eig_delta_abs
   result$params$artifact_threshold <- artifact_threshold
@@ -1216,7 +1220,7 @@ ss_mixture_constructor <- function(z, R = NULL, X = NULL, n,
                                    R_finite = NULL,
                                    R_mismatch = "none",
                                    R_mismatch_method = "mle",
-                                   eb_mix_pi1 = 1e-6,
+                                   eb_mix_ref = 5e-8,
                                    eig_delta_rel = 1e-3,
                                    eig_delta_abs = 0,
                                    artifact_threshold = 0.1,
@@ -1233,7 +1237,8 @@ ss_mixture_constructor <- function(z, R = NULL, X = NULL, n,
     stop("Sample size 'n' is required for multi-panel mode.")
   R_mismatch <- match.arg(R_mismatch, c("none", "eb", "eb_mix", "eb_ser_init", "eb_force_init", "eb_no_init"))
   R_mismatch_method <- match.arg(R_mismatch_method, c("mle", "map"))
-  eb_mix_pi1 <- validate_eb_mix_pi1(eb_mix_pi1)
+  eb_mix_ref <- validate_eb_mix_ref(eb_mix_ref)
+  eb_mix_z_ref <- eb_mix_ref_to_z_ref(eb_mix_ref)
   if (!is.numeric(R_sensitivity_threshold) ||
       length(R_sensitivity_threshold) != 1L ||
       !is.finite(R_sensitivity_threshold) ||
@@ -1383,7 +1388,8 @@ ss_mixture_constructor <- function(z, R = NULL, X = NULL, n,
     greedy_lbf_cutoff = greedy_lbf_cutoff,
     R_mismatch = R_mismatch,
     R_mismatch_method = R_mismatch_method,
-    eb_mix_pi1 = eb_mix_pi1,
+    eb_mix_ref = eb_mix_ref,
+    eb_mix_z_ref = eb_mix_z_ref,
     eig_delta_rel = eig_delta_rel,
     eig_delta_abs = eig_delta_abs,
     artifact_threshold = artifact_threshold,
@@ -1401,7 +1407,9 @@ ss_mixture_constructor <- function(z, R = NULL, X = NULL, n,
       R_finite_B = R_finite_B,
       R_finite_diagnostics = R_finite_diagnostics,
       R_mismatch = R_mismatch,
-      eb_mix_pi1 = eb_mix_pi1,
+      eb_mix_ref = eb_mix_ref,
+      eb_mix_z_ref = eb_mix_z_ref,
+      z_marginal = z,
       X_list_std = X_list, B_list = B_list,
       K = K, panel_R = panel_R, omega_cache = omega_cache,
       omega_init = omega_init

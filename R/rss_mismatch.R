@@ -343,9 +343,11 @@ compute_shat2_inflation <- function(data, model, XtXr_without_l, b_minus_l, r) {
     # eb_mix estimates the same regional component as eb, then applies only the
     # population term locally as w_j * lambda. Here w_j is the per-variant
     # mismatch probability; the finite-reference term B^{-1} is unchanged.
-    pi1 <- if (!is.null(data$eb_mix_pi1)) data$eb_mix_pi1 else 1e-6
     w <- compute_mixture_gate(r, eta2, R_finite_B, lambda_bias, model$sigma2,
-                              data, pi1 = pi1)
+                              data, z_marginal = data$z_marginal,
+                              z_ref = if (!is.null(data$eb_mix_z_ref))
+                                        data$eb_mix_z_ref else
+                                        eb_mix_ref_to_z_ref(5e-8))
     infl <- 1 + (1 / R_finite_B + w * lambda_bias) * s / model$sigma2
   } else {
     infl <- 1 + (1 / R_finite_B + lambda_bias) * s / model$sigma2
@@ -354,17 +356,37 @@ compute_shat2_inflation <- function(data, model, XtXr_without_l, b_minus_l, r) {
 }
 
 #' @keywords internal
-validate_eb_mix_pi1 <- function(eb_mix_pi1) {
-  if (!is.numeric(eb_mix_pi1) || length(eb_mix_pi1) != 1L ||
-      !is.finite(eb_mix_pi1) || eb_mix_pi1 < 0 || eb_mix_pi1 > 1)
-    stop("eb_mix_pi1 must be a single finite numeric value in [0, 1].")
-  as.numeric(eb_mix_pi1)
+validate_eb_mix_ref <- function(eb_mix_ref) {
+  if (!is.numeric(eb_mix_ref) || length(eb_mix_ref) != 1L ||
+      !is.finite(eb_mix_ref) || eb_mix_ref <= 0 || eb_mix_ref > 1)
+    stop("eb_mix_ref must be a single finite numeric value in (0, 1].")
+  as.numeric(eb_mix_ref)
 }
 
 #' @keywords internal
-estimate_eb_mix_vsig <- function(r_z, tau_det2, pi1 = 1e-6) {
-  pi1 <- validate_eb_mix_pi1(pi1)
-  if (pi1 <= 0)
+eb_mix_ref_to_z_ref <- function(eb_mix_ref) {
+  stats::qnorm(validate_eb_mix_ref(eb_mix_ref) / 2, lower.tail = FALSE)
+}
+
+#' @keywords internal
+compute_marginal_z_log_odds <- function(z_marginal,
+                                        z_ref = eb_mix_ref_to_z_ref(5e-8)) {
+  if (!is.numeric(z_ref) || length(z_ref) != 1L ||
+      !is.finite(z_ref) || z_ref < 0)
+    stop("z_ref must be a single nonnegative finite numeric value.")
+  z <- as.numeric(z_marginal)
+  names(z) <- names(z_marginal)
+  z2 <- z^2
+  z2[!is.finite(z2)] <- 0
+  z_region2 <- max(z2, na.rm = TRUE)
+  rep(0.5 * (z_region2 - z_ref^2), length(z2))
+}
+
+#' @keywords internal
+estimate_eb_mix_vsig <- function(r_z, tau_det2, pi_signal = 0.5) {
+  pi_signal <- as.numeric(pi_signal)[1]
+  pi_signal <- if (is.finite(pi_signal)) min(max(pi_signal, 0), 1) else 0.5
+  if (pi_signal <= 0)
     return(max(c(1, tau_det2, r_z^2), na.rm = TRUE))
   ok <- is.finite(r_z) & is.finite(tau_det2) & tau_det2 > 0
   rz <- r_z[ok]
@@ -383,8 +405,8 @@ estimate_eb_mix_vsig <- function(r_z, tau_det2, pi1 = 1e-6) {
 
   nll <- function(logV) {
     V <- exp(logV)
-    log0 <- log1p(-pi1) + stats::dnorm(rz, 0, sqrt(tau0), log = TRUE)
-    log1 <- log(pi1) + stats::dnorm(rz, 0, sqrt(V), log = TRUE)
+    log0 <- log1p(-pi_signal) + stats::dnorm(rz, 0, sqrt(tau0), log = TRUE)
+    log1 <- log(pi_signal) + stats::dnorm(rz, 0, sqrt(V), log = TRUE)
     m <- pmax(log0, log1)
     -sum(m + log(exp(log0 - m) + exp(log1 - m)))
   }
@@ -399,24 +421,31 @@ estimate_eb_mix_vsig <- function(r_z, tau_det2, pi1 = 1e-6) {
 # Two-component mixture on the z-scale SER residual r_z = r / sqrt(n-1):
 #   mismatch ~ N(0, tau_det2_j),  signal ~ N(0, V_sig)   [wide]
 #   tau_det2_j = sigma2 + (1/B + lambda) * eta_j^2   [eta-only: drops v_g, preserves new signals]
-# pi1 = Pr(signal). Returns w_j = Pr(mismatch | r_z_j) in [0, 1].
+# Prior odds are determined by the region-level marginal BF ratio.
+# Returns w_j = Pr(mismatch | r_z_j) in [0, 1].
 #' @keywords internal
 compute_mixture_gate <- function(r, eta2, R_finite_B, lambda_bias, sigma2, data,
-                                 pi1 = 1e-6) {
-  pi1 <- validate_eb_mix_pi1(pi1)
-  if (pi1 <= 0)
-    return(rep(1, length(eta2)))
+                                 z_marginal = NULL,
+                                 z_ref = eb_mix_ref_to_z_ref(5e-8)) {
+  if (!is.numeric(z_ref) || length(z_ref) != 1L ||
+      !is.finite(z_ref) || z_ref < 0)
+    stop("z_ref must be a single nonnegative finite numeric value.")
   nm1 <- if (!is.null(data$nm1)) data$nm1 else (data$n - 1)
   if (!is.finite(nm1) || nm1 <= 0) return(rep(1, length(eta2)))
   r_z <- r / sqrt(nm1)
   tau_det2 <- pmax(sigma2 + (1 / R_finite_B + lambda_bias) * eta2,
                    .Machine$double.eps)
-  V_sig <- estimate_eb_mix_vsig(r_z, tau_det2, pi1)
-  log_prior_odds <- log1p(-pi1) - log(pi1)
+  if (!is.null(z_marginal) && length(z_marginal) == length(eta2)) {
+    log_prior_odds <- compute_marginal_z_log_odds(z_marginal, z_ref)
+  } else {
+    log_prior_odds <- rep(0, length(eta2))
+  }
+  pi_signal <- stats::plogis(-log_prior_odds[1])
+  V_sig <- estimate_eb_mix_vsig(r_z, tau_det2, pi_signal)
   # eta-only likelihood log-ratio (mismatch / signal)
   llr <- stats::dnorm(r_z, 0, sqrt(tau_det2), log = TRUE) -
          stats::dnorm(r_z, 0, sqrt(V_sig), log = TRUE)
-  w <- 1 / (1 + exp(-(log_prior_odds + llr)))
+  w <- stats::plogis(log_prior_odds + llr)
   w[!is.finite(w)] <- 1
   w
 }
