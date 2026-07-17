@@ -530,7 +530,8 @@ get_fitted.ss <- function(data, params, model, ...) {
 # Get Credible Sets
 #' @keywords internal
 get_cs.ss <- function(data, params, model, ...) {
-  if (is.null(params$coverage) || is.null(params$min_abs_corr)) {
+  if (is.null(params$coverage) ||
+      (is.null(params$min_abs_corr) && is.null(params$median_abs_corr))) {
     return(NULL)
   }
 
@@ -545,7 +546,7 @@ get_cs.ss <- function(data, params, model, ...) {
   }
 
   if (any(!(diag(data$XtX) %in% c(0, 1)))) {
-    Xcorr <- safe_cov2cor(data$XtX)
+    Xcorr <- structure(list(XtX = data$XtX), class = "scaled_XtX")
   } else {
     Xcorr <- data$XtX
   }
@@ -557,6 +558,18 @@ get_cs.ss <- function(data, params, model, ...) {
                       min_abs_corr    = params$min_abs_corr, median_abs_corr = params$median_abs_corr,
                       n_purity        = params$n_purity,
                       cs_extension_corr = params$cs_extension_corr))
+}
+
+# Lazy submatrix extraction for scaled_XtX objects.
+# Computes the correlation submatrix for the requested indices by delegating
+# to safe_cov2cor (which is now BLAS-free). This avoids materializing the
+# full n x n correlation matrix in get_cs.ss.
+#' @keywords internal
+`[.scaled_XtX` <- function(x, i, j, drop = TRUE) {
+  sub <- safe_cov2cor(x$XtX[i, j, drop = FALSE])
+  if (drop && (nrow(sub) == 1L || ncol(sub) == 1L))
+    sub <- drop(sub)
+  sub
 }
 
 # Get Variable Names

@@ -1556,23 +1556,30 @@ test_that("get_purity computes valid purity statistics", {
   expect_true(all(result_sq >= 0 & result_sq <= 1))
 })
 
-test_that("get_purity uses full Xcorr and subsamples only X path", {
+test_that("get_purity subsamples both X and Xcorr paths when n < length(pos)", {
   base_data <- generate_base_data(n = 80, p = 150, seed = 321)
   pos <- 1:120
   Xcorr <- cor(base_data$X)
-  upper <- abs(Xcorr[pos, pos][upper.tri(Xcorr[pos, pos])])
-  expected <- c(min(upper), sum(upper) / length(upper), median(upper))
 
+  # Xcorr path: with n=20 < 120, subsampling applies → different seeds → different results
   set.seed(1)
   result_xcorr_1 <- get_purity(pos, X = NULL, Xcorr = Xcorr, n = 20,
                                use_rfast = FALSE)
   set.seed(2)
   result_xcorr_2 <- get_purity(pos, X = NULL, Xcorr = Xcorr, n = 20,
                                use_rfast = FALSE)
+  expect_false(isTRUE(all.equal(result_xcorr_1, result_xcorr_2,
+                                tolerance = 10 * .Machine$double.eps)))
 
-  expect_equal(result_xcorr_1, expected, tolerance = 10 * .Machine$double.eps)
-  expect_identical(result_xcorr_1, result_xcorr_2)
+  # Xcorr path: with n >= length(pos), no subsampling → same full result
+  upper <- abs(Xcorr[pos, pos][upper.tri(Xcorr[pos, pos])])
+  expected <- c(min(upper), sum(upper) / length(upper), median(upper))
+  set.seed(1)
+  result_xcorr_full <- get_purity(pos, X = NULL, Xcorr = Xcorr, n = length(pos),
+                                  use_rfast = FALSE)
+  expect_equal(result_xcorr_full, expected, tolerance = 10 * .Machine$double.eps)
 
+  # X path: with n=20 < 120, subsampling applies → different seeds → different results
   set.seed(1)
   result_x_1 <- get_purity(pos, X = base_data$X, Xcorr = NULL, n = 20,
                            use_rfast = FALSE)
