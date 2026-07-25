@@ -118,7 +118,10 @@ safe_cov2cor <- function(V) {
   d <- sqrt(diag(V))
   d_inv <- 1 / d
   d_inv[d == 0] <- 0
-  R <- V * outer(d_inv, d_inv)
+  # Avoid outer(d_inv, d_inv) which calls BLAS DGER: 32-bit integer overflow
+  # for large matrices (n > ~46K). Use BLAS-free row/column scaling instead.
+  R <- V * d_inv
+  R <- t(R) * d_inv
   diag(R) <- 1
   R
 }
@@ -614,6 +617,17 @@ validate_and_override_params <- function(params) {
       is.na(params$tol) || !is.finite(params$tol) ||
       params$tol < 0) {
     stop("tol must be a non-negative numeric scalar.")
+  }
+
+  # Validate cs_extension_corr (NULL = off; otherwise a number in [0, 1]).
+  if (!is.null(params$cs_extension_corr) &&
+      (!is.numeric(params$cs_extension_corr) ||
+       length(params$cs_extension_corr) != 1 ||
+       is.na(params$cs_extension_corr) ||
+       !is.finite(params$cs_extension_corr) ||
+       params$cs_extension_corr < 0 ||
+       params$cs_extension_corr > 1)) {
+    stop("cs_extension_corr must be NULL or a single numeric value in [0, 1].")
   }
 
   # Validate greedy-L parameters.
@@ -1375,8 +1389,7 @@ mle_unmappable <- function(data, params, model, omega, est_tau2 = TRUE, est_sigm
         message(sprintf("Update sigma^2 to %f\n", sigma2))
       }
     } else {
-      # nocov start: L-BFGS-B reliably converges on this smooth 1D objective over
-      # a valid finite interval; the sibling est_tau2 branch covers this warning.
+      # nocov start
       warning_message("MLE optimization failed to converge; keeping previous parameters")
       # nocov end
     }
@@ -1678,10 +1691,6 @@ init_ash_fields_filter_archived <- function(model, n, p, L, is_individual = FALS
 #   to be merged into model via modifyList.
 #
 # @keywords internal
-## V0-faithful three-case classification for BB+ash filter
-## Replaces the body of update_ash_variance_components()
-## Key change: standard purity (not effect_purity) for case classification
-## + force_mask for diffuse slots' sentinel LD (from V0)
 
 update_ash_variance_components <- function(data, model, params) {
 
@@ -2553,10 +2562,30 @@ n_in_CS <- function(res, coverage = 0.9) {
   return(apply(res, 1, function(x) n_in_CS_x(x, coverage)))
 }
 
-# Subsample and compute min, mean, median and max abs corr.
+resolve_n_purity <- function(n_purity, n_samples, n_vars, use_rfast) {
+  if (identical(n_purity, "auto")) {
+    memory_budget <- 512 * 1024^2
+    work_budget <- if (use_rfast) 2e10 else 2e8
+    min_cap <- if (use_rfast) 500 else 100
+    n_samples <- max(1, n_samples)
+    cap <- min(
+      n_vars,
+      max(min_cap, sqrt(work_budget / n_samples)),
+      memory_budget / (16 * n_samples),
+      sqrt(memory_budget / 32)
+    )
+    return(max(1, floor(cap)))
+  }
+  if (!is.numeric(n_purity) || length(n_purity) != 1 || is.na(n_purity)) {
+    stop("n_purity must be \"auto\" or a number")
+  }
+  if (n_purity > 0) max(1, min(n_vars, floor(n_purity))) else n_vars
+}
+
+# Subsample and compute min, mean and median abs corr.
 #' @importFrom stats median
 #' @keywords internal
-get_purity <- function(pos, X, Xcorr, squared = FALSE, n = 100,
+get_purity <- function(pos, X, Xcorr, squared = FALSE, n = "auto",
                        use_rfast = NULL) {
   if (is.null(use_rfast)) {
     use_rfast <- requireNamespace("Rfast", quietly = TRUE)
@@ -2572,6 +2601,7 @@ get_purity <- function(pos, X, Xcorr, squared = FALSE, n = 100,
     return(c(1, 1, 1))
   } else {
     if (is.null(Xcorr)) {
+      n <- resolve_n_purity(n, nrow(X), length(pos), use_rfast)
       if (length(pos) > n) {
         pos <- sample(pos, n)
       }
@@ -2579,6 +2609,10 @@ get_purity <- function(pos, X, Xcorr, squared = FALSE, n = 100,
       X_sub <- as.matrix(X_sub)
       value <- abs(get_upper_tri(safe_cor(X_sub)))
     } else {
+      n <- resolve_n_purity(n, length(pos), length(pos), use_rfast)
+      if (length(pos) > n) {
+        pos <- sample(pos, n)
+      }
       value <- abs(get_upper_tri(Xcorr[pos, pos]))
     }
     if (squared) {
