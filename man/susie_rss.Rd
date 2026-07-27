@@ -52,8 +52,9 @@ susie_rss(
   r_tol = 1e-08,
   refine = FALSE,
   R_finite = NULL,
-  R_mismatch = c("none", "eb"),
+  R_mismatch = c("none", "eb", "eb_mix"),
   R_mismatch_method = c("mle", "map"),
+  eb_mix_ref = 5e-08,
   eig_delta_rel = 0.001,
   eig_delta_abs = 0,
   artifact_threshold = 0.1,
@@ -329,12 +330,22 @@ QC score (\code{Q_art}) that extends the Zou et al. (2022) column-space
 check from the input summary vector to the fitted residual after
 correction. It warns when that residual still projects onto near-null
 directions of the supplied \code{R}, and auto-disables
-\code{estimate_residual_variance} with a warning.}
+\code{estimate_residual_variance} with a warning.
+\code{"eb_mix"} estimates the same regional component as \code{"eb"}, but
+applies the population term locally as \code{w_j * lambda}, where
+\code{w_j} is a per-variant mismatch probability from a two-component
+residual mixture. The finite-reference term \eqn{B^{-1}} is unchanged.}
 
 \item{R_mismatch_method}{Estimator for the region-level
 \code{lambda_bias} variance component when \code{R_mismatch != "none"}.
 \code{"mle"} (default) maximizes the working Gaussian likelihood.
 \code{"map"} uses a half-Cauchy MAP estimator.}
+
+\item{eb_mix_ref}{Two-sided reference P-value used by
+\code{R_mismatch = "eb_mix"} to calibrate the residual mixture prior
+odds. Internally converted to
+\code{qnorm(eb_mix_ref / 2, lower.tail = FALSE)}. Default
+\code{5e-8}.}
 
 \item{eig_delta_rel, eig_delta_abs}{Cutoffs for "low-eigenvalue"
 directions of \code{R} used by the QC diagnostic when
