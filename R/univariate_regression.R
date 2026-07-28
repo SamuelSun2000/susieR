@@ -228,7 +228,7 @@ compute_marginal_bhat_shat <- function(X, Y,
   } else {
     Shat <- vapply(
       seq_len(T_y),
-      function(t) Rfast::colVars(Y[, t] - sweep(X, 2, Bhat[, t], "*")),
+      function(t) colVars(Y[, t] - sweep(X, 2, Bhat[, t], "*")),
       numeric(J)
     )
     if (!is.matrix(Shat)) Shat <- matrix(Shat, nrow = J, ncol = T_y) # nocov

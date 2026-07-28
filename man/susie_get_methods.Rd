@@ -40,7 +40,6 @@ susie_get_cs(
   squared = FALSE,
   check_symmetric = TRUE,
   n_purity = "auto",
-  use_rfast = NULL,
   median_abs_corr = NULL,
   cs_extension_corr = NULL
 )
@@ -103,10 +102,6 @@ provided (not \code{NULL}).}
 correlations are computed from \code{X}. The default, \code{"auto"}, uses
 a resource-aware cap; a positive number gives a fixed cap; a negative
 number uses all CS variables. \code{Xcorr} inputs always use all variables.}
-
-\item{use_rfast}{Use the Rfast package for the purity calculations.
-By default \code{use_rfast = TRUE} if the Rfast package is
-installed.}
 
 \item{median_abs_corr}{An optional second purity threshold applied to
 the \emph{median} absolute correlation among the CS variables. The

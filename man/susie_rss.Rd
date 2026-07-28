@@ -44,21 +44,13 @@ susie_rss(
   convergence_method = c("elbo", "pip"),
   verbose = FALSE,
   track_fit = FALSE,
-  check_input = FALSE,
-  check_prior = TRUE,
   n_purity = "auto",
   median_abs_corr = NULL,
   cs_extension_corr = NULL,
-  r_tol = 1e-08,
   refine = FALSE,
   R_finite = NULL,
   R_mismatch = c("none", "eb", "eb_mix"),
-  R_mismatch_method = c("mle", "map"),
-  eb_mix_ref = 5e-08,
-  eig_delta_rel = 0.001,
-  eig_delta_abs = 0,
-  artifact_threshold = 0.1,
-  R_sensitivity_threshold = log(20),
+  control = susie_rss_control(),
   alpha0 = NULL,
   beta0 = NULL,
   init_only = FALSE,
@@ -262,15 +254,6 @@ a summary of the optimization settings, and refinement progress (if
 alpha history, effect summaries and available diagnostics at each
 iteration of the IBSS fitting procedure.}
 
-\item{check_input}{If \code{check_input = TRUE}, \code{susie_ss} performs
-additional checks on \code{XtX} and \code{Xty}. The checks are:
-(1) check that \code{XtX} is positive semidefinite; (2) check that
-\code{Xty} is in the space spanned by the non-zero eigenvectors of \code{XtX}.}
-
-\item{check_prior}{If \code{check_prior = TRUE}, it checks if the
-estimated prior variance becomes unreasonably large (comparing with
-10 * max(abs(z))^2).}
-
 \item{n_purity}{Passed as argument \code{n_purity} to
 \code{\link{susie_get_cs}}.}
 
@@ -288,9 +271,6 @@ meaning no correlation-based extension) or a single number between
 variable whose absolute correlation with a set member exceeds the
 threshold (near-perfectly correlated proxies); \code{0.99} is the
 recommended value.}
-
-\item{r_tol}{Tolerance level for eigenvalue check of positive semidefinite
-matrix \code{XtX}.}
 
 \item{refine}{If \code{refine = TRUE}, then an additional
 iterative refinement procedure is used, after the IBSS algorithm,
@@ -336,32 +316,8 @@ applies the population term locally as \code{w_j * lambda}, where
 \code{w_j} is a per-variant mismatch probability from a two-component
 residual mixture. The finite-reference term \eqn{B^{-1}} is unchanged.}
 
-\item{R_mismatch_method}{Estimator for the region-level
-\code{lambda_bias} variance component when \code{R_mismatch != "none"}.
-\code{"mle"} (default) maximizes the working Gaussian likelihood.
-\code{"map"} uses a half-Cauchy MAP estimator.}
-
-\item{eb_mix_ref}{Two-sided reference P-value used by
-\code{R_mismatch = "eb_mix"} to calibrate the residual mixture prior
-odds. Internally converted to
-\code{qnorm(eb_mix_ref / 2, lower.tail = FALSE)}. Default
-\code{5e-8}.}
-
-\item{eig_delta_rel, eig_delta_abs}{Cutoffs for "low-eigenvalue"
-directions of \code{R} used by the QC diagnostic when
-\code{R_mismatch != "none"}. Default \code{eig_delta_rel = 1e-3},
-\code{eig_delta_abs = 0}; the threshold is
-\code{max(eig_delta_abs, eig_delta_rel * max_eigenvalue(R))}. Tighter
-(smaller) values flag fewer regions.}
-
-\item{artifact_threshold}{Flag threshold on the QC score \code{Q_art}
-(a fraction in [0, 1]). Default \code{0.1}; flag fires when
-\code{Q_art > artifact_threshold}. Heuristic, not a calibrated test.}
-
-\item{R_sensitivity_threshold}{Flag threshold for the credible-set
-Bayes-factor attenuation diagnostic. Default \code{log(20)}; flag fires
-when a credible set contains a variable whose nominal log BF exceeds its
-R-adjusted log BF by at least this amount.}
+\item{control}{Advanced RSS numerical and diagnostic settings created by
+\code{\link{susie_rss_control}}. A partial named list is also accepted.}
 
 \item{alpha0}{Numerical parameter for the NIG prior when using
 \code{estimate_residual_method = "NIG"}. Defaults to

@@ -246,29 +246,6 @@ test_that("individual_data_constructor rejects invalid null_weight values", {
   )
 })
 
-# --- Rfast warning ---
-
-test_that("individual_data_constructor warns about Rfast when p > 1000 and Rfast not available", {
-  skip_if(requireNamespace("Rfast", quietly = TRUE),
-          "Rfast is installed, skipping warning test")
-
-  base_data <- generate_base_data(n = 100, p = 1001, k = 0, seed = 19)
-
-  expect_message(
-    result <- individual_data_constructor(base_data$X, base_data$y),
-    "consider installing the Rfast package",
-    fixed = FALSE
-  )
-  expect_equal(result$data$p, 1001)
-})
-
-test_that("individual_data_constructor does not warn when p <= 1000", {
-  base_data <- generate_base_data(n = 100, p = 1000, k = 0, seed = 20)
-  result <- individual_data_constructor(base_data$X, base_data$y)
-
-  expect_equal(result$data$p, 1000)
-})
-
 # --- Parameters ---
 
 test_that("individual_data_constructor stores all parameters", {
@@ -464,33 +441,6 @@ test_that("sufficient_stats_constructor sets csd=1 when standardize=FALSE", {
                                          XtX = ss$XtX, standardize = FALSE)
 
   expect_true(all(attr(result$data$XtX, "scaled:scale") == 1))
-})
-
-# --- Rfast warning ---
-
-test_that("sufficient_stats_constructor warns about Rfast when p > 1000", {
-  skip_if(requireNamespace("Rfast", quietly = TRUE),
-          "Rfast is installed, skipping warning test")
-
-  base_data <- generate_base_data(n = 100, p = 1001, k = 0, seed = 35)
-  ss <- compute_summary_stats(base_data$X, base_data$y)
-
-  expect_message(
-    result <- sufficient_stats_constructor(Xty = ss$Xty, yty = ss$yty,
-                                           n = ss$n, XtX = ss$XtX),
-    "consider installing the Rfast package",
-    fixed = FALSE
-  )
-  expect_equal(result$data$p, 1001)
-})
-
-test_that("sufficient_stats_constructor does not warn when p <= 1000", {
-  base_data <- generate_base_data(n = 100, p = 1000, k = 0, seed = 36)
-  ss <- compute_summary_stats(base_data$X, base_data$y)
-
-  result <- sufficient_stats_constructor(Xty = ss$Xty, yty = ss$yty,
-                                         n = ss$n, XtX = ss$XtX)
-  expect_equal(result$data$p, 1000)
 })
 
 # --- MAF filtering ---
@@ -1970,20 +1920,24 @@ test_that("susie_rss z_method='score' applies no adjustment", {
   z <- rnorm(p); z[5] <- 6; z[12] <- -5
 
   fw <- suppressWarnings(susie_rss(z = z, R = R, n = n, z_method = "wald",
-                                   max_iter = 50, check_prior = FALSE))
+                                   max_iter = 50,
+                                   control = list(check_prior = FALSE)))
   fd <- suppressWarnings(susie_rss(z = z, R = R, n = n,
-                                   max_iter = 50, check_prior = FALSE))
+                                   max_iter = 50,
+                                   control = list(check_prior = FALSE)))
   expect_equal(fd$pip, fw$pip)                               # default == wald
 
   # Feeding the already-Wald-adjusted z with z_method='score' must reproduce the
   # wald fit on the raw z exactly -- i.e. 'score' performs no further adjustment.
   zadj <- apply_pve_adjustment(z, n, "wald")$z
   fsp <- suppressWarnings(susie_rss(z = zadj, R = R, n = n, z_method = "score",
-                                    max_iter = 50, check_prior = FALSE))
+                                    max_iter = 50,
+                                    control = list(check_prior = FALSE)))
   expect_equal(fsp$pip, fw$pip, tolerance = 1e-8)
 
   fs <- suppressWarnings(susie_rss(z = z, R = R, n = n, z_method = "score",
-                                   max_iter = 50, check_prior = FALSE))
+                                   max_iter = 50,
+                                   control = list(check_prior = FALSE)))
   expect_gt(max(abs(fs$pip - fw$pip)), 1e-3)                 # and it matters
 })
 
@@ -1996,10 +1950,12 @@ test_that("susie_rss with bhat/shat forces z_method='wald' and hints", {
   msgs <- character(0)
   fsc <- withCallingHandlers(
     suppressWarnings(susie_rss(bhat = bhat, shat = shat, R = R, n = n, var_y = 1,
-                               z_method = "score", max_iter = 50, check_prior = FALSE)),
+                               z_method = "score", max_iter = 50,
+                               control = list(check_prior = FALSE))),
     message = function(m) { msgs <<- c(msgs, conditionMessage(m)); invokeRestart("muffleMessage") })
   fwa <- suppressWarnings(susie_rss(bhat = bhat, shat = shat, R = R, n = n, var_y = 1,
-                                    z_method = "wald", max_iter = 50, check_prior = FALSE))
+                                    z_method = "wald", max_iter = 50,
+                                    control = list(check_prior = FALSE)))
   expect_equal(fsc$pip, fwa$pip)
   expect_true(any(grepl("z_method", msgs)))
 })

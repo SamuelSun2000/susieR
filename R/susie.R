@@ -654,32 +654,8 @@ susie_ss <- function(XtX, Xty, yty, n,
 #'   \code{w_j} is a per-variant mismatch probability from a two-component
 #'   residual mixture. The finite-reference term \eqn{B^{-1}} is unchanged.
 #'
-#' @param R_mismatch_method Estimator for the region-level
-#'   \code{lambda_bias} variance component when \code{R_mismatch != "none"}.
-#'   \code{"mle"} (default) maximizes the working Gaussian likelihood.
-#'   \code{"map"} uses a half-Cauchy MAP estimator.
-#'
-#' @param eb_mix_ref Two-sided reference P-value used by
-#'   \code{R_mismatch = "eb_mix"} to calibrate the residual mixture prior
-#'   odds. Internally converted to
-#'   \code{qnorm(eb_mix_ref / 2, lower.tail = FALSE)}. Default
-#'   \code{5e-8}.
-#'
-#' @param eig_delta_rel,eig_delta_abs Cutoffs for "low-eigenvalue"
-#'   directions of \code{R} used by the QC diagnostic when
-#'   \code{R_mismatch != "none"}. Default \code{eig_delta_rel = 1e-3},
-#'   \code{eig_delta_abs = 0}; the threshold is
-#'   \code{max(eig_delta_abs, eig_delta_rel * max_eigenvalue(R))}. Tighter
-#'   (smaller) values flag fewer regions.
-#'
-#' @param artifact_threshold Flag threshold on the QC score \code{Q_art}
-#'   (a fraction in [0, 1]). Default \code{0.1}; flag fires when
-#'   \code{Q_art > artifact_threshold}. Heuristic, not a calibrated test.
-#'
-#' @param R_sensitivity_threshold Flag threshold for the credible-set
-#'   Bayes-factor attenuation diagnostic. Default \code{log(20)}; flag fires
-#'   when a credible set contains a variable whose nominal log BF exceeds its
-#'   R-adjusted log BF by at least this amount.
+#' @param control Advanced RSS numerical and diagnostic settings created by
+#'   \code{\link{susie_rss_control}}. A partial named list is also accepted.
 #'
 #' @param init_only Logical. If \code{TRUE}, return a list with
 #'   \code{data} and \code{params} objects without running the IBSS
@@ -751,21 +727,13 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
                       convergence_method = c("elbo", "pip"),
                       verbose = FALSE,
                       track_fit = FALSE,
-                      check_input = FALSE,
-                      check_prior = TRUE,
                       n_purity = "auto",
                       median_abs_corr = NULL,
                       cs_extension_corr = NULL,
-                      r_tol = 1e-8,
                       refine = FALSE,
                       R_finite = NULL,
                       R_mismatch = c("none", "eb", "eb_mix"),
-                      R_mismatch_method = c("mle", "map"),
-                      eb_mix_ref = 5e-8,
-                      eig_delta_rel = 1e-3,
-                      eig_delta_abs = 0,
-                      artifact_threshold = 0.1,
-                      R_sensitivity_threshold = 30,
+                      control = susie_rss_control(),
                       alpha0 = NULL,
                       beta0 = NULL,
                       init_only = FALSE,
@@ -781,7 +749,7 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
   R_mismatch <- match.arg(R_mismatch,
                           c("none", "eb", "eb_mix", "eb_ser_init",
                             "eb_force_init", "eb_no_init"))
-  R_mismatch_method        <- match.arg(R_mismatch_method)
+  control <- validate_susie_rss_control(control)
   mp <- resolve_mixture_prior(estimate_prior_method, estimate_prior_variance,
                               prior_variance_grid, mixture_weights)
   estimate_prior_method   <- mp$estimate_prior_method
@@ -810,18 +778,20 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
     model_init = model_init, s_init = s_init,
     coverage = coverage, min_abs_corr = min_abs_corr, median_abs_corr = median_abs_corr,
     max_iter = max_iter, tol = tol, convergence_method = convergence_method,
-    verbose = verbose, track_fit = track_fit, check_input = check_input,
-    check_prior = check_prior,
-    n_purity = n_purity, r_tol = r_tol, refine = refine,
+    verbose = verbose, track_fit = track_fit,
+    check_input = control$check_input,
+    check_prior = control$check_prior,
+    n_purity = n_purity, r_tol = control$r_tol, refine = refine,
     cs_extension_corr = cs_extension_corr,
     z_method = z_method,
     R_finite = R_finite,
     R_mismatch = R_mismatch,
-    R_mismatch_method = R_mismatch_method,
-    eb_mix_ref = eb_mix_ref,
-    eig_delta_rel = eig_delta_rel, eig_delta_abs = eig_delta_abs,
-    artifact_threshold = artifact_threshold,
-    R_sensitivity_threshold = R_sensitivity_threshold,
+    R_mismatch_method = control$mismatch_estimator,
+    eb_mix_ref = control$mixture_reference_p,
+    eig_delta_rel = control$qc_eigen_tol_rel,
+    eig_delta_abs = control$qc_eigen_tol_abs,
+    artifact_threshold = control$artifact_threshold,
+    R_sensitivity_threshold = control$sensitivity_threshold,
     alpha0 = alpha0, beta0 = beta0,
     slot_prior = slot_prior, L_greedy = L_greedy,
     greedy_lbf_cutoff = greedy_lbf_cutoff

@@ -405,7 +405,7 @@ neg_loglik.ss <- function(data, params, model, V_param, ser_stats, ...) {
     # Apply finite-reference R inflation: effective pw = pw / inflation
     pw   <- model$predictor_weights
     infl <- if (!is.null(model$shat2_inflation)) model$shat2_inflation else 1
-    return(-matrixStats::logSumExp(
+    return(-logSumExp(
       -0.5 * log(1 + V * pw / infl) +
         V * model$residuals^2 / (2 * infl * (1 + V * pw / infl)) +
         log(model$pi + sqrt(.Machine$double.eps))

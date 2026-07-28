@@ -86,14 +86,15 @@ test_that("MLE lambda estimator handles zero, interior, and capped fits", {
   expect_true(1 / (1 / 500 + lam_large) < 1)
 })
 
-test_that("R_mismatch_method mle vs map both yield positive B_corrected on mismatched data", {
+test_that("mismatch estimator control changes the R-mismatch fit", {
   rho <- 0.99
   R <- matrix(c(1, -rho, -rho, 1), 2, 2)
   z <- c(-8, -8)
 
   fit_mle <- suppressWarnings(susie_rss(
     z = z, R = R, n = 5000, L = 1, R_mismatch = "eb_no_init",
-    R_mismatch_method = "mle", max_iter = 3, verbose = FALSE))
+    control = list(mismatch_estimator = "mle"),
+    max_iter = 3, verbose = FALSE))
   d_mle <- fit_mle$R_finite_diagnostics
   expect_equal(d_mle$R_mismatch_method, "mle")
   expect_gt(d_mle$lambda_bias, 1)
@@ -101,7 +102,8 @@ test_that("R_mismatch_method mle vs map both yield positive B_corrected on misma
 
   fit_map <- suppressWarnings(susie_rss(
     z = z, R = R, n = 5000, L = 1, R_mismatch = "eb_no_init",
-    R_mismatch_method = "map", max_iter = 3, verbose = FALSE))
+    control = list(mismatch_estimator = "map"),
+    max_iter = 3, verbose = FALSE))
   d_map <- fit_map$R_finite_diagnostics
   expect_equal(d_map$R_mismatch_method, "map")
   expect_lt(d_map$B_corrected, 1)
@@ -201,38 +203,17 @@ test_that("R_mismatch = 'eb_no_init' skips SER-protected initialization", {
   expect_false(is.null(d$Q_art))
 })
 
-test_that("Optional artifact args validate ranges", {
-  set.seed(17)
-  p <- 20
-  n <- 1000
-  X <- matrix(rnorm(n * p), n, p)
-  R <- cor(X)
-  z <- rnorm(p)
-
-  expect_error(
-    susie_rss(z = z, R = R, n = n, L = 3, R_finite = 5000,
-              R_mismatch = "eb_no_init", artifact_threshold = -0.1,
-              max_iter = 2, verbose = FALSE),
-    "artifact_threshold"
-  )
-  expect_error(
-    susie_rss(z = z, R = R, n = n, L = 3, R_finite = 5000,
-              R_mismatch = "eb_no_init", artifact_threshold = 1.1,
-              max_iter = 2, verbose = FALSE),
-    "artifact_threshold"
-  )
-  expect_error(
-    susie_rss(z = z, R = R, n = n, L = 3, R_finite = 5000,
-              R_mismatch = "eb_no_init", eig_delta_rel = -1,
-              max_iter = 2, verbose = FALSE),
-    "eig_delta_rel"
-  )
-  expect_error(
-    susie_rss(z = z, R = R, n = n, L = 3, R_finite = 5000,
-              R_mismatch = "eb_no_init", R_sensitivity_threshold = -1,
-              max_iter = 2, verbose = FALSE),
-    "R_sensitivity_threshold"
-  )
+test_that("susie_rss_control validates numerical settings", {
+  expect_error(susie_rss_control(artifact_threshold = -0.1),
+               "artifact_threshold")
+  expect_error(susie_rss_control(artifact_threshold = 1.1),
+               "artifact_threshold")
+  expect_error(susie_rss_control(qc_eigen_tol_rel = -1),
+               "qc_eigen_tol_rel")
+  expect_error(susie_rss_control(sensitivity_threshold = -1),
+               "sensitivity_threshold")
+  expect_error(susie_rss_control(r_tol = Inf), "r_tol")
+  expect_error(susie_rss_control(check_prior = NA), "check_prior")
 })
 
 test_that("BF attenuation diagnostic stores nonnegative BF loss", {
@@ -999,17 +980,19 @@ test_that("R_mismatch = 'eb_mix' uses the SER-protected initialization like 'eb'
   X <- matrix(rnorm(n * p), n, p); R <- cor(X); z <- rnorm(p)
   fit <- suppressWarnings(susie_rss(z = z, R = R, n = n, L = 3, R_finite = 500,
                    R_mismatch = "eb_mix", max_iter = 2,
-                   R_mismatch_method = "mle", verbose = FALSE))
+                   control = list(mismatch_estimator = "mle"),
+                   verbose = FALSE))
   expect_false(is.null(fit$R_mismatch_init))
   expect_equal(fit$R_mismatch_init$method, "ser")
   expect_true(is.finite(fit$R_mismatch_init$ld_coherence))
 })
 
-test_that("susie_rss exposes only reference-P calibration for eb_mix", {
+test_that("susie_rss exposes eb_mix calibration through control", {
   expect_false("eb_mix_pi1" %in% names(formals(susie_rss)))
   expect_false("eb_mix_marginal_z_c" %in% names(formals(susie_rss)))
-  expect_true("eb_mix_ref" %in% names(formals(susie_rss)))
-  expect_equal(eval(formals(susie_rss)$eb_mix_ref), 5e-8)
+  expect_false("eb_mix_ref" %in% names(formals(susie_rss)))
+  expect_true("control" %in% names(formals(susie_rss)))
+  expect_equal(susie_rss_control()$mixture_reference_p, 5e-8)
   expect_false("eb_mix_marginal_z_gamma" %in% names(formals(susie_rss)))
   expect_false("eb_mix_marginal_z_mode" %in% names(formals(susie_rss)))
   set.seed(17)
@@ -1020,7 +1003,7 @@ test_that("susie_rss exposes only reference-P calibration for eb_mix", {
   obj <- suppressWarnings(susie_rss(z = z, R = R, n = n, L = 2,
                                     R_finite = 100,
                                     R_mismatch = "eb_mix",
-                                    eb_mix_ref = 1e-4,
+                                    control = list(mixture_reference_p = 1e-4),
                                     init_only = TRUE))
   expect_null(obj$params$eb_mix_pi1)
   expect_null(obj$data$eb_mix_pi1)
@@ -1032,7 +1015,7 @@ test_that("susie_rss exposes only reference-P calibration for eb_mix", {
   expect_true(all(is.finite(obj$data$z_marginal)))
 })
 
-test_that("eb_mix_ref is validated and converted to z_ref", {
+test_that("mixture_reference_p is validated and converted to z_ref", {
   set.seed(18)
   p <- 8; n <- 200
   X <- matrix(rnorm(n * p), n, p)
@@ -1046,13 +1029,14 @@ test_that("eb_mix_ref is validated and converted to z_ref", {
   expect_equal(obj$params$eb_mix_z_ref, qnorm(5e-8 / 2, lower.tail = FALSE))
   expect_error(
     susie_rss(z = z, R = R, n = n, L = 2, R_finite = 100,
-              R_mismatch = "eb_mix", eb_mix_ref = -1,
+              R_mismatch = "eb_mix",
+              control = list(mixture_reference_p = -1),
               init_only = TRUE),
-    "eb_mix_ref"
+    "mixture_reference_p"
   )
 })
 
-test_that("eb_mix_ref is stored in multi-panel RSS constructors", {
+test_that("mixture_reference_p reaches multi-panel RSS constructors", {
   set.seed(19)
   p <- 8; n <- 200
   X1 <- matrix(rnorm(n * p), n, p)
@@ -1063,7 +1047,7 @@ test_that("eb_mix_ref is stored in multi-panel RSS constructors", {
   obj <- suppressWarnings(susie_rss(z = z, R = list(R1, R2), n = n, L = 2,
                                     R_finite = c(100, 120),
                                     R_mismatch = "eb_mix",
-                                    eb_mix_ref = 1e-5,
+                                    control = list(mixture_reference_p = 1e-5),
                                     init_only = TRUE))
   expect_s3_class(obj$data, "ss_mixture")
   expect_null(obj$params$eb_mix_pi1)

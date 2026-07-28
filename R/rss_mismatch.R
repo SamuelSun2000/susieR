@@ -56,7 +56,7 @@ record_R_bf_attenuation <- function(model, ser_stats, lbf_adjusted, V, l) {
 
 # Summarize final BF attenuation after credible sets are available.
 #' @keywords internal
-summarize_R_bf_attenuation <- function(model, threshold = log(20)) {
+summarize_R_bf_attenuation <- function(model, threshold = 30) {
   D <- model$R_bf_attenuation
   if (is.null(D) || is.null(model$R_finite_diagnostics))
     return(model)
@@ -347,7 +347,7 @@ compute_shat2_inflation <- function(data, model, XtXr_without_l, b_minus_l, r) {
                               data, z_marginal = data$z_marginal,
                               z_ref = if (!is.null(data$eb_mix_z_ref))
                                         data$eb_mix_z_ref else
-                                        eb_mix_ref_to_z_ref(5e-8))
+                                        mixture_reference_p_to_z(5e-8))
     infl <- 1 + (1 / R_finite_B + w * lambda_bias) * s / model$sigma2
   } else {
     infl <- 1 + (1 / R_finite_B + lambda_bias) * s / model$sigma2
@@ -355,22 +355,26 @@ compute_shat2_inflation <- function(data, model, XtXr_without_l, b_minus_l, r) {
   list(infl = infl)
 }
 
+#' @importFrom stats median plogis qnorm quantile
 #' @keywords internal
-validate_eb_mix_ref <- function(eb_mix_ref) {
-  if (!is.numeric(eb_mix_ref) || length(eb_mix_ref) != 1L ||
-      !is.finite(eb_mix_ref) || eb_mix_ref <= 0 || eb_mix_ref > 1)
-    stop("eb_mix_ref must be a single finite numeric value in (0, 1].")
-  as.numeric(eb_mix_ref)
+validate_mixture_reference_p <- function(mixture_reference_p) {
+  if (!is.numeric(mixture_reference_p) ||
+      length(mixture_reference_p) != 1L ||
+      !is.finite(mixture_reference_p) ||
+      mixture_reference_p <= 0 || mixture_reference_p > 1)
+    stop("mixture_reference_p must be a single finite numeric value in (0, 1].")
+  as.numeric(mixture_reference_p)
 }
 
 #' @keywords internal
-eb_mix_ref_to_z_ref <- function(eb_mix_ref) {
-  stats::qnorm(validate_eb_mix_ref(eb_mix_ref) / 2, lower.tail = FALSE)
+mixture_reference_p_to_z <- function(mixture_reference_p) {
+  qnorm(validate_mixture_reference_p(mixture_reference_p) / 2,
+        lower.tail = FALSE)
 }
 
 #' @keywords internal
-compute_marginal_z_log_odds <- function(z_marginal,
-                                        z_ref = eb_mix_ref_to_z_ref(5e-8)) {
+compute_marginal_z_log_odds <- function(
+    z_marginal, z_ref = mixture_reference_p_to_z(5e-8)) {
   if (!is.numeric(z_ref) || length(z_ref) != 1L ||
       !is.finite(z_ref) || z_ref < 0)
     stop("z_ref must be a single nonnegative finite numeric value.")
@@ -394,7 +398,7 @@ estimate_eb_mix_vsig <- function(r_z, tau_det2, pi_signal = 0.5) {
   if (length(rz) < 2)
     return(max(c(1, tau0, rz^2), na.rm = TRUE))
 
-  q99 <- as.numeric(stats::quantile(rz^2, 0.99, na.rm = TRUE))
+  q99 <- as.numeric(quantile(rz^2, 0.99, na.rm = TRUE))
   scale_v <- max(c(1, q99, max(tau0, na.rm = TRUE),
                    max(rz^2, na.rm = TRUE)), na.rm = TRUE)
   lower_v <- max(.Machine$double.eps, min(tau0, na.rm = TRUE) * 0.01)
@@ -405,13 +409,13 @@ estimate_eb_mix_vsig <- function(r_z, tau_det2, pi_signal = 0.5) {
 
   nll <- function(logV) {
     V <- exp(logV)
-    log0 <- log1p(-pi_signal) + stats::dnorm(rz, 0, sqrt(tau0), log = TRUE)
-    log1 <- log(pi_signal) + stats::dnorm(rz, 0, sqrt(V), log = TRUE)
+    log0 <- log1p(-pi_signal) + dnorm(rz, 0, sqrt(tau0), log = TRUE)
+    log1 <- log(pi_signal) + dnorm(rz, 0, sqrt(V), log = TRUE)
     m <- pmax(log0, log1)
     -sum(m + log(exp(log0 - m) + exp(log1 - m)))
   }
-  opt <- try(stats::optimize(nll, interval = log(c(lower_v, upper_v)),
-                             tol = 1e-6), silent = TRUE)
+  opt <- try(optimize(nll, interval = log(c(lower_v, upper_v)),
+                      tol = 1e-6), silent = TRUE)
   if (inherits(opt, "try-error") || !is.finite(opt$minimum))
     return(scale_v)
   exp(opt$minimum)
@@ -426,7 +430,7 @@ estimate_eb_mix_vsig <- function(r_z, tau_det2, pi_signal = 0.5) {
 #' @keywords internal
 compute_mixture_gate <- function(r, eta2, R_finite_B, lambda_bias, sigma2, data,
                                  z_marginal = NULL,
-                                 z_ref = eb_mix_ref_to_z_ref(5e-8)) {
+                                 z_ref = mixture_reference_p_to_z(5e-8)) {
   if (!is.numeric(z_ref) || length(z_ref) != 1L ||
       !is.finite(z_ref) || z_ref < 0)
     stop("z_ref must be a single nonnegative finite numeric value.")
@@ -440,12 +444,12 @@ compute_mixture_gate <- function(r, eta2, R_finite_B, lambda_bias, sigma2, data,
   } else {
     log_prior_odds <- rep(0, length(eta2))
   }
-  pi_signal <- stats::plogis(-log_prior_odds[1])
+  pi_signal <- plogis(-log_prior_odds[1])
   V_sig <- estimate_eb_mix_vsig(r_z, tau_det2, pi_signal)
   # eta-only likelihood log-ratio (mismatch / signal)
-  llr <- stats::dnorm(r_z, 0, sqrt(tau_det2), log = TRUE) -
-         stats::dnorm(r_z, 0, sqrt(V_sig), log = TRUE)
-  w <- stats::plogis(log_prior_odds + llr)
+  llr <- dnorm(r_z, 0, sqrt(tau_det2), log = TRUE) -
+         dnorm(r_z, 0, sqrt(V_sig), log = TRUE)
+  w <- plogis(log_prior_odds + llr)
   w[!is.finite(w)] <- 1
   w
 }
@@ -562,15 +566,14 @@ compute_R_mismatch_state <- function(data, params, model, phase = "sweep") {
                         sum(is.finite(model$lbf) & model$lbf > 0)
                       else NA_integer_,
       mean_r2 = if (length(r2) > 0) mean(r2) else NA_real_,
-      median_r2 = if (length(r2) > 0) stats::median(r2) else NA_real_,
+      median_r2 = if (length(r2) > 0) median(r2) else NA_real_,
       max_r2 = if (length(r2) > 0) max(r2) else NA_real_,
       mean_s = if (length(s_keep) > 0) mean(s_keep) else NA_real_,
-      median_s = if (length(s_keep) > 0) stats::median(s_keep) else NA_real_,
+      median_s = if (length(s_keep) > 0) median(s_keep) else NA_real_,
       max_s = if (length(s_keep) > 0) max(s_keep) else NA_real_,
-      cor_r2_s = if (length(r2) > 1 && stats::sd(r2) > 0 &&
-                     stats::sd(s_keep) > 0)
-                   suppressWarnings(stats::cor(r2, s_keep,
-                                               method = "spearman"))
+      cor_r2_s = if (length(r2) > 1 && sd(r2) > 0 &&
+                     sd(s_keep) > 0)
+                   suppressWarnings(cor(r2, s_keep, method = "spearman"))
                  else NA_real_,
       Q_art = if (!is.null(model$Q_art)) model$Q_art else NA_real_,
       artifact_flag = if (!is.null(model$artifact_flag))

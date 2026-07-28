@@ -403,7 +403,7 @@ ibss_finalize <- function(data, params, model, elbo = NULL, iter = NA_integer_,
     if (!is.null(model$R_mismatch_ser_model))
       model$R_finite_diagnostics$ser_model <- model$R_mismatch_ser_model
     threshold <- if (!is.null(params$R_sensitivity_threshold))
-                   params$R_sensitivity_threshold else log(20)
+                   params$R_sensitivity_threshold else 30
     model <- summarize_R_bf_attenuation(model, threshold)
     model$R_finite_diagnostics$R_reliability_flag <-
       isTRUE(model$R_finite_diagnostics$artifact_flag) ||

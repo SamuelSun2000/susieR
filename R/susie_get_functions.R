@@ -273,10 +273,6 @@ susie_get_posterior_samples <- function(susie_fit, num_samples) {
 #'   a resource-aware cap; a positive number gives a fixed cap; a negative
 #'   number uses all CS variables. \code{Xcorr} inputs always use all variables.
 #'
-#' @param use_rfast Use the Rfast package for the purity calculations.
-#'   By default \code{use_rfast = TRUE} if the Rfast package is
-#'   installed.
-#'
 #' @param cs_extension_corr Either \code{NULL} or a single number between 0
 #'   and 1. If non-\code{NULL}, each credible set is extended to include every
 #'   variable whose absolute correlation with a credible-set member exceeds this
@@ -290,7 +286,7 @@ susie_get_posterior_samples <- function(susie_fit, num_samples) {
 susie_get_cs <- function(res, X = NULL, Xcorr = NULL, coverage = 0.95,
                          min_abs_corr = 0.5, dedup = TRUE, squared = FALSE,
                          check_symmetric = TRUE, n_purity = "auto",
-                         use_rfast = NULL, median_abs_corr = NULL,
+                         median_abs_corr = NULL,
                          cs_extension_corr = NULL) {
   if (!is.null(X) && !is.null(Xcorr)) {
     stop("Only one of X or Xcorr should be specified")
@@ -350,11 +346,6 @@ susie_get_cs <- function(res, X = NULL, Xcorr = NULL, coverage = 0.95,
   # Track which original effects these correspond to
   effect_indices <- which(include_idx)
 
-  # Compute and filter by "purity"
-  if (is.null(use_rfast)) {
-    use_rfast <- requireNamespace("Rfast", quietly = TRUE)
-  }
-  
   # If no correlation info, return without purity or extension
   if (is.null(Xcorr) && is.null(X)) {
     names(cs) <- paste0("L", effect_indices)
@@ -381,7 +372,7 @@ susie_get_cs <- function(res, X = NULL, Xcorr = NULL, coverage = 0.95,
     } else {
       purity <- rbind(
         purity,
-        matrix(get_purity(cs[[i]], X, Xcorr, squared, n_purity, use_rfast), 1, 3)
+        matrix(get_purity(cs[[i]], X, Xcorr, squared, n_purity), 1, 3)
       )
     }
   }

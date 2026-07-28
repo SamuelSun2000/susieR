@@ -1556,42 +1556,29 @@ test_that("get_purity computes valid purity statistics", {
   expect_true(all(result_sq >= 0 & result_sq <= 1))
 })
 
-test_that("get_purity subsamples both X and Xcorr paths when n < length(pos)", {
+test_that("get_purity subsamples X but uses all variables from Xcorr", {
   base_data <- generate_base_data(n = 80, p = 150, seed = 321)
   pos <- 1:120
   Xcorr <- cor(base_data$X)
 
-  # Xcorr path: with n=20 < 120, subsampling applies → different seeds → different results
+  upper <- abs(Rfast::upper_tri(Xcorr[pos, pos]))
+  expected <- c(min(upper), sum(upper) / length(upper), Rfast::med(upper))
   set.seed(1)
-  result_xcorr_1 <- get_purity(pos, X = NULL, Xcorr = Xcorr, n = 20,
-                               use_rfast = FALSE)
+  result_xcorr_1 <- get_purity(pos, X = NULL, Xcorr = Xcorr, n = 20)
   set.seed(2)
-  result_xcorr_2 <- get_purity(pos, X = NULL, Xcorr = Xcorr, n = 20,
-                               use_rfast = FALSE)
-  expect_false(isTRUE(all.equal(result_xcorr_1, result_xcorr_2,
-                                tolerance = 10 * .Machine$double.eps)))
+  result_xcorr_2 <- get_purity(pos, X = NULL, Xcorr = Xcorr, n = 20)
+  expect_equal(result_xcorr_1, expected)
+  expect_equal(result_xcorr_2, expected)
 
-  # Xcorr path: with n >= length(pos), no subsampling → same full result
-  upper <- abs(Xcorr[pos, pos][upper.tri(Xcorr[pos, pos])])
-  expected <- c(min(upper), sum(upper) / length(upper), median(upper))
   set.seed(1)
-  result_xcorr_full <- get_purity(pos, X = NULL, Xcorr = Xcorr, n = length(pos),
-                                  use_rfast = FALSE)
-  expect_equal(result_xcorr_full, expected, tolerance = 10 * .Machine$double.eps)
-
-  # X path: with n=20 < 120, subsampling applies → different seeds → different results
-  set.seed(1)
-  result_x_1 <- get_purity(pos, X = base_data$X, Xcorr = NULL, n = 20,
-                           use_rfast = FALSE)
+  result_x_1 <- get_purity(pos, X = base_data$X, Xcorr = NULL, n = 20)
   set.seed(2)
-  result_x_2 <- get_purity(pos, X = base_data$X, Xcorr = NULL, n = 20,
-                           use_rfast = FALSE)
+  result_x_2 <- get_purity(pos, X = base_data$X, Xcorr = NULL, n = 20)
   expect_false(isTRUE(all.equal(result_x_1, result_x_2,
                                 tolerance = 10 * .Machine$double.eps)))
 })
 
-test_that("get_purity uses Rfast correlation for X path when requested", {
-  skip_if_not_installed("Rfast")
+test_that("get_purity uses Rfast for the X path", {
   base_data <- generate_base_data(n = 80, p = 150, seed = 456)
   pos <- 1:120
 
@@ -1602,24 +1589,23 @@ test_that("get_purity uses Rfast correlation for X path when requested", {
   expected <- c(min(upper), sum(upper) / length(upper), Rfast::med(upper))
 
   set.seed(7)
-  result <- get_purity(pos, X = base_data$X, Xcorr = NULL, n = 30,
-                       use_rfast = TRUE)
+  result <- get_purity(pos, X = base_data$X, Xcorr = NULL, n = 30)
   expect_equal(result, expected)
 })
 
 test_that("purity subsampling defaults to auto", {
   expect_equal(formals(get_purity)$n, "auto")
   expect_equal(formals(susie_get_cs)$n_purity, "auto")
+  expect_false("use_rfast" %in% names(formals(susie_get_cs)))
 })
 
 test_that("resolve_n_purity uses simple work and memory caps", {
-  expect_equal(resolve_n_purity(50, 1000, 10000, TRUE), 50)
-  expect_equal(resolve_n_purity(-1, 1000, 10000, TRUE), 10000)
-  expect_equal(resolve_n_purity(Inf, 1000, 10000, TRUE), 10000)
-  expect_equal(resolve_n_purity("auto", 100, 2000, TRUE), 2000)
-  expect_equal(resolve_n_purity("auto", 1000, 10000, TRUE), 4096)
-  expect_equal(resolve_n_purity("auto", 1000, 10000, FALSE), 447)
-  expect_error(resolve_n_purity("bad", 1000, 10000, TRUE),
+  expect_equal(resolve_n_purity(50, 1000, 10000), 50)
+  expect_equal(resolve_n_purity(-1, 1000, 10000), 10000)
+  expect_equal(resolve_n_purity(Inf, 1000, 10000), 10000)
+  expect_equal(resolve_n_purity("auto", 100, 2000), 2000)
+  expect_equal(resolve_n_purity("auto", 1000, 10000), 4096)
+  expect_error(resolve_n_purity("bad", 1000, 10000),
                "auto")
 })
 

@@ -70,7 +70,7 @@ test_that("susie_ser with z and n matches susie_rss with diagonal R", {
   fit_rss <- suppressWarnings(suppressMessages(
     susie_rss(z = z, R = diag(p), n = n, L = 1, max_iter = 1,
               estimate_prior_method = "optim", coverage = NULL,
-              check_prior = FALSE)
+              control = list(check_prior = FALSE))
   ))
 
   expect_equal(fit_ser$alpha, fit_rss$alpha, tolerance = machine_tol)
@@ -96,7 +96,7 @@ test_that("susie_ser simple method matches diagonal susie_rss", {
     susie_rss(z = z, R = diag(p), n = n, L = 1, max_iter = 1,
               estimate_prior_method = "simple",
               scaled_prior_variance = 0.4,
-              coverage = NULL, check_prior = FALSE)
+              coverage = NULL, control = list(check_prior = FALSE))
   ))
 
   expect_equal(fit_ser$alpha, fit_rss$alpha, tolerance = machine_tol)
@@ -116,7 +116,7 @@ test_that("susie_ser z-only scale matches diagonal susie_rss without n", {
   fit_rss <- suppressWarnings(suppressMessages(
     susie_rss(z = z, R = diag(p), L = 1, max_iter = 1,
               estimate_prior_method = "optim", coverage = NULL,
-              check_prior = FALSE)
+              control = list(check_prior = FALSE))
   ))
 
   expect_equal(fit_ser$alpha, fit_rss$alpha, tolerance = machine_tol)
@@ -138,7 +138,7 @@ test_that("susie_ser with z, n, and var_y matches diagonal susie_rss", {
   fit_rss <- suppressWarnings(suppressMessages(
     susie_rss(z = z, R = diag(p), n = n, var_y = var_y,
               L = 1, max_iter = 1, estimate_prior_method = "optim",
-              coverage = NULL, check_prior = FALSE)
+              coverage = NULL, control = list(check_prior = FALSE))
   ))
 
   expect_equal(fit_ser$alpha, fit_rss$alpha, tolerance = machine_tol)
@@ -166,7 +166,7 @@ test_that("susie_ser with bhat, shat, n, and var_y matches diagonal susie_rss", 
     susie_rss(bhat = bhat, shat = shat, R = diag(p), n = n,
               var_y = var_y, L = 1, max_iter = 1,
               estimate_prior_method = "optim", coverage = NULL,
-              check_prior = FALSE)
+              control = list(check_prior = FALSE))
   ))
 
   expect_equal(fit_ser$alpha, fit_rss$alpha, tolerance = machine_tol)

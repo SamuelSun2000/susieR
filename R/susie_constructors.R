@@ -318,15 +318,6 @@ individual_data_constructor <- function(X, y, L = min(10, ncol(X)),
 
   prior_weights <- normalize_prior_weights(prior_weights, p)
 
-  # nocov start
-  if (p > 1000 & !requireNamespace("Rfast", quietly = TRUE)) {
-    warning_message("For an X with many columns, please consider installing ",
-                    "the Rfast package for more efficient credible set (CS) ",
-                    "calculations.",
-                    style = "hint")
-  }
-  # nocov end
-
   # Center y if intercept is included
   if (intercept) {
     y <- y - mean_y
@@ -483,14 +474,6 @@ sufficient_stats_constructor <- function(Xty, yty, n,
         length(Xty), ")."
       ))
     }
-
-    # nocov start
-    if (ncol(XtX) > 1000 & !requireNamespace("Rfast", quietly = TRUE)) {
-      warning_message("For large R or large XtX, consider installing the ",
-                      "Rfast package for better performance.",
-                      style = "hint")
-    }
-    # nocov end
 
     # Ensure XtX is symmetric
     if (!is_symmetric_matrix(XtX)) {
@@ -803,8 +786,8 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
                    (is.list(R) && !is.matrix(R))
   R_mismatch <- match.arg(R_mismatch, c("none", "eb", "eb_mix", "eb_ser_init", "eb_force_init", "eb_no_init"))
   R_mismatch_method <- match.arg(R_mismatch_method, c("mle", "map"))
-  eb_mix_ref <- validate_eb_mix_ref(eb_mix_ref)
-  eb_mix_z_ref <- eb_mix_ref_to_z_ref(eb_mix_ref)
+  eb_mix_ref <- validate_mixture_reference_p(eb_mix_ref)
+  eb_mix_z_ref <- mixture_reference_p_to_z(eb_mix_ref)
   if (!is.numeric(R_sensitivity_threshold) ||
       length(R_sensitivity_threshold) != 1L ||
       !is.finite(R_sensitivity_threshold) ||
@@ -833,7 +816,8 @@ summary_stats_constructor <- function(z = NULL, R = NULL, X = NULL,
       warning_message(
         "Joint estimation of sigma^2 and lambda_bias is weakly identified; ",
         "sigma^2 and lambda_bias can trade off, especially early in EM. ",
-        "Consider track_fit=TRUE to monitor, or R_mismatch_method='map' ",
+        "Consider track_fit = TRUE to monitor, or set ",
+        "control = susie_rss_control(mismatch_estimator = \"map\") ",
         "to penalize lambda_bias.",
         style = "hint"
       )
@@ -1238,8 +1222,8 @@ ss_mixture_constructor <- function(z, R = NULL, X = NULL, n,
     stop("Sample size 'n' is required for multi-panel mode.")
   R_mismatch <- match.arg(R_mismatch, c("none", "eb", "eb_mix", "eb_ser_init", "eb_force_init", "eb_no_init"))
   R_mismatch_method <- match.arg(R_mismatch_method, c("mle", "map"))
-  eb_mix_ref <- validate_eb_mix_ref(eb_mix_ref)
-  eb_mix_z_ref <- eb_mix_ref_to_z_ref(eb_mix_ref)
+  eb_mix_ref <- validate_mixture_reference_p(eb_mix_ref)
+  eb_mix_z_ref <- mixture_reference_p_to_z(eb_mix_ref)
   if (!is.numeric(R_sensitivity_threshold) ||
       length(R_sensitivity_threshold) != 1L ||
       !is.finite(R_sensitivity_threshold) ||

@@ -291,6 +291,9 @@ matrix was estimated from a finite panel. It does not account for
 systematic mismatch due to drift between the LD reference population and the GWAS
 population. The option `R_mismatch = "eb"` estimates an additional
 variance component shared across the region from the fitted residuals.
+Advanced numerical and diagnostic settings are grouped in
+`susie_rss_control()`, for example
+`control = susie_rss_control(mismatch_estimator = "map")`.
 
 ```{r}
 fit_B500_eb <- susie_rss(bhat = bhat, shat = shat,
@@ -465,10 +468,9 @@ points(SummaryConsistency$flip_id,
 
 This fit still reports 2 credible sets, and the flipped variant still
 has PIP close to 1. The residual artifact diagnostic does not flag this
-fit: `Q_art` is small and `residual_artifact_flag` is `FALSE`. However,
-the CS-level sensitivity diagnostic is `TRUE`, so the overall
-reliability flag is also `TRUE`. The warning therefore comes from CS
-sensitivity, not from `Q_art`.
+fit: `Q_art` is small and `residual_artifact_flag` is `FALSE`. At the
+default sensitivity threshold of 30, neither the CS-level diagnostic nor
+the overall reliability diagnostic flags the fit.
 
 This behavior is expected. The model in this vignette is designed for
 finite reference error and population drift in the LD matrix. It does
@@ -543,32 +545,24 @@ final_effect <- track_toy$effect[
 ]
 cs_story <- merge(cs_story, final_effect, by = "effect",
                   all.x = TRUE, sort = FALSE)
-cs_story <- cs_story[cs_story$is_sensitive,
-                     c("cs", "effect", "cs_size", "top_lbf",
-                       "cs_max_bf_attenuation", "threshold",
-                       "cs_sensitivity_label",
-                       "top_sensitive_variable_name")]
+cs_story <- cs_story[, c("cs", "effect", "cs_size", "top_lbf",
+                         "cs_max_bf_attenuation", "threshold",
+                         "is_sensitive", "top_sensitive_variable_name")]
 names(cs_story) <- c("cs", "effect", "cs_size", "max_log_BF",
-                     "log_BF_attenuation", "threshold", "sensitivity",
+                     "log_BF_attenuation", "threshold", "is_sensitive",
                      "sensitive_variant")
 knitr::kable(cs_story,
              digits = 3)
 ```
 
-For both credible sets, the attenuation is above the threshold
-`log(20) = 3.0`, so both are labeled `highly_sensitive`. This is why
-`CS_sensitivity_flag` is `TRUE`, and why the overall reliability flag
-is `TRUE`, even though `Q_art = 0.012` and the residual artifact flag is
-`FALSE`.
+For both credible sets, the attenuation is below the default threshold
+of `30`, so `CS_sensitivity_flag` and the overall reliability flag are
+both `FALSE`.
 
 Thus, an allele flip can create a convincing sparse effect before the
-LD mismatch model has anything useful to adjust. In this example,
-`R_finite = 500` still raises a reliability warning through CS-level
-sensitivity, but that warning should be interpreted as a cue to inspect
-alignment, not as an automatic correction of the allele coding problem.
-In practice this warning is not guaranteed: for example, fitting this
-same toy example with `R_mismatch = "eb"` but without `R_finite = 500`
-does not raise the reliability warning.
+LD mismatch model has anything useful to adjust. This example is not
+flagged, reinforcing that these diagnostics do not replace allele
+alignment QC.
 
 ```{r cleanup, include=FALSE}
 invisible(NULL)

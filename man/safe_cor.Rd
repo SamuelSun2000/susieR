@@ -2,10 +2,7 @@
 % Please edit documentation in R/susie_utils.R
 \name{safe_cor}
 \alias{safe_cor}
-\title{Computes correlation matrix from data matrix
-Handles constant columns without warnings - returns 0 correlation for constant cols
-Uses Rfast::cora when available (much faster for large matrices), falls back
-to crossprod-based computation otherwise.}
+\title{Compute a correlation matrix}
 \usage{
 safe_cor(X)
 }
@@ -16,9 +13,7 @@ safe_cor(X)
 Correlation matrix (p x p)
 }
 \description{
-Computes correlation matrix from data matrix
-Handles constant columns without warnings - returns 0 correlation for constant cols
-Uses Rfast::cora when available (much faster for large matrices), falls back
-to crossprod-based computation otherwise.
+Uses Rfast for nonconstant columns. Constant columns are handled by a
+crossprod-based calculation and assigned zero correlation.
 }
 \keyword{internal}

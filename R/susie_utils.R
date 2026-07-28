@@ -126,13 +126,14 @@ safe_cov2cor <- function(V) {
   R
 }
 
-#' Computes correlation matrix from data matrix
-#' Handles constant columns without warnings - returns 0 correlation for constant cols
-#' Uses Rfast::cora when available (much faster for large matrices), falls back
-#' to crossprod-based computation otherwise.
+#' Compute a correlation matrix
+#'
+#' Uses Rfast for nonconstant columns. Constant columns are handled by a
+#' crossprod-based calculation and assigned zero correlation.
 #'
 #' @param X Data matrix (n x p)
 #' @return Correlation matrix (p x p)
+#' @importFrom Rfast cora is.symmetric med upper_tri
 #' @keywords internal
 safe_cor <- function(X) {
   n <- nrow(X)
@@ -140,9 +141,8 @@ safe_cor <- function(X) {
   css <- colSums(X^2) - n * cm^2   # column sum of squares (centered)
   has_const <- any(css == 0)
 
-  # Fast path: use Rfast::cora when available and no constant columns
-  if (!has_const && requireNamespace("Rfast", quietly = TRUE)) {
-    return(Rfast::cora(X))
+  if (!has_const) {
+    return(cora(X))
   }
 
   # Fallback: manual crossprod, handling constant columns
@@ -176,14 +176,14 @@ standardize_X <- function(X) {
 #'
 #' @param x A matrix to check
 #' @return Logical indicating if x is symmetric
+#' @importFrom Matrix isSymmetric
 #' @export
 #' @keywords internal
 is_symmetric_matrix <- function(x) {
-  if (is.matrix(x) && is.numeric(x) && !isS4(x) &&
-      requireNamespace("Rfast", quietly = TRUE)) {
-    return(Rfast::is.symmetric(x))
+  if (is.matrix(x) && is.numeric(x) && !isS4(x)) {
+    return(is.symmetric(x))
   } else {
-    return(Matrix::isSymmetric(x, check.attributes = FALSE))
+    return(isSymmetric(x, check.attributes = FALSE))
   }
 }
 
@@ -2187,7 +2187,7 @@ compute_ash_masking <- function(Xcorr, model, params) {
     cumsum_alpha <- cumsum(model$alpha[l, alpha_order])
     cs_size <- sum(cumsum_alpha <= cs_threshold) + 1
     cs_indices <- alpha_order[1:min(cs_size, p)]
-    effect_purity[l] <- get_purity(cs_indices, X = NULL, Xcorr = Xcorr, use_rfast = FALSE)[1]
+    effect_purity[l] <- get_purity(cs_indices, X = NULL, Xcorr = Xcorr)[1]
   }
 
   # Detect current collision and update ever_diffuse
@@ -2562,15 +2562,13 @@ n_in_CS <- function(res, coverage = 0.9) {
   return(apply(res, 1, function(x) n_in_CS_x(x, coverage)))
 }
 
-resolve_n_purity <- function(n_purity, n_samples, n_vars, use_rfast) {
+resolve_n_purity <- function(n_purity, n_samples, n_vars) {
   if (identical(n_purity, "auto")) {
     memory_budget <- 512 * 1024^2
-    work_budget <- if (use_rfast) 2e10 else 2e8
-    min_cap <- if (use_rfast) 500 else 100
     n_samples <- max(1, n_samples)
     cap <- min(
       n_vars,
-      max(min_cap, sqrt(work_budget / n_samples)),
+      max(500, sqrt(2e10 / n_samples)),
       memory_budget / (16 * n_samples),
       sqrt(memory_budget / 32)
     )
@@ -2583,37 +2581,21 @@ resolve_n_purity <- function(n_purity, n_samples, n_vars, use_rfast) {
 }
 
 # Subsample and compute min, mean and median abs corr.
-#' @importFrom stats median
 #' @keywords internal
-get_purity <- function(pos, X, Xcorr, squared = FALSE, n = "auto",
-                       use_rfast = NULL) {
-  if (is.null(use_rfast)) {
-    use_rfast <- requireNamespace("Rfast", quietly = TRUE)
-  }
-  if (use_rfast) {
-    get_upper_tri <- Rfast::upper_tri
-    get_median <- Rfast::med
-  } else {
-    get_upper_tri <- function(R) R[upper.tri(R)]
-    get_median <- median
-  }
+get_purity <- function(pos, X, Xcorr, squared = FALSE, n = "auto") {
   if (length(pos) == 1) {
     return(c(1, 1, 1))
   } else {
     if (is.null(Xcorr)) {
-      n <- resolve_n_purity(n, nrow(X), length(pos), use_rfast)
+      n <- resolve_n_purity(n, nrow(X), length(pos))
       if (length(pos) > n) {
         pos <- sample(pos, n)
       }
       X_sub <- X[, pos]
       X_sub <- as.matrix(X_sub)
-      value <- abs(get_upper_tri(safe_cor(X_sub)))
+      value <- abs(upper_tri(safe_cor(X_sub)))
     } else {
-      n <- resolve_n_purity(n, length(pos), length(pos), use_rfast)
-      if (length(pos) > n) {
-        pos <- sample(pos, n)
-      }
-      value <- abs(get_upper_tri(Xcorr[pos, pos]))
+      value <- abs(upper_tri(Xcorr[pos, pos]))
     }
     if (squared) {
       value <- value^2
@@ -2621,7 +2603,7 @@ get_purity <- function(pos, X, Xcorr, squared = FALSE, n = "auto",
     result <- c(
       min(value),
       sum(value) / length(value),
-      get_median(value)
+      med(value)
     )
     if (any(is.na(result) | is.nan(result))) {
       stop("get_purity returned NaN/NA. Check for constant columns or data issues.")
