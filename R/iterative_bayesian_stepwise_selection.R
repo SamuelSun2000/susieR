@@ -53,8 +53,21 @@ ibss_initialize.default <- function(data, params) {
   # Handle model initialization. extract_model_init_fields returns NULL when
   # pruning leaves nothing useful (V and mu all zero), which collapses into the
   # same "no init" path as model_init being NULL to begin with.
+  #
+  # The one-SER R_mismatch initialization diagnostics (ser_model,
+  # R_mismatch_init) are L-invariant products built once at cold start by
+  # initialize_R_mismatch. On a warm start that step is skipped (it would
+  # clobber the warm-started effect) and extract_model_init_fields keeps only
+  # alpha/mu/mu2/V/sigma2, so without carrying them here they would be lost
+  # from the final fit -- e.g. across susie_workhorse greedy-L rounds, where
+  # round >= 2 warm-starts from the previous round and ser_model came back NULL.
+  carried_R_mismatch_diag <- NULL
   if (!is.null(params$model_init)) {
     validate_init(data, params)
+    fd <- params$model_init$R_finite_diagnostics
+    if (!is.null(fd))
+      carried_R_mismatch_diag <-
+        fd[intersect(c("ser_model", "R_mismatch_init"), names(fd))]
     params$model_init <- extract_model_init_fields(
       params$model_init,
       estimate_residual_variance = params$estimate_residual_variance)
@@ -159,6 +172,13 @@ ibss_initialize.default <- function(data, params) {
     model$R_finite_B <- data$R_finite_B
     if (is.null(params$model_init))
       model <- initialize_R_mismatch(data, params, model)
+    # Warm start: initialize_R_mismatch was skipped above, so restore the
+    # L-invariant init diagnostics carried from the model_init fit, letting
+    # ibss_finalize re-emit them (no-op on a cold start).
+    if (!is.null(carried_R_mismatch_diag$ser_model))
+      model$R_mismatch_ser_model <- carried_R_mismatch_diag$ser_model
+    if (!is.null(carried_R_mismatch_diag$R_mismatch_init))
+      model$R_mismatch_init <- carried_R_mismatch_diag$R_mismatch_init
   }
 
   return(model)
@@ -393,7 +413,8 @@ ibss_finalize <- function(data, params, model, elbo = NULL, iter = NA_integer_,
     # (set by fit_R_mismatch). Copy whichever exist.
     for (fld in c("Q_art", "artifact_flag", "artifact_evaluable",
                   "low_eigen_count", "low_eigen_fraction", "eig_delta",
-                  "mode_label", "R_mismatch_method"))
+                  "mode_label", "R_mismatch_method",
+                  "prior_variance_flag", "prior_variance_ratio"))
       if (!is.null(model[[fld]]))
         model$R_finite_diagnostics[[fld]] <- model[[fld]]
     if (!is.null(model$R_mismatch_trace))

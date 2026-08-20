@@ -546,6 +546,15 @@ compute_R_mismatch_state <- function(data, params, model, phase = "sweep") {
 
   model$mode_label <- if (flagged) "warning" else "normal"
 
+  # Non-fatal prior-variance blow-up diagnostic. Same condition the fatal
+  # check_prior guard uses (max(V) > 100 * max(|z|)^2), but reported rather
+  # than thrown so it can be tabulated alongside Q_art in
+  # fit$R_finite_diagnostics. Defaults to FALSE; surfaced when eb / eb_mix
+  # (any active R_mismatch) is on.
+  pv <- compute_prior_variance_flag(data, model)
+  model$prior_variance_ratio <- pv$ratio
+  model$prior_variance_flag  <- pv$flag
+
   if (isTRUE(params$track_fit)) {
     keep <- is.finite(r_fit_z) & is.finite(s_full) &
             s_full > .Machine$double.eps

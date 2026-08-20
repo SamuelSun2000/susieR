@@ -28,7 +28,7 @@ susie_rss_control <- function(mismatch_estimator = c("mle", "map"),
                               sensitivity_threshold = 30,
                               r_tol = 1e-8,
                               check_input = FALSE,
-                              check_prior = TRUE) {
+                              check_prior = FALSE) {
   mismatch_estimator <- match.arg(mismatch_estimator)
   mixture_reference_p <- validate_mixture_reference_p(mixture_reference_p)
 

@@ -81,17 +81,39 @@ initialize_fitted.ss <- function(data, mat_init) {
   return(list(XtXr = compute_Rv(data, colSums(mat_init$alpha * mat_init$mu))))
 }
 
+# Prior-variance blow-up diagnostic (shared by the fatal check_prior guard
+# and the non-fatal R_finite_diagnostics flag). Mirrors a single condition:
+# the estimated prior variance is "unreasonably large" when any effect's V
+# exceeds 100 * max(|z|)^2, a symptom of summary-statistic / LD-reference
+# mismatch. Returns the continuous max(V) / max(|z|)^2 ratio, the logical
+# flag (ratio > 100), and the max(|z|) scale used.
+#' @keywords internal
+compute_prior_variance_flag <- function(data, model) {
+  zm <- data$zm
+  if (is.null(zm)) {
+    bhat <- data$Xty / model$predictor_weights
+    shat <- sqrt(model$sigma2 / model$predictor_weights)
+    z <- bhat / shat
+    zm <- max(abs(z[!is.nan(z)]))
+  }
+  denom <- zm^2
+  maxV  <- max(model$V)
+  # Match the original check_prior condition any(V > 100 * zm^2) exactly,
+  # including its degenerate cases:
+  #   zm == 0   -> any(V > 0)         (ratio Inf when maxV > 0, else 0)
+  #   zm == Inf -> any(V > Inf) FALSE (ratio 0)  [all z were NaN/removed]
+  ratio <- if (is.finite(denom)) {
+             if (denom > 0) maxV / denom
+             else if (maxV > 0) Inf else 0
+           } else 0
+  list(ratio = ratio, flag = isTRUE(ratio > 100), zm = zm)
+}
+
 # Validate Prior Variance
 #' @keywords internal
 validate_prior.ss <- function(data, params, model, ...) {
   if (isTRUE(params$check_prior)) {
-    if (is.null(data$zm)) {
-      bhat <- data$Xty / model$predictor_weights
-      shat <- sqrt(model$sigma2 / model$predictor_weights)
-      z <- bhat / shat
-      data$zm <- max(abs(z[!is.nan(z)]))
-    }
-    if (any(model$V > 100 * (data$zm^2))) {
+    if (isTRUE(compute_prior_variance_flag(data, model)$flag)) {
       stop(
         "Estimated prior variance is unreasonably large.\n",
         "This usually caused by mismatch between the summary statistics and the R matrix.\n",
