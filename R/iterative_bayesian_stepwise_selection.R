@@ -413,8 +413,7 @@ ibss_finalize <- function(data, params, model, elbo = NULL, iter = NA_integer_,
     # (set by fit_R_mismatch). Copy whichever exist.
     for (fld in c("Q_art", "artifact_flag", "artifact_evaluable",
                   "low_eigen_count", "low_eigen_fraction", "eig_delta",
-                  "mode_label", "R_mismatch_method",
-                  "prior_variance_flag", "prior_variance_ratio"))
+                  "mode_label", "R_mismatch_method"))
       if (!is.null(model[[fld]]))
         model$R_finite_diagnostics[[fld]] <- model[[fld]]
     if (!is.null(model$R_mismatch_trace))
