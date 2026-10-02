@@ -15,6 +15,20 @@
 #'   semidefiniteness and consistency.
 #' @param check_prior Whether to check for an unreasonably large estimated
 #'   prior variance relative to the marginal z-scores.
+#' @param multi_panel_refit For multi-panel input (a list of \code{R} or
+#'   \code{X}), whether to fit in two stages. When \code{TRUE} (default),
+#'   the joint mixture fit is run only to estimate the panel weights
+#'   \eqn{\omega}, and its fine-mapping result is discarded. The returned fit
+#'   is then a single-reference \code{susie_rss} fit against the fixed
+#'   weighted reference \eqn{R(\omega) = \sum_k \omega_k R_k}. For
+#'   \code{X} input this is the stacked sketch
+#'   \eqn{X(\omega) = [\sqrt{\omega_1} \tilde X_1; \ldots;
+#'   \sqrt{\omega_K} \tilde X_K]}, where \eqn{\tilde X_k} is \eqn{X_k}
+#'   with columns centered and scaled to unit norm, so that
+#'   \eqn{X(\omega)^\top X(\omega) = R(\omega)}. The finite-reference size
+#'   becomes \eqn{B_{\mathrm{eff}} = 1 / \sum_k \omega_k^2 / B_k}.
+#'   \code{FALSE} returns the joint mixture fit, in which \eqn{\omega} and
+#'   the effects are updated together.
 #'
 #' @return A named list for the \code{control} argument of
 #'   \code{\link{susie_rss}}.
@@ -28,7 +42,8 @@ susie_rss_control <- function(mismatch_estimator = c("mle", "map"),
                               sensitivity_threshold = 30,
                               r_tol = 1e-8,
                               check_input = FALSE,
-                              check_prior = TRUE) {
+                              check_prior = TRUE,
+                              multi_panel_refit = TRUE) {
   mismatch_estimator <- match.arg(mismatch_estimator)
   mixture_reference_p <- validate_mixture_reference_p(mixture_reference_p)
 
@@ -50,7 +65,8 @@ susie_rss_control <- function(mismatch_estimator = c("mle", "map"),
       artifact_threshold > 1)
     stop("artifact_threshold must be a single finite numeric value in [0, 1].")
 
-  logicals <- list(check_input = check_input, check_prior = check_prior)
+  logicals <- list(check_input = check_input, check_prior = check_prior,
+                   multi_panel_refit = multi_panel_refit)
   invalid <- vapply(logicals, function(x)
     !is.logical(x) || length(x) != 1L || is.na(x), logical(1))
   if (any(invalid))
@@ -65,7 +81,8 @@ susie_rss_control <- function(mismatch_estimator = c("mle", "map"),
     sensitivity_threshold = sensitivity_threshold,
     r_tol = r_tol,
     check_input = check_input,
-    check_prior = check_prior
+    check_prior = check_prior,
+    multi_panel_refit = multi_panel_refit
   )
 }
 

@@ -10,7 +10,8 @@ test_that("susie_rss_control returns the documented defaults", {
       sensitivity_threshold = 30,
       r_tol = 1e-8,
       check_input = FALSE,
-      check_prior = TRUE
+      check_prior = TRUE,
+      multi_panel_refit = TRUE
     )
   )
   expect_false(inherits(susie_rss_control(), "susie_rss_control"))

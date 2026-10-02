@@ -747,3 +747,83 @@ pick_init_panel_via_subfits <- function(panels, panel_arg, parent_args) {
   )
   list(idx = which.max(elbos), fits = fits, elbos = elbos)
 }
+
+# =============================================================================
+# MULTI-PANEL TWO-STAGE FIT
+#
+# Stage 1 runs the joint ss_mixture fit only to estimate the panel weights
+# omega; its fine-mapping result is discarded. Stage 2 refits susie_rss on a
+# single fixed reference assembled from the panels with those weights:
+#
+#   R input:  R(omega) = sum_k omega_k R_k              (R_k as correlations)
+#   X input:  X(omega) = [sqrt(omega_1) Xt_1; ...; sqrt(omega_K) Xt_K]
+#             Xt_k = standardize_X(X_k): columns centered, unit norm,
+#             so crossprod(Xt_k) = R_k and crossprod(X(omega)) = R(omega).
+#   R_finite: B_eff = 1 / sum_k omega_k^2 / B_k
+#
+# Stacking raw sketches without the sqrt(omega_k) / unit-norm scaling would
+# instead weight panel k by B_k / sum(B), not by omega_k.
+# =============================================================================
+
+#' @keywords internal
+#' @noRd
+form_weighted_reference <- function(panels, panel_arg, omega) {
+  keep <- which(omega > 0)
+  if (panel_arg == "R") {
+    R_mix <- Reduce("+", lapply(keep, function(k) {
+      Rk <- panels[[k]]
+      omega[k] * safe_cov2cor((Rk + t(Rk)) / 2)
+    }))
+    return(list(R = (R_mix + t(R_mix)) / 2, X = NULL))
+  }
+  X_std <- lapply(panels[keep], standardize_X)
+  list(R = NULL, X = form_X_meta(X_std, omega[keep]))
+}
+
+#' @keywords internal
+#' @noRd
+fit_multi_panel_two_stage <- function(susie_objects, rss_args) {
+  data   <- susie_objects$data
+  params <- susie_objects$params
+  verbose <- isTRUE(params$verbose)
+
+  # Stage 1: omega only. Its warnings refer to a fit that is not returned.
+  stage1 <- if (verbose) susie_workhorse(data, params) else
+              suppressWarnings(suppressMessages(susie_workhorse(data, params)))
+  omega <- if (!is.null(stage1$omega_weights)) stage1$omega_weights else
+             data$omega_init
+  omega <- pmax(as.numeric(omega), 0)
+  omega <- omega / sum(omega)
+  if (!isTRUE(stage1$converged))
+    warning_message("Multi-panel omega was estimated from a mixture fit ",
+                    "that did not converge in ", params$max_iter,
+                    " iterations.", style = "hint")
+
+  # Stage 2: single-panel fit on the omega-weighted reference.
+  panel_arg <- if (!is.null(rss_args$R)) "R" else "X"
+  panels <- rss_args[[panel_arg]]
+  ref <- form_weighted_reference(panels, panel_arg, omega)
+
+  R_finite <- rss_args$R_finite
+  if (!is.null(R_finite) && !identical(R_finite, FALSE)) {
+    B_list <- resolve_R_finite(R_finite, if (panel_arg == "X") panels else NULL,
+                               is_multi_panel = TRUE)
+    if (panel_arg == "R" && length(B_list) != length(panels))
+      B_list <- rep_len(B_list, length(panels))
+    R_finite <- 1 / sum(omega^2 / B_list)
+  }
+
+  if (verbose)
+    message(sprintf("Multi-panel two-stage: omega = (%s)%s; refitting on the weighted reference.",
+                    paste(round(omega, 3), collapse = ", "),
+                    if (is.numeric(R_finite))
+                      sprintf(", B_eff = %.1f", R_finite) else ""))
+
+  args <- modifyList(rss_args, list(
+    R = ref$R, X = ref$X, R_finite = R_finite,
+    max_iter = params$max_iter, init_only = FALSE
+  ), keep.null = TRUE)
+  fit <- do.call(susie_rss, args)
+  fit$omega_weights <- omega
+  fit
+}

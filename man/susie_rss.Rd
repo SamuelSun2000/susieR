@@ -373,11 +373,36 @@ In addition to the standard \code{"susie"} output (see
     \eqn{v_j / \sigma^2 = \tau_j^2 / \sigma^2 - 1}, one number per
     variable; values \eqn{\le 0.2} indicate minimal power loss,
     values \eqn{\gg 1} flag variables where the correction is doing
-    heavy lifting).}
+    heavy lifting);
+  \code{R_reliability_flag} (\code{TRUE} when \code{artifact_flag}
+    (\code{Q_art > artifact_threshold}) or \code{R_sensitivity_flag}
+    (a credible set's log-BF attenuation \eqn{\ge}
+    \code{sensitivity_threshold}) is \code{TRUE});
+  \code{SER_flag} (identical to \code{R_reliability_flag}; \code{TRUE}
+    means the one-effect model in \code{ser_model} should be used
+    instead of the full fit).}
+
+\item{omega_weights}{For multi-panel input, the estimated panel weights
+  \eqn{\omega}. With the default \code{multi_panel_refit = TRUE}, the
+  rest of the fit is a single-reference fit against
+  \eqn{\sum_k \omega_k R_k}.}
+
+\item{single_panel_fits}{For multi-panel input, the K single-panel fits
+  used to choose the panel that initializes the mixture.}
 }
 \description{
 Performs SuSiE regression using z-scores and correlation matrix.
 This is the sufficient-statistics RSS interface. For the specialized
 regularized eigendecomposition likelihood with \code{lambda > 0}, use
 \code{\link{susie_rss_lambda}}.
+}
+\details{
+Multi-panel input: \code{R} may be a list of K correlation
+  matrices, or \code{X} a list of K factor matrices (each with p columns),
+  one per reference panel. The panels are combined as
+  \eqn{R(\omega) = \sum_k \omega_k R_k} with weights \eqn{\omega}
+  estimated from the data and returned as \code{omega_weights}. By
+  default, \eqn{\omega} is estimated first and the returned fit is a
+  single-reference fit on \eqn{R(\omega)}; see \code{multi_panel_refit}
+  in \code{\link{susie_rss_control}}.
 }

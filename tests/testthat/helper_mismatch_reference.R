@@ -124,6 +124,12 @@ compare_to_mismatch_reference <- function(func_name = "susie_rss",
   else if (identical(ref_args$R_mismatch, "eb_ser_init"))
     ref_args$R_mismatch <- "eb"
 
+  # The pinned reference only has the joint multi-panel mixture fit.
+  is_list_input <- function(x) is.list(x) && !is.matrix(x)
+  if (is_list_input(args$R) || is_list_input(args$X))
+    args$control <- modifyList(if (is.null(args$control)) list() else args$control,
+                               list(multi_panel_refit = FALSE))
+
   dev_result <- suppressWarnings(suppressMessages(do.call(dev_func, args)))
   ref_result <- suppressWarnings(suppressMessages(do.call(ref_func, ref_args)))
 
