@@ -1,5 +1,5 @@
 # =============================================================================
-# Multi-panel two-stage fit (control$multi_panel_refit)
+# Multi-panel two-stage fit: omega from the joint fit, then refit on R(omega)
 # =============================================================================
 
 test_that("multi-panel R list: two-stage fit equals a single fit on sum_k omega_k R_k", {
@@ -13,11 +13,12 @@ test_that("multi-panel R list: two-stage fit equals a single fit on sum_k omega_
                                     L = 3, max_iter = 20,
                                     R_finite = c(80, 120),
                                     R_mismatch = "eb_mix"))
-  joint <- suppressWarnings(susie_rss(z = z, R = list(R1, R2), n = 1000,
-                                      L = 3, max_iter = 20,
-                                      R_finite = c(80, 120),
-                                      R_mismatch = "eb_mix",
-                                      control = list(multi_panel_refit = FALSE)))
+  # omega is the joint mixture fit's omega (stage 1).
+  obj <- suppressWarnings(susie_rss(z = z, R = list(R1, R2), n = 1000,
+                                    L = 3, max_iter = 20,
+                                    R_finite = c(80, 120),
+                                    R_mismatch = "eb_mix", init_only = TRUE))
+  joint <- suppressWarnings(susie_workhorse(obj$data, obj$params))
   om <- fit$omega_weights
   expect_equal(om, joint$omega_weights)
   expect_equal(sum(om), 1, tolerance = 1e-12)
@@ -58,4 +59,27 @@ test_that("multi-panel X list: weighted sketch reproduces sum_k omega_k R_k", {
                                        R_mismatch = "eb"))
   expect_equal(fit$pip, direct$pip)
   expect_equal(fit$R_finite_diagnostics$B, 1 / sum(om^2 / c(B1, B2)))
+})
+
+test_that("multi-panel verbose message reports each reference panel's weight", {
+  set.seed(22)
+  p <- 15; Bn <- 80
+  R1 <- cor(matrix(rnorm(Bn * p), Bn, p))
+  R2 <- cor(matrix(rnorm(Bn * p), Bn, p))
+  z <- rnorm(p); z[4] <- 5
+  msgs <- character(0)
+  fit <- withCallingHandlers(
+    suppressWarnings(susie_rss(z = z, R = list(EUR = R1, AFR = R2), n = 1000,
+                               L = 3, max_iter = 20, verbose = TRUE)),
+    message = function(m) {
+      msgs <<- c(msgs, conditionMessage(m))
+      invokeRestart("muffleMessage")
+    })
+  w <- grep("Multi-panel weights", msgs, value = TRUE)
+  expect_length(w, 1)
+  expect_match(w, sprintf("the weight of reference panel 'EUR' is %.3f",
+                          fit$omega_weights[1]), fixed = TRUE)
+  expect_match(w, sprintf("the weight of reference panel 'AFR' is %.3f",
+                          fit$omega_weights[2]), fixed = TRUE)
+  expect_false(any(grepl("B_eff", msgs)))
 })

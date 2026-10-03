@@ -13,8 +13,7 @@ susie_rss_control(
   sensitivity_threshold = 30,
   r_tol = 1e-08,
   check_input = FALSE,
-  check_prior = TRUE,
-  multi_panel_refit = TRUE
+  check_prior = TRUE
 )
 }
 \arguments{
@@ -40,21 +39,6 @@ semidefiniteness and consistency.}
 
 \item{check_prior}{Whether to check for an unreasonably large estimated
 prior variance relative to the marginal z-scores.}
-
-\item{multi_panel_refit}{For multi-panel input (a list of \code{R} or
-\code{X}), whether to fit in two stages. When \code{TRUE} (default),
-the joint mixture fit is run only to estimate the panel weights
-\eqn{\omega}, and its fine-mapping result is discarded. The returned fit
-is then a single-reference \code{susie_rss} fit against the fixed
-weighted reference \eqn{R(\omega) = \sum_k \omega_k R_k}. For
-\code{X} input this is the stacked sketch
-\eqn{X(\omega) = [\sqrt{\omega_1} \tilde X_1; \ldots;
-\sqrt{\omega_K} \tilde X_K]}, where \eqn{\tilde X_k} is \eqn{X_k}
-with columns centered and scaled to unit norm, so that
-\eqn{X(\omega)^\top X(\omega) = R(\omega)}. The finite-reference size
-becomes \eqn{B_{\mathrm{eff}} = 1 / \sum_k \omega_k^2 / B_k}.
-\code{FALSE} returns the joint mixture fit, in which \eqn{\omega} and
-the effects are updated together.}
 }
 \value{
 A named list for the \code{control} argument of

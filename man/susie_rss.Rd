@@ -383,9 +383,8 @@ In addition to the standard \code{"susie"} output (see
     instead of the full fit).}
 
 \item{omega_weights}{For multi-panel input, the estimated panel weights
-  \eqn{\omega}. With the default \code{multi_panel_refit = TRUE}, the
-  rest of the fit is a single-reference fit against
-  \eqn{\sum_k \omega_k R_k}.}
+  \eqn{\omega}, in the order the panels were supplied. The rest of the
+  fit is a single-reference fit against \eqn{\sum_k \omega_k R_k}.}
 
 \item{single_panel_fits}{For multi-panel input, the K single-panel fits
   used to choose the panel that initializes the mixture.}
@@ -399,10 +398,14 @@ regularized eigendecomposition likelihood with \code{lambda > 0}, use
 \details{
 Multi-panel input: \code{R} may be a list of K correlation
   matrices, or \code{X} a list of K factor matrices (each with p columns),
-  one per reference panel. The panels are combined as
-  \eqn{R(\omega) = \sum_k \omega_k R_k} with weights \eqn{\omega}
-  estimated from the data and returned as \code{omega_weights}. By
-  default, \eqn{\omega} is estimated first and the returned fit is a
-  single-reference fit on \eqn{R(\omega)}; see \code{multi_panel_refit}
-  in \code{\link{susie_rss_control}}.
+  one per reference panel. The fit has two stages. First, the panel
+  weights \eqn{\omega} are estimated from the data. Then
+  \code{susie_rss} is fit on the fixed weighted reference
+  \eqn{R(\omega) = \sum_k \omega_k R_k}. For \code{X} input
+  this is the stacked sketch \eqn{X(\omega) = [\sqrt{\omega_1} \tilde
+  X_1; \ldots; \sqrt{\omega_K} \tilde X_K]}, where \eqn{\tilde X_k} is
+  \eqn{X_k} with columns centered and scaled to unit norm, so that
+  \eqn{X(\omega)^\top X(\omega) = R(\omega)}. When \code{R_finite} is
+  set, the refit uses \eqn{B_{\mathrm{eff}} = 1 / \sum_k \omega_k^2 /
+  B_k}.
 }

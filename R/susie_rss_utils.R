@@ -794,15 +794,21 @@ fit_multi_panel_two_stage <- function(susie_objects, rss_args) {
              data$omega_init
   omega <- pmax(as.numeric(omega), 0)
   omega <- omega / sum(omega)
-  if (!isTRUE(stage1$converged))
-    warning_message("Multi-panel omega was estimated from a mixture fit ",
-                    "that did not converge in ", params$max_iter,
-                    " iterations.", style = "hint")
 
   # Stage 2: single-panel fit on the omega-weighted reference.
   panel_arg <- if (!is.null(rss_args$R)) "R" else "X"
   panels <- rss_args[[panel_arg]]
   ref <- form_weighted_reference(panels, panel_arg, omega)
+
+  if (verbose) {
+    labels <- names(panels)
+    labels <- if (is.null(labels) || any(!nzchar(labels)))
+                paste("reference panel", seq_along(panels))
+              else paste0("reference panel '", labels, "'")
+    message("Multi-panel weights: ",
+            paste(sprintf("the weight of %s is %.3f", labels, omega),
+                  collapse = "; "), ".")
+  }
 
   R_finite <- rss_args$R_finite
   if (!is.null(R_finite) && !identical(R_finite, FALSE)) {
@@ -813,16 +819,10 @@ fit_multi_panel_two_stage <- function(susie_objects, rss_args) {
     R_finite <- 1 / sum(omega^2 / B_list)
   }
 
-  if (verbose)
-    message(sprintf("Multi-panel two-stage: omega = (%s)%s; refitting on the weighted reference.",
-                    paste(round(omega, 3), collapse = ", "),
-                    if (is.numeric(R_finite))
-                      sprintf(", B_eff = %.1f", R_finite) else ""))
-
+  # NULL entries drop R / X / R_finite, so susie_rss uses its NULL defaults.
   args <- modifyList(rss_args, list(
-    R = ref$R, X = ref$X, R_finite = R_finite,
-    max_iter = params$max_iter, init_only = FALSE
-  ), keep.null = TRUE)
+    R = ref$R, X = ref$X, R_finite = R_finite, max_iter = params$max_iter
+  ))
   fit <- do.call(susie_rss, args)
   fit$omega_weights <- omega
   fit
