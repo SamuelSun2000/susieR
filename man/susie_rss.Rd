@@ -397,14 +397,15 @@ regularized eigendecomposition likelihood with \code{lambda > 0}, use
 }
 \details{
 Multi-panel input: \code{R} may be a list of K correlation
-  matrices, or \code{X} a list of K factor matrices (each with p columns),
+  matrices, or \code{X} a list of K factor matrices (\eqn{B_k} x p),
   one per reference panel. The fit has two stages. First, the panel
   weights \eqn{\omega} are estimated from the data. Then
   \code{susie_rss} is fit on the fixed weighted reference
   \eqn{R(\omega) = \sum_k \omega_k R_k}. For \code{X} input
-  this is the stacked sketch \eqn{X(\omega) = [\sqrt{\omega_1} \tilde
-  X_1; \ldots; \sqrt{\omega_K} \tilde X_K]}, where \eqn{\tilde X_k} is
-  \eqn{X_k} with columns centered and scaled to unit norm, so that
+  this is the stacked factor matrix \eqn{X(\omega) = [\sqrt{\omega_1}
+  \tilde X_1; \ldots; \sqrt{\omega_K} \tilde X_K]}, where
+  \eqn{\tilde X_k} is \eqn{X_k} with columns standardized so that
+  \eqn{\tilde X_k^\top \tilde X_k = R_k}; then
   \eqn{X(\omega)^\top X(\omega) = R(\omega)}. When \code{R_finite} is
   set, the refit uses \eqn{B_{\mathrm{eff}} = 1 / \sum_k \omega_k^2 /
   B_k}.

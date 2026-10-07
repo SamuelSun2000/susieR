@@ -738,7 +738,8 @@ pick_init_panel_via_subfits <- function(panels, panel_arg, parent_args) {
     sub <- tryCatch(do.call(summary_stats_constructor, args_k),
                     error = function(e) NULL)
     if (is.null(sub)) return(NULL)
-    tryCatch(susie_workhorse(sub$data, sub$params), error = function(e) NULL)
+    tryCatch(muffle_ibss_nonconvergence(susie_workhorse(sub$data, sub$params)),
+             error = function(e) NULL)
   })
   elbos <- vapply(
     fits,
@@ -746,6 +747,21 @@ pick_init_panel_via_subfits <- function(panels, panel_arg, parent_args) {
     numeric(1)
   )
   list(idx = which.max(elbos), fits = fits, elbos = elbos)
+}
+
+# The per-panel sub-fits and the stage-1 mixture fit only serve to estimate
+# omega, so their IBSS non-convergence report is dropped; the final fit on
+# the omega-weighted reference still reports it. Other messages and warnings
+# pass through.
+#' @keywords internal
+#' @noRd
+muffle_ibss_nonconvergence <- function(expr) {
+  is_nonconv <- function(cond)
+    grepl("IBSS algorithm did not converge", conditionMessage(cond),
+          fixed = TRUE)
+  withCallingHandlers(expr,
+    message = function(m) if (is_nonconv(m)) invokeRestart("muffleMessage"),
+    warning = function(w) if (is_nonconv(w)) invokeRestart("muffleWarning"))
 }
 
 # =============================================================================
@@ -788,8 +804,9 @@ fit_multi_panel_two_stage <- function(susie_objects, rss_args) {
   verbose <- isTRUE(params$verbose)
 
   # Stage 1: omega only. Its warnings refer to a fit that is not returned.
-  stage1 <- if (verbose) susie_workhorse(data, params) else
-              suppressWarnings(suppressMessages(susie_workhorse(data, params)))
+  stage1 <- muffle_ibss_nonconvergence(
+    if (verbose) susie_workhorse(data, params) else
+      suppressWarnings(suppressMessages(susie_workhorse(data, params))))
   omega <- if (!is.null(stage1$omega_weights)) stage1$omega_weights else
              data$omega_init
   omega <- pmax(as.numeric(omega), 0)

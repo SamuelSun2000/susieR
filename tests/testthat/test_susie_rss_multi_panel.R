@@ -83,3 +83,31 @@ test_that("multi-panel verbose message reports each reference panel's weight", {
                           fit$omega_weights[2]), fixed = TRUE)
   expect_false(any(grepl("B_eff", msgs)))
 })
+
+test_that("multi-panel: only the fit on the mixed LD reports IBSS non-convergence", {
+  set.seed(23)
+  p <- 40
+  R1 <- cor(matrix(rnorm(300 * p), 300, p))
+  R2 <- cor(matrix(rnorm(200 * p), 200, p))
+  z <- rnorm(p); z[c(5, 20)] <- 7
+  for (v in c(FALSE, TRUE)) {
+    msgs <- character(0); warns <- character(0)
+    fit <- withCallingHandlers(
+      susie_rss(z = z, R = list(R1, R2), n = 5000, L = 10, max_iter = 2,
+                verbose = v),
+      message = function(m) {
+        msgs <<- c(msgs, conditionMessage(m))
+        invokeRestart("muffleMessage")
+      },
+      warning = function(w) {
+        warns <<- c(warns, conditionMessage(w))
+        invokeRestart("muffleWarning")
+      })
+    expect_false(fit$converged)
+    expect_equal(sum(grepl("IBSS algorithm did not converge", msgs)), 1)
+    expect_equal(sum(grepl("IBSS algorithm did not converge", warns)), 1)
+    # The per-panel fits keep their own convergence status.
+    expect_false(any(vapply(fit$single_panel_fits, `[[`, logical(1),
+                            "converged")))
+  }
+})
