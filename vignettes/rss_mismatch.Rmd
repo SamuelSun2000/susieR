@@ -35,7 +35,7 @@ data:
    [RSS diagnostic vignette](https://stephenslab.github.io/susieR/articles/susierss_diagnostic.html).
 2. **Fit with SuSiE-rRSS.** SuSiE-rRSS (robust RSS) is SuSiE-RSS made
    robust to an LD reference that does not exactly match the summary
-   statistics. It is run through `susie_rss` by setting `R_finite = B` and
+   statistics. It is run through `susie_rss` function by setting `R_finite = B` and
    `R_mismatch = "eb_mix"`, where `B` is the sample size of your LD
    reference panel. This accounts for an LD matrix estimated from an
    external reference panel, drawn from a population that can differ from
@@ -49,7 +49,7 @@ data:
 
 ## Load the package and data
 
-```{r load, message = FALSE}
+```{r load, message = FALSE, eval=FALSE}
 library(susieR)
 # The example data are too large to ship with the package, so they are
 # downloaded once per session. Replace data_url with the release asset URL.
@@ -76,6 +76,10 @@ variant. The first four cases simulate a phenotype from GTEx genotypes
 (n = 838). The multi-panel case simulates phenotypes for an
 African-ancestry cohort and a European-ancestry cohort and meta-analyzes
 them.
+
+```{r}
+cases = readRDS("../data/rss_mismatch_cases_trimmed.rds")
+```
 
 | Case | Step | Summary statistics | LD reference | Issue |
 |---|---|---|---|---|
