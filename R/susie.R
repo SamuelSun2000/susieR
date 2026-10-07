@@ -705,7 +705,7 @@ susie_ss <- function(XtX, Xty, yty, n,
 #'     (\code{Q_art > artifact_threshold}) or \code{R_sensitivity_flag}
 #'     (a credible set's log-BF attenuation \eqn{\ge}
 #'     \code{sensitivity_threshold}) is \code{TRUE});
-#'   \code{SER_flag} (identical to \code{R_reliability_flag}; \code{TRUE}
+#'   \code{SER_fallback} (identical to \code{R_reliability_flag}; \code{TRUE}
 #'     means the one-effect model in \code{ser_model} should be used
 #'     instead of the full fit).}
 #'
@@ -849,10 +849,10 @@ susie_rss <- function(z = NULL, R = NULL, n = NULL,
   # Run main SuSiE algorithm
   model <- susie_workhorse(susie_objects$data, susie_objects$params)
 
-  # SER_flag mirrors R_reliability_flag: TRUE means use the one-effect
+  # SER_fallback mirrors R_reliability_flag: TRUE means use the one-effect
   # fallback in fit$R_finite_diagnostics$ser_model instead of the full fit.
   if (!is.null(model$R_finite_diagnostics))
-    model$R_finite_diagnostics$SER_flag <-
+    model$R_finite_diagnostics$SER_fallback <-
       isTRUE(model$R_finite_diagnostics$R_reliability_flag)
 
   # Attach multi-panel metadata when the constructor ran sub-fits to pick

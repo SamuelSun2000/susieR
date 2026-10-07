@@ -378,7 +378,7 @@ In addition to the standard \code{"susie"} output (see
     (\code{Q_art > artifact_threshold}) or \code{R_sensitivity_flag}
     (a credible set's log-BF attenuation \eqn{\ge}
     \code{sensitivity_threshold}) is \code{TRUE});
-  \code{SER_flag} (identical to \code{R_reliability_flag}; \code{TRUE}
+  \code{SER_fallback} (identical to \code{R_reliability_flag}; \code{TRUE}
     means the one-effect model in \code{ser_model} should be used
     instead of the full fit).}
 
